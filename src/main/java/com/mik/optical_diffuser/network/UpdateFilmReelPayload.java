@@ -1,7 +1,7 @@
 package com.mik.optical_diffuser.network;
 
 import com.mik.optical_diffuser.OpticalDiffuserMod;
-import com.mik.optical_diffuser.item.FilmReelItem;
+import com.mik.optical_diffuser.item.FilmReelBlockItem;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
@@ -34,8 +34,8 @@ public record UpdateFilmReelPayload(InteractionHand hand, String url) implements
             Player player = context.player();
             if (player != null) {
                 ItemStack stack = player.getItemInHand(payload.hand());
-                if (stack.getItem() instanceof FilmReelItem) {
-                    FilmReelItem.setUrl(stack, payload.url());
+                if (stack.getItem() instanceof FilmReelBlockItem) {
+                    FilmReelBlockItem.setUrl(stack, payload.url());
                 }
             }
         });

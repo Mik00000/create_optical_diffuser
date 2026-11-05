@@ -1,6 +1,7 @@
 {
   "block.create_optical_diffuser.optical_diffuser": "Optical Diffuser (Lighthouse)",
   "block.create_optical_diffuser.lead_glass": "Lead Glass",
+  "block.create_optical_diffuser.film_reel": "Film Reel",
   "item.create_optical_diffuser.focusing_lens": "Focusing Lens",
   "item.create_optical_diffuser.dispersing_lens": "Dispersing Lens",
   "item.create_optical_diffuser.film_reel": "Film Reel",

@@ -1,12 +1,11 @@
 package com.mik.optical_diffuser.client.media;
 
+import com.mik.optical_diffuser.block.entity.FilmReelBlockEntity;
 import com.mik.optical_diffuser.block.entity.OpticalDiffuserBlockEntity;
-import com.mik.optical_diffuser.item.FilmReelItem;
-import com.mik.optical_diffuser.item.ProjectorLensItem;
+import com.mik.optical_diffuser.item.FilmReelBlockItem;
 import net.minecraft.client.Minecraft;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
-import org.watermedia.api.player.ALEngine;
-import org.watermedia.api.player.GLEngine;
 import org.watermedia.api.player.MediaPlayer;
 import org.watermedia.api.player.PlayerAPI;
 import org.watermedia.api.player.SFXEngine;
@@ -23,10 +22,13 @@ public class DiffuserMediaManager {
     private String currentUrl = "";
     private boolean soundEnabled = false;
     private float lastSpeed = 1.0f;
-    private long lastTimeMs = 0;
+    private long lastRecordedTimeMs = 0;
+    private int audioUpdateCooldown = 0;
+    private int rewindTickCounter = 0;
+    private boolean wasRewinding = false;
 
     private DynamicMediaTexture dynamicTexture = null;
-    private net.minecraft.resources.ResourceLocation dynamicLocation = null;
+    private ResourceLocation dynamicLocation = null;
 
     public DiffuserMediaManager(OpticalDiffuserBlockEntity diffuser) {
         this.diffuser = diffuser;
@@ -53,11 +55,25 @@ public class DiffuserMediaManager {
         boolean isProjector = (module == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SILENT
                 || module == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SOUND);
 
-        ItemStack reel = diffuser.getInstalledFilmReelItem();
-        String url = FilmReelItem.getUrl(reel);
-        boolean sound = (module == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SOUND);
+        FilmReelBlockEntity filmReel = diffuser.getConnectedFilmReel();
+        String url = "";
+        float rpm = 0.0f;
+        long savedTime = 0;
 
-        // Check if conditions permit playback
+        if (filmReel != null) {
+            url = filmReel.getUrl();
+            rpm = filmReel.getSpeed();
+            savedTime = filmReel.getCurrentTimeMs();
+        } else {
+            ItemStack reel = diffuser.getInstalledFilmReelItem();
+            if (!reel.isEmpty()) {
+                url = FilmReelBlockItem.getUrl(reel);
+                savedTime = FilmReelBlockItem.getCurrentTimeMs(reel);
+                rpm = 0.0f;
+            }
+        }
+
+        boolean sound = (module == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SOUND);
         boolean canPlay = isProjector && !url.isEmpty() && diffuser.isLightEnabled();
 
         if (!canPlay) {
@@ -67,63 +83,92 @@ public class DiffuserMediaManager {
             return;
         }
 
-        // URL changed or player not initialized
+        // Initialize media if URL changed or sound mode toggled
         if (player == null || !url.equals(currentUrl) || sound != soundEnabled) {
-            startMedia(url, sound);
+            startMedia(url, sound, savedTime);
         }
 
         if (player != null) {
-            // Kinetic speed control: Base 1.0x = 16 RPM (Hand Crank)
-            float rpm = diffuser.getSpeed();
             float speedFactor = rpm / 16.0f;
 
             if (Math.abs(rpm) < 0.1f) {
-                // Stopped / 0 RPM
+                // 0 RPM: Pause
                 if (player.playing()) {
                     player.pause(true);
                 }
+                wasRewinding = false;
             } else if (speedFactor > 0) {
                 // Forward playback
+                if (wasRewinding) {
+                    player.seek(this.lastRecordedTimeMs);
+                    wasRewinding = false;
+                }
+
                 if (player.paused()) {
                     player.resume();
                 }
+
                 float clampedSpeed = Math.max(0.1f, Math.min(4.0f, speedFactor));
                 if (Math.abs(clampedSpeed - lastSpeed) > 0.05f) {
                     player.speed(clampedSpeed);
                     lastSpeed = clampedSpeed;
                 }
+
+                long curTime = player.time();
+                if (curTime > 0) {
+                    this.lastRecordedTimeMs = curTime;
+                    if (filmReel != null) {
+                        filmReel.setCurrentTimeMs(curTime);
+                    }
+                }
             } else {
-                // Negative RPM: Rewind effect
+                // Negative RPM: Rewind playback
+                wasRewinding = true;
                 if (player.playing()) {
                     player.pause(true);
                 }
-                long cur = player.time();
-                long stepMs = (long) (Math.abs(speedFactor) * 50); // Rewind per tick
-                long targetTime = Math.max(0, cur - stepMs);
-                player.seekQuick(targetTime);
+
+                long stepMs = (long) (Math.abs(speedFactor) * 50); // 50ms per game tick = 1x real-time at 16 RPM
+                this.lastRecordedTimeMs = Math.max(0, this.lastRecordedTimeMs - stepMs);
+
+                if (filmReel != null) {
+                    filmReel.setCurrentTimeMs(this.lastRecordedTimeMs);
+                }
+
+                rewindTickCounter++;
+                if (Math.abs(speedFactor) <= 1.25f) {
+                    player.previousFrame();
+                } else if (rewindTickCounter % 3 == 0) {
+                    player.seekQuick(this.lastRecordedTimeMs);
+                }
             }
 
-            // Spatial 3D Audio update if sound is enabled
+            // Throttled Spatial 3D Audio update (every 5 ticks = 4 Hz)
             if (sound && player.spatial()) {
-                double px = diffuser.getBlockPos().getX() + 0.5;
-                double py = diffuser.getBlockPos().getY() + 0.5;
-                double pz = diffuser.getBlockPos().getZ() + 0.5;
-                player.spatialAudio(new SFXEngine.SpatialAudio(
-                        px, py, pz,
-                        4.0f,  // Reference distance (full volume)
-                        48.0f, // Max audibility distance
-                        1.0f,  // Rolloff factor
-                        false, // Aux only
-                        null   // Default environment
-                ));
+                audioUpdateCooldown++;
+                if (audioUpdateCooldown >= 5) {
+                    audioUpdateCooldown = 0;
+                    double px = diffuser.getBlockPos().getX() + 0.5;
+                    double py = diffuser.getBlockPos().getY() + 0.5;
+                    double pz = diffuser.getBlockPos().getZ() + 0.5;
+                    player.spatialAudio(new SFXEngine.SpatialAudio(
+                            px, py, pz,
+                            4.0f,
+                            48.0f,
+                            1.0f,
+                            false,
+                            null
+                    ));
+                }
             }
         }
     }
 
-    private void startMedia(String url, boolean sound) {
+    private void startMedia(String url, boolean sound, long resumeTimeMs) {
         release();
         this.currentUrl = url;
         this.soundEnabled = sound;
+        this.lastRecordedTimeMs = resumeTimeMs;
 
         try {
             var mrl = PlayerAPI.mrl(url);
@@ -139,6 +184,9 @@ public class DiffuserMediaManager {
                 this.player.repeat(true);
                 this.player.start();
                 this.lastSpeed = 1.0f;
+                if (resumeTimeMs > 0) {
+                    this.player.seek(resumeTimeMs);
+                }
             }
         } catch (Throwable t) {
             t.printStackTrace();
@@ -155,13 +203,13 @@ public class DiffuserMediaManager {
         return -1;
     }
 
-    public synchronized net.minecraft.resources.ResourceLocation getTextureLocation() {
+    public synchronized ResourceLocation getTextureLocation() {
         int texId = getTexture();
         if (texId <= 0) return null;
 
         if (this.dynamicTexture == null) {
             var pos = diffuser.getBlockPos();
-            this.dynamicLocation = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
+            this.dynamicLocation = ResourceLocation.fromNamespaceAndPath(
                     com.mik.optical_diffuser.OpticalDiffuserMod.MOD_ID,
                     "screen_" + pos.getX() + "_" + pos.getY() + "_" + pos.getZ()
             );
@@ -192,5 +240,6 @@ public class DiffuserMediaManager {
             dynamicTexture = null;
         }
         currentUrl = "";
+        lastRecordedTimeMs = 0;
     }
 }

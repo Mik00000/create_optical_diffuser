@@ -1,13 +1,14 @@
 package com.mik.optical_diffuser.client.gui;
 
-import com.mik.optical_diffuser.item.FilmReelItem;
+import com.mik.optical_diffuser.item.FilmReelBlockItem;
+import com.mik.optical_diffuser.network.UpdateFilmReelBlockPayload;
 import com.mik.optical_diffuser.network.UpdateFilmReelPayload;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.network.chat.CommonComponents;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
@@ -22,16 +23,32 @@ public class FilmReelScreen extends Screen {
 
     private final InteractionHand hand;
     private final ItemStack stack;
+    private final BlockPos blockPos;
+    private final String initialUrl;
     private EditBox urlInput;
 
     public FilmReelScreen(InteractionHand hand, ItemStack stack) {
         super(Component.translatable("gui.create_optical_diffuser.film_reel.title"));
         this.hand = hand;
         this.stack = stack;
+        this.blockPos = null;
+        this.initialUrl = FilmReelBlockItem.getUrl(stack);
     }
 
-    public static void open(InteractionHand hand, ItemStack stack) {
+    public FilmReelScreen(BlockPos blockPos, String currentUrl) {
+        super(Component.translatable("gui.create_optical_diffuser.film_reel.title"));
+        this.hand = null;
+        this.stack = ItemStack.EMPTY;
+        this.blockPos = blockPos;
+        this.initialUrl = currentUrl != null ? currentUrl : "";
+    }
+
+    public static void openHand(InteractionHand hand, ItemStack stack) {
         Minecraft.getInstance().setScreen(new FilmReelScreen(hand, stack));
+    }
+
+    public static void openBlock(BlockPos pos, String currentUrl) {
+        Minecraft.getInstance().setScreen(new FilmReelScreen(pos, currentUrl));
     }
 
     @Override
@@ -43,7 +60,7 @@ public class FilmReelScreen extends Screen {
 
         this.urlInput = new EditBox(this.font, centerX - 140, centerY - 20, 220, 20, Component.translatable("gui.create_optical_diffuser.film_reel.url_label"));
         this.urlInput.setMaxLength(2048);
-        this.urlInput.setValue(FilmReelItem.getUrl(stack));
+        this.urlInput.setValue(this.initialUrl);
         this.addRenderableWidget(this.urlInput);
 
         // Native File Dialog Browse button
@@ -64,13 +81,13 @@ public class FilmReelScreen extends Screen {
 
     private void openNativeFileDialog() {
         new Thread(() -> {
-            try (MemoryStack stack = MemoryStack.stackPush()) {
-                PointerBuffer filters = stack.mallocPointer(5);
-                filters.put(stack.UTF8("*.mp4"));
-                filters.put(stack.UTF8("*.mkv"));
-                filters.put(stack.UTF8("*.avi"));
-                filters.put(stack.UTF8("*.webm"));
-                filters.put(stack.UTF8("*.mov"));
+            try (MemoryStack mem = MemoryStack.stackPush()) {
+                PointerBuffer filters = mem.mallocPointer(5);
+                filters.put(mem.UTF8("*.mp4"));
+                filters.put(mem.UTF8("*.mkv"));
+                filters.put(mem.UTF8("*.avi"));
+                filters.put(mem.UTF8("*.webm"));
+                filters.put(mem.UTF8("*.mov"));
                 filters.flip();
 
                 String result = TinyFileDialogs.tinyfd_openFileDialog(
@@ -98,7 +115,11 @@ public class FilmReelScreen extends Screen {
 
     private void saveAndClose() {
         String url = this.urlInput.getValue().trim();
-        PacketDistributor.sendToServer(new UpdateFilmReelPayload(this.hand, url));
+        if (this.blockPos != null) {
+            PacketDistributor.sendToServer(new UpdateFilmReelBlockPayload(this.blockPos, url));
+        } else if (this.hand != null) {
+            PacketDistributor.sendToServer(new UpdateFilmReelPayload(this.hand, url));
+        }
         this.onClose();
     }
 

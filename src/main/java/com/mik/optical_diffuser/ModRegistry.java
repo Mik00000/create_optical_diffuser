@@ -62,8 +62,17 @@ public class ModRegistry {
             () -> new Item(new Item.Properties().stacksTo(16))
     );
 
-    public static final DeferredItem<com.mik.optical_diffuser.item.FilmReelItem> FILM_REEL = ITEMS.register("film_reel",
-            () -> new com.mik.optical_diffuser.item.FilmReelItem(new Item.Properties().stacksTo(1))
+    public static final DeferredBlock<com.mik.optical_diffuser.block.FilmReelBlock> FILM_REEL_BLOCK = BLOCKS.register("film_reel",
+            () -> new com.mik.optical_diffuser.block.FilmReelBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_BROWN)
+                    .strength(2.0F)
+                    .sound(SoundType.NETHERITE_BLOCK)
+                    .noOcclusion()
+            )
+    );
+
+    public static final DeferredItem<com.mik.optical_diffuser.item.FilmReelBlockItem> FILM_REEL = ITEMS.register("film_reel",
+            () -> new com.mik.optical_diffuser.item.FilmReelBlockItem(FILM_REEL_BLOCK.get(), new Item.Properties().stacksTo(1))
     );
 
     public static final DeferredItem<com.mik.optical_diffuser.item.ProjectorLensItem> SILENT_PROJECTOR_LENS = ITEMS.register("silent_projector_lens",
@@ -76,6 +85,10 @@ public class ModRegistry {
 
     public static final Supplier<BlockEntityType<OpticalDiffuserBlockEntity>> OPTICAL_DIFFUSER_BE = BLOCK_ENTITY_TYPES.register("optical_diffuser",
             () -> BlockEntityType.Builder.of(OpticalDiffuserBlockEntity::new, OPTICAL_DIFFUSER.get()).build(null)
+    );
+
+    public static final Supplier<BlockEntityType<com.mik.optical_diffuser.block.entity.FilmReelBlockEntity>> FILM_REEL_BE = BLOCK_ENTITY_TYPES.register("film_reel",
+            () -> BlockEntityType.Builder.of(com.mik.optical_diffuser.block.entity.FilmReelBlockEntity::new, FILM_REEL_BLOCK.get()).build(null)
     );
 
     public static final DeferredHolder<MenuType<?>, MenuType<OpticalDiffuserMenu>> OPTICAL_DIFFUSER_MENU = MENUS.register("optical_diffuser",

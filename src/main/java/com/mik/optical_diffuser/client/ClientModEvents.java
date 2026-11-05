@@ -10,6 +10,7 @@ public class ClientModEvents {
 
     public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(ModRegistry.OPTICAL_DIFFUSER_BE.get(), OpticalDiffuserRenderer::new);
+        event.registerBlockEntityRenderer(ModRegistry.FILM_REEL_BE.get(), com.mik.optical_diffuser.client.render.FilmReelRenderer::new);
     }
 
     public static void registerScreens(RegisterMenuScreensEvent event) {

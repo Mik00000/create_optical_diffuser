@@ -28,12 +28,14 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.block.BeaconBeamBlock;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BeaconBeamBlock;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.IronBarsBlock;
 import net.minecraft.world.level.block.LightBlock;
@@ -630,10 +632,11 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
             }
         }
 
-        if (level != null && level.isClientSide && this.isActive()) {
-            if (level.getGameTime() % 2 == 0) {
+        if (level != null && level.isClientSide) {
+            if (this.isActive() && level.getGameTime() % 2 == 0) {
                 updateObstacleGrid();
             }
+            com.mik.optical_diffuser.client.media.DiffuserMediaManager.get(this).tick();
         }
 
         if (level != null && !level.isClientSide) {
@@ -648,6 +651,18 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                 clearIllumination();
             }
         }
+    }
+
+    public com.mik.optical_diffuser.block.entity.FilmReelBlockEntity getConnectedFilmReel() {
+        if (level == null) return null;
+        Direction facing = getBlockState().getValue(OpticalDiffuserBlock.FACING);
+        Direction right = OpticalDiffuserBlock.getRightDirection(facing);
+        BlockPos rightPos = getBlockPos().relative(right);
+        BlockEntity be = level.getBlockEntity(rightPos);
+        if (be instanceof com.mik.optical_diffuser.block.entity.FilmReelBlockEntity reel) {
+            return reel;
+        }
+        return null;
     }
 
     private void addLightCandidate(Level targetLevel, BlockPos p, Map<BlockPos, Integer> positions, int lightLevel) {
@@ -1279,6 +1294,8 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         super.destroy();
         if (level != null && !level.isClientSide) {
             clearIllumination();
+        } else if (level != null && level.isClientSide) {
+            com.mik.optical_diffuser.client.media.DiffuserMediaManager.remove(this);
         }
     }
 
@@ -1287,6 +1304,8 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         super.invalidate();
         if (level != null && !level.isClientSide) {
             clearIllumination();
+        } else if (level != null && level.isClientSide) {
+            com.mik.optical_diffuser.client.media.DiffuserMediaManager.remove(this);
         }
     }
 
@@ -1552,8 +1571,31 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                     .append(Component.literal("#" + (activeSlot + 1) + " (Active)").withStyle(ChatFormatting.GOLD)));
         }
 
-        if (!this.installedFilmReel.isEmpty()) {
-            String url = com.mik.optical_diffuser.item.FilmReelItem.getUrl(this.installedFilmReel);
+        com.mik.optical_diffuser.block.entity.FilmReelBlockEntity connectedReel = getConnectedFilmReel();
+        if (connectedReel != null) {
+            String url = connectedReel.getUrl();
+            String disp = url.isEmpty() ? "Empty (Right-Click to edit)" : (url.length() > 28 ? url.substring(0, 25) + "..." : url);
+            tooltip.add(Component.literal("  ")
+                    .append(Component.literal("Film Reel: ").withStyle(ChatFormatting.GRAY))
+                    .append(Component.literal(disp).withStyle(ChatFormatting.GOLD)));
+
+            long timeMs = connectedReel.getCurrentTimeMs();
+            if (timeMs > 0) {
+                long seconds = (timeMs / 1000) % 60;
+                long minutes = (timeMs / (1000 * 60)) % 60;
+                long hours = timeMs / (1000 * 60 * 60);
+                String timeStr = hours > 0
+                        ? String.format("%02d:%02d:%02d", hours, minutes, seconds)
+                        : String.format("%02d:%02d", minutes, seconds);
+                tooltip.add(Component.literal("  ")
+                        .append(Component.literal("Film Time: ").withStyle(ChatFormatting.GRAY))
+                        .append(Component.literal(timeStr).withStyle(ChatFormatting.AQUA)));
+            }
+            tooltip.add(Component.literal("  ")
+                    .append(Component.literal("Film Speed: ").withStyle(ChatFormatting.GRAY))
+                    .append(Component.literal(String.format("%.0f RPM", connectedReel.getSpeed())).withStyle(ChatFormatting.YELLOW)));
+        } else if (!this.installedFilmReel.isEmpty()) {
+            String url = com.mik.optical_diffuser.item.FilmReelBlockItem.getUrl(this.installedFilmReel);
             String disp = url.isEmpty() ? "Empty" : (url.length() > 28 ? url.substring(0, 25) + "..." : url);
             tooltip.add(Component.literal("  ")
                     .append(Component.literal("Film Reel: ").withStyle(ChatFormatting.GRAY))

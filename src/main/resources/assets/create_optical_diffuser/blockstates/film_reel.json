@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "create_optical_diffuser:block/film_reel"
+    },
+    "facing=east": {
+      "model": "create_optical_diffuser:block/film_reel",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "create_optical_diffuser:block/film_reel",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "create_optical_diffuser:block/film_reel",
+      "y": 270
+    }
+  }
+}

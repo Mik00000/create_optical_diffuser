@@ -33,7 +33,6 @@ public class ProjectorScreenRenderer {
         }
 
         DiffuserMediaManager media = DiffuserMediaManager.get(be);
-        media.tick();
         net.minecraft.resources.ResourceLocation texLoc = media.getTextureLocation();
         if (texLoc == null) {
             return;

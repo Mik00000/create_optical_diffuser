@@ -66,5 +66,10 @@ public class OpticalDiffuserMod {
                 com.mik.optical_diffuser.network.UpdateFilmReelPayload.STREAM_CODEC,
                 com.mik.optical_diffuser.network.UpdateFilmReelPayload::handle
         );
+        registrar.playToServer(
+                com.mik.optical_diffuser.network.UpdateFilmReelBlockPayload.TYPE,
+                com.mik.optical_diffuser.network.UpdateFilmReelBlockPayload.STREAM_CODEC,
+                com.mik.optical_diffuser.network.UpdateFilmReelBlockPayload::handle
+        );
     }
 }
