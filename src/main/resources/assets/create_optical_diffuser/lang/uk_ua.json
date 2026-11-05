@@ -1,6 +1,8 @@
 {
   "block.create_optical_diffuser.optical_diffuser": "Оптичний розсіювач (Маяк)",
   "block.create_optical_diffuser.lead_glass": "Свинцеве скло",
+  "item.create_optical_diffuser.focusing_lens": "Фокусуюча лінза",
+  "item.create_optical_diffuser.dispersing_lens": "Розсіювальна лінза",
   "gui.create_optical_diffuser.title": "Налаштування оптичного розсіювача",
   "itemGroup.create_optical_diffuser": "Оптичний розсіювач Create",
   "gui.create_optical_diffuser.goggles.title": "Властивості променя:",

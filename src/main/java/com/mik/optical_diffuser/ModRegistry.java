@@ -54,6 +54,14 @@ public class ModRegistry {
 
     public static final DeferredItem<BlockItem> LEAD_GLASS_ITEM = ITEMS.registerSimpleBlockItem("lead_glass", LEAD_GLASS);
 
+    public static final DeferredItem<Item> FOCUSING_LENS = ITEMS.register("focusing_lens",
+            () -> new Item(new Item.Properties().stacksTo(16))
+    );
+
+    public static final DeferredItem<Item> DISPERSING_LENS = ITEMS.register("dispersing_lens",
+            () -> new Item(new Item.Properties().stacksTo(16))
+    );
+
     public static final Supplier<BlockEntityType<OpticalDiffuserBlockEntity>> OPTICAL_DIFFUSER_BE = BLOCK_ENTITY_TYPES.register("optical_diffuser",
             () -> BlockEntityType.Builder.of(OpticalDiffuserBlockEntity::new, OPTICAL_DIFFUSER.get()).build(null)
     );

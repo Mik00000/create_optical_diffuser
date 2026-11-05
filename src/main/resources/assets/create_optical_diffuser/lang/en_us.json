@@ -1,6 +1,8 @@
 {
   "block.create_optical_diffuser.optical_diffuser": "Optical Diffuser (Lighthouse)",
   "block.create_optical_diffuser.lead_glass": "Lead Glass",
+  "item.create_optical_diffuser.focusing_lens": "Focusing Lens",
+  "item.create_optical_diffuser.dispersing_lens": "Dispersing Lens",
   "gui.create_optical_diffuser.title": "Optical Diffuser Settings",
   "itemGroup.create_optical_diffuser": "Create Optical Diffuser",
   "gui.create_optical_diffuser.goggles.title": "Beam Properties:",

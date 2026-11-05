@@ -234,8 +234,8 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
     public DiffuserModule getActiveModule() {
         if (!this.installedModule.isEmpty()) {
             String id = BuiltInRegistries.ITEM.getKey(this.installedModule.getItem()).toString();
-            if (id.equals("create_optical:beam_focuser")) return DiffuserModule.FOCUSER;
-            if (id.equals("create_optical:beam_condenser")) return DiffuserModule.CONDENSER;
+            if (id.equals("create_optical_diffuser:focusing_lens") || id.equals("create_optical:beam_focuser")) return DiffuserModule.FOCUSER;
+            if (id.equals("create_optical_diffuser:dispersing_lens") || id.equals("create_optical:beam_condenser")) return DiffuserModule.CONDENSER;
         }
         if (this.level != null) {
             Direction facing = getBlockState().getValue(OpticalDiffuserBlock.FACING);
@@ -1396,7 +1396,10 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         DiffuserModule mod = getActiveModule();
         tooltip.add(Component.literal("  ")
                 .append(Component.translatable("gui.create_optical_diffuser.goggles.module").withStyle(ChatFormatting.GRAY)));
-        if (mod == DiffuserModule.FOCUSER) {
+        if (!this.installedModule.isEmpty()) {
+            tooltip.add(Component.literal("    ")
+                    .append(this.installedModule.getHoverName().copy().withStyle(mod == DiffuserModule.FOCUSER ? ChatFormatting.GOLD : ChatFormatting.AQUA)));
+        } else if (mod == DiffuserModule.FOCUSER) {
             tooltip.add(Component.literal("    ")
                     .append(Component.literal("Beam Focuser (Фокусування)").withStyle(ChatFormatting.GOLD)));
         } else if (mod == DiffuserModule.CONDENSER) {

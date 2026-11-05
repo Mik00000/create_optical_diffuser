@@ -100,16 +100,13 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
         return id.contains("wrench");
     }
 
-    private boolean isFocuserItem(ItemStack stack) {
+    private boolean isLensItem(ItemStack stack) {
         if (stack.isEmpty()) return false;
         String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-        return id.equals("create_optical:beam_focuser");
-    }
-
-    private boolean isCondenserItem(ItemStack stack) {
-        if (stack.isEmpty()) return false;
-        String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-        return id.equals("create_optical:beam_condenser");
+        return id.equals("create_optical_diffuser:focusing_lens")
+                || id.equals("create_optical_diffuser:dispersing_lens")
+                || id.equals("create_optical:beam_focuser")
+                || id.equals("create_optical:beam_condenser");
     }
 
     @Override
@@ -125,7 +122,7 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
 
         BlockEntity be = level.getBlockEntity(pos);
         if (be instanceof OpticalDiffuserBlockEntity diffuser) {
-            if (isFocuserItem(stack) || isCondenserItem(stack)) {
+            if (isLensItem(stack)) {
                 if (!level.isClientSide) {
                     ItemStack oldModule = diffuser.getInstalledModuleItem();
                     ItemStack newModule = stack.copyWithCount(1);
@@ -153,21 +150,20 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
 
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
-        if (player.isShiftKeyDown()) {
-            BlockEntity be = level.getBlockEntity(pos);
-            if (be instanceof OpticalDiffuserBlockEntity diffuser) {
-                ItemStack installed = diffuser.getInstalledModuleItem();
-                if (!installed.isEmpty()) {
-                    if (!level.isClientSide) {
-                        diffuser.setInstalledModuleItem(ItemStack.EMPTY);
-                        if (!player.getInventory().add(installed)) {
-                            Block.popResource(level, pos, installed);
-                        }
-                        level.playSound(null, pos, net.minecraft.sounds.SoundEvents.ITEM_FRAME_REMOVE_ITEM, net.minecraft.sounds.SoundSource.BLOCKS, 1.0f, 1.0f);
-                        player.displayClientMessage(Component.translatable("chat.create_optical_diffuser.module_removed", installed.getHoverName()).withStyle(ChatFormatting.YELLOW), true);
+        // Shift + empty hand OR empty hand ПКМ removes installed lens/module
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be instanceof OpticalDiffuserBlockEntity diffuser) {
+            ItemStack installed = diffuser.getInstalledModuleItem();
+            if (!installed.isEmpty()) {
+                if (!level.isClientSide) {
+                    diffuser.setInstalledModuleItem(ItemStack.EMPTY);
+                    if (!player.getInventory().add(installed)) {
+                        Block.popResource(level, pos, installed);
                     }
-                    return InteractionResult.sidedSuccess(level.isClientSide);
+                    level.playSound(null, pos, net.minecraft.sounds.SoundEvents.ITEM_FRAME_REMOVE_ITEM, net.minecraft.sounds.SoundSource.BLOCKS, 1.0f, 1.0f);
+                    player.displayClientMessage(Component.translatable("chat.create_optical_diffuser.module_removed", installed.getHoverName()).withStyle(ChatFormatting.YELLOW), true);
                 }
+                return InteractionResult.sidedSuccess(level.isClientSide);
             }
         }
         return InteractionResult.PASS;

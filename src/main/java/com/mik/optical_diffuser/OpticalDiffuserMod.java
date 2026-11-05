@@ -46,6 +46,8 @@ public class OpticalDiffuserMod {
         if (COCreativeModeTabs.CO_BASE_CREATIVE_TAB.is(event.getTabKey())) {
             event.accept(ModRegistry.OPTICAL_DIFFUSER_ITEM.get());
             event.accept(ModRegistry.LEAD_GLASS_ITEM.get());
+            event.accept(ModRegistry.FOCUSING_LENS.get());
+            event.accept(ModRegistry.DISPERSING_LENS.get());
         }
     }
 
