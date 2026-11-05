@@ -124,6 +124,12 @@ public class ProjectorLensItem extends Item {
     public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> tooltip, TooltipFlag flag) {
         super.appendHoverText(stack, context, tooltip, flag);
 
+        if (soundEnabled) {
+            tooltip.add(Component.translatable("tooltip.create_optical_diffuser.sound_projector_lens.desc").withStyle(ChatFormatting.LIGHT_PURPLE));
+        } else {
+            tooltip.add(Component.translatable("tooltip.create_optical_diffuser.silent_projector_lens.desc").withStyle(ChatFormatting.GRAY));
+        }
+
         tooltip.add(Component.translatable("tooltip.create_optical_diffuser.projector_lens.use1").withStyle(ChatFormatting.GOLD));
         tooltip.add(Component.translatable("tooltip.create_optical_diffuser.projector_lens.use2").withStyle(ChatFormatting.AQUA));
 

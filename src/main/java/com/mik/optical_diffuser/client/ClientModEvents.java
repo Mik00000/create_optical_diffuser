@@ -1,19 +1,43 @@
 package com.mik.optical_diffuser.client;
 
 import com.mik.optical_diffuser.ModRegistry;
+import com.mik.optical_diffuser.OpticalDiffuserMod;
 import com.mik.optical_diffuser.client.gui.OpticalDiffuserScreen;
+import com.mik.optical_diffuser.client.render.FilmReelRenderer;
+import com.mik.optical_diffuser.client.render.ModShaders;
 import com.mik.optical_diffuser.client.render.OpticalDiffuserRenderer;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import net.minecraft.client.renderer.ShaderInstance;
+import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
+import net.neoforged.neoforge.client.event.RegisterShadersEvent;
+
+import java.io.IOException;
 
 public class ClientModEvents {
 
     public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(ModRegistry.OPTICAL_DIFFUSER_BE.get(), OpticalDiffuserRenderer::new);
-        event.registerBlockEntityRenderer(ModRegistry.FILM_REEL_BE.get(), com.mik.optical_diffuser.client.render.FilmReelRenderer::new);
+        event.registerBlockEntityRenderer(ModRegistry.FILM_REEL_BE.get(), FilmReelRenderer::new);
     }
 
     public static void registerScreens(RegisterMenuScreensEvent event) {
         event.register(ModRegistry.OPTICAL_DIFFUSER_MENU.get(), OpticalDiffuserScreen::new);
+    }
+
+    public static void registerShaders(RegisterShadersEvent event) {
+        try {
+            event.registerShader(
+                    new ShaderInstance(
+                            event.getResourceProvider(),
+                            ResourceLocation.fromNamespaceAndPath(OpticalDiffuserMod.MOD_ID, "rendertype_projector_monochrome"),
+                            DefaultVertexFormat.NEW_ENTITY
+                    ),
+                    ModShaders::setProjectorMonochromeShader
+            );
+        } catch (IOException e) {
+            OpticalDiffuserMod.LOGGER.error("Failed to register projector monochrome shader", e);
+        }
     }
 }

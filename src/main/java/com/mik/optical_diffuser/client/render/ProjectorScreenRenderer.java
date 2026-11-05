@@ -118,9 +118,10 @@ public class ProjectorScreenRenderer {
         float b = isSilent ? 0.88f * flicker : 0.92f * flicker;
         float a = 1.0f;
 
-        // Render textured quad with RenderType.entityTranslucentCull(texLoc)
-        // Works seamlessly across Iris shaders and vanilla pipeline
-        RenderType renderType = RenderType.entityTranslucentCull(texLoc);
+        // If silent cinema lens, use our monochrome core shader; otherwise full color
+        RenderType renderType = isSilent
+                ? ModShaders.getProjectorMonochrome(texLoc)
+                : RenderType.entityTranslucentCull(texLoc);
         VertexConsumer vertexConsumer = bufferSource.getBuffer(renderType);
 
         Matrix4f mat = poseStack.last().pose();

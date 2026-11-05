@@ -36,6 +36,7 @@ public class OpticalDiffuserMod {
             } catch (Throwable ignored) {}
             modEventBus.addListener(ClientModEvents::registerScreens);
             modEventBus.addListener(ClientModEvents::registerRenderers);
+            modEventBus.addListener(ClientModEvents::registerShaders);
             net.neoforged.neoforge.common.NeoForge.EVENT_BUS.register(new com.mik.optical_diffuser.client.DiffuserClientEffects());
         }
 
