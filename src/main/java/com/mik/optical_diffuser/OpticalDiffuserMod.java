@@ -31,6 +31,9 @@ public class OpticalDiffuserMod {
         modEventBus.addListener(this::addCreative);
 
         if (FMLEnvironment.dist == Dist.CLIENT) {
+            try {
+                org.watermedia.WaterMediaConfig.codecs.ffmpeg.hardwareAccel = false;
+            } catch (Throwable ignored) {}
             modEventBus.addListener(ClientModEvents::registerScreens);
             modEventBus.addListener(ClientModEvents::registerRenderers);
             net.neoforged.neoforge.common.NeoForge.EVENT_BUS.register(new com.mik.optical_diffuser.client.DiffuserClientEffects());

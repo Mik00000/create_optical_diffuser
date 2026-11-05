@@ -173,3 +173,4 @@ public class SpeakerBlock extends Block implements IBE<SpeakerBlockEntity> {
         }
     }
 }
+

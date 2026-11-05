@@ -111,3 +111,4 @@ public class SpeakerBlockEntity extends BlockEntity implements IHaveGoggleInform
         return true;
     }
 }
+

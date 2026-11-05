@@ -91,6 +91,8 @@ public class DiffuserMediaManager {
 
         if (player != null) {
             float speedFactor = rpm / 16.0f;
+            boolean isFastForward = speedFactor > 2.0f;
+            boolean isRewinding = speedFactor < -0.05f;
 
             if (Math.abs(rpm) < 0.1f) {
                 // 0 RPM: Pause
@@ -109,7 +111,9 @@ public class DiffuserMediaManager {
                     player.resume();
                 }
 
-                float clampedSpeed = Math.max(0.1f, Math.min(4.0f, speedFactor));
+                // Snap to 1.0x if near 16 RPM (13.5 to 18.5 RPM) for perfect natural pitch
+                float targetSpeed = (speedFactor >= 0.85f && speedFactor <= 1.15f) ? 1.0f : speedFactor;
+                float clampedSpeed = Math.max(0.25f, Math.min(4.0f, targetSpeed));
                 if (Math.abs(clampedSpeed - lastSpeed) > 0.05f) {
                     player.speed(clampedSpeed);
                     lastSpeed = clampedSpeed;
@@ -142,13 +146,29 @@ public class DiffuserMediaManager {
                 } else if (rewindTickCounter % 3 == 0) {
                     player.seekQuick(this.lastRecordedTimeMs);
                 }
+
+                // Mechanical projector reel click sound while rewinding
+                if (rewindTickCounter % 3 == 0 && diffuser.getLevel() != null) {
+                    var pos = diffuser.getBlockPos();
+                    diffuser.getLevel().playLocalSound(
+                            pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                            net.minecraft.sounds.SoundEvents.UI_BUTTON_CLICK.value(),
+                            net.minecraft.sounds.SoundSource.BLOCKS,
+                            0.20f,
+                            1.6f + (float) (Math.random() * 0.4f),
+                            false
+                    );
+                }
             }
 
             // Direct Audio Zone Check (Projector 12-block radius OR linked Speaker 9x9 zones)
             if (sound) {
                 Minecraft mc = Minecraft.getInstance();
                 boolean audible = false;
-                if (mc.player != null) {
+
+                // Mute during reverse playback (digital audio codecs cannot play backwards)
+                // and during fast-forward > 2.0x (to prevent high-pitched screeching)
+                if (!isRewinding && !isFastForward && mc.player != null) {
                     net.minecraft.world.phys.Vec3 playerPos = mc.player.position();
                     net.minecraft.world.phys.Vec3 diffuserCenter = net.minecraft.world.phys.Vec3.atCenterOf(diffuser.getBlockPos());
 

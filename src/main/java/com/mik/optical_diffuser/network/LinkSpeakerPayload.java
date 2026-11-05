@@ -43,3 +43,4 @@ public record LinkSpeakerPayload(BlockPos speakerPos, Optional<BlockPos> diffuse
         });
     }
 }
+
