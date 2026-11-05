@@ -72,6 +72,8 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
     }
 
     private ItemStack installedModule = ItemStack.EMPTY;
+    private final ItemStack[] carouselLenses = new ItemStack[]{ItemStack.EMPTY, ItemStack.EMPTY, ItemStack.EMPTY, ItemStack.EMPTY};
+    private float carouselAngle = 0.0f;
     private ItemStack installedFilmReel = ItemStack.EMPTY;
     private int redstonePower = 0;
 
@@ -244,9 +246,86 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         return this.installedFilmReel;
     }
 
+    public ItemStack[] getCarouselLenses() {
+        return this.carouselLenses;
+    }
+
+    public float getCarouselAngle() {
+        return this.carouselAngle;
+    }
+
+    public void setCarouselAngle(float angle) {
+        this.carouselAngle = angle;
+    }
+
+    public int getActiveCarouselSlot() {
+        // Active slot is the one closest to the front face (90 deg relative to left side)
+        // With 4 slots evenly spaced at 0, 90, 180, 270 deg:
+        float normalized = ((carouselAngle % 360.0f) + 360.0f) % 360.0f;
+        // Slot 1 is front at angle 0. As carousel turns by +angle:
+        int offset = Math.round(normalized / 90.0f) % 4;
+        return (1 - offset + 4) % 4;
+    }
+
+    public ItemStack getActiveLens() {
+        int slot = getActiveCarouselSlot();
+        if (slot >= 0 && slot < 4 && !this.carouselLenses[slot].isEmpty()) {
+            return this.carouselLenses[slot];
+        }
+        return this.installedModule;
+    }
+
+    public boolean insertCarouselLens(ItemStack stack) {
+        for (int i = 0; i < 4; i++) {
+            if (this.carouselLenses[i].isEmpty()) {
+                this.carouselLenses[i] = stack;
+                updateModuleAndRedstone();
+                updateBeamingState();
+                setChanged();
+                syncToClient();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public ItemStack removeLastCarouselLens() {
+        // Remove from current active slot if present, otherwise any non-empty slot
+        int active = getActiveCarouselSlot();
+        if (!this.carouselLenses[active].isEmpty()) {
+            ItemStack removed = this.carouselLenses[active];
+            this.carouselLenses[active] = ItemStack.EMPTY;
+            updateModuleAndRedstone();
+            updateBeamingState();
+            setChanged();
+            syncToClient();
+            return removed;
+        }
+        for (int i = 3; i >= 0; i--) {
+            if (!this.carouselLenses[i].isEmpty()) {
+                ItemStack removed = this.carouselLenses[i];
+                this.carouselLenses[i] = ItemStack.EMPTY;
+                updateModuleAndRedstone();
+                updateBeamingState();
+                setChanged();
+                syncToClient();
+                return removed;
+            }
+        }
+        return ItemStack.EMPTY;
+    }
+
+    public boolean hasAnyCarouselLens() {
+        for (int i = 0; i < 4; i++) {
+            if (!this.carouselLenses[i].isEmpty()) return true;
+        }
+        return false;
+    }
+
     public DiffuserModule getActiveModule() {
-        if (!this.installedModule.isEmpty()) {
-            String id = BuiltInRegistries.ITEM.getKey(this.installedModule.getItem()).toString();
+        ItemStack active = getActiveLens();
+        if (!active.isEmpty()) {
+            String id = BuiltInRegistries.ITEM.getKey(active.getItem()).toString();
             if (id.equals("create_optical_diffuser:focusing_lens") || id.equals("create_optical:beam_focuser")) return DiffuserModule.FOCUSER;
             if (id.equals("create_optical_diffuser:dispersing_lens") || id.equals("create_optical:beam_condenser")) return DiffuserModule.CONDENSER;
             if (id.equals("create_optical_diffuser:silent_projector_lens")) return DiffuserModule.PROJECTOR_SILENT;
@@ -533,6 +612,15 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         super.tick();
 
         float effectiveSpeed = getEffectiveSpinSpeed();
+        if (effectiveSpeed != 0.0f) {
+            this.carouselAngle += (effectiveSpeed * 6.0f) / 20.0f;
+            if (this.carouselAngle >= 360.0f) {
+                this.carouselAngle -= 360.0f;
+            } else if (this.carouselAngle < 0.0f) {
+                this.carouselAngle += 360.0f;
+            }
+        }
+
         if (this.isActive() && effectiveSpeed != 0.0f) {
             this.currentRotation += (effectiveSpeed * 6.0f) / 20.0f;
             if (this.currentRotation >= 360.0f) {
@@ -1316,6 +1404,7 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         tag.putInt("RedstoneMode", this.redstoneMode);
         tag.putInt("RedstonePower", this.redstonePower);
         tag.putFloat("CurrentRotation", this.currentRotation);
+        tag.putFloat("CarouselAngle", this.carouselAngle);
 
         tag.putInt("CachedLaserR", this.cachedLaserR);
         tag.putInt("CachedLaserG", this.cachedLaserG);
@@ -1325,6 +1414,11 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
 
         if (!this.installedModule.isEmpty()) {
             tag.put("InstalledModule", this.installedModule.save(registries, new CompoundTag()));
+        }
+        for (int i = 0; i < 4; i++) {
+            if (!this.carouselLenses[i].isEmpty()) {
+                tag.put("CarouselLens" + i, this.carouselLenses[i].save(registries, new CompoundTag()));
+            }
         }
         if (!this.installedFilmReel.isEmpty()) {
             tag.put("InstalledFilmReel", this.installedFilmReel.save(registries, new CompoundTag()));
@@ -1367,6 +1461,7 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         if (tag.contains("RedstoneMode")) this.redstoneMode = tag.getInt("RedstoneMode");
         if (tag.contains("RedstonePower")) this.redstonePower = tag.getInt("RedstonePower");
         if (tag.contains("CurrentRotation")) this.currentRotation = tag.getFloat("CurrentRotation");
+        if (tag.contains("CarouselAngle")) this.carouselAngle = tag.getFloat("CarouselAngle");
 
         if (tag.contains("CachedLaserR")) this.cachedLaserR = tag.getInt("CachedLaserR");
         if (tag.contains("CachedLaserG")) this.cachedLaserG = tag.getInt("CachedLaserG");
@@ -1378,6 +1473,14 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
             this.installedModule = ItemStack.parse(registries, tag.getCompound("InstalledModule")).orElse(ItemStack.EMPTY);
         } else {
             this.installedModule = ItemStack.EMPTY;
+        }
+
+        for (int i = 0; i < 4; i++) {
+            if (tag.contains("CarouselLens" + i, 10)) {
+                this.carouselLenses[i] = ItemStack.parse(registries, tag.getCompound("CarouselLens" + i)).orElse(ItemStack.EMPTY);
+            } else {
+                this.carouselLenses[i] = ItemStack.EMPTY;
+            }
         }
 
         if (tag.contains("InstalledFilmReel", 10)) {
@@ -1420,7 +1523,8 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         DiffuserModule mod = getActiveModule();
         tooltip.add(Component.literal("  ")
                 .append(Component.translatable("gui.create_optical_diffuser.goggles.module").withStyle(ChatFormatting.GRAY)));
-        if (!this.installedModule.isEmpty()) {
+        ItemStack activeLens = getActiveLens();
+        if (!activeLens.isEmpty()) {
             ChatFormatting col = switch (mod) {
                 case FOCUSER -> ChatFormatting.GOLD;
                 case CONDENSER -> ChatFormatting.AQUA;
@@ -1429,16 +1533,23 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                 default -> ChatFormatting.YELLOW;
             };
             tooltip.add(Component.literal("    ")
-                    .append(this.installedModule.getHoverName().copy().withStyle(col)));
+                    .append(activeLens.getHoverName().copy().withStyle(col)));
         } else if (mod == DiffuserModule.FOCUSER) {
             tooltip.add(Component.literal("    ")
-                    .append(Component.literal("Beam Focuser (Фокусування)").withStyle(ChatFormatting.GOLD)));
+                    .append(Component.literal("Beam Focuser (Focusing)").withStyle(ChatFormatting.GOLD)));
         } else if (mod == DiffuserModule.CONDENSER) {
             tooltip.add(Component.literal("    ")
-                    .append(Component.literal("Beam Condenser (Розсіювання)").withStyle(ChatFormatting.AQUA)));
+                    .append(Component.literal("Beam Condenser (Dispersing)").withStyle(ChatFormatting.AQUA)));
         } else {
             tooltip.add(Component.literal("    ")
                     .append(Component.translatable("gui.create_optical_diffuser.goggles.module_none").withStyle(ChatFormatting.DARK_GRAY)));
+        }
+
+        if (hasAnyCarouselLens()) {
+            int activeSlot = getActiveCarouselSlot();
+            tooltip.add(Component.literal("  ")
+                    .append(Component.literal("Carousel Slot: ").withStyle(ChatFormatting.GRAY))
+                    .append(Component.literal("#" + (activeSlot + 1) + " (Active)").withStyle(ChatFormatting.GOLD)));
         }
 
         if (!this.installedFilmReel.isEmpty()) {

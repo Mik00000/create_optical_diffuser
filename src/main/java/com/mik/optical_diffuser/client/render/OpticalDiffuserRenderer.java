@@ -78,20 +78,23 @@ public class OpticalDiffuserRenderer implements BlockEntityRenderer<OpticalDiffu
 
     @Override
     public void render(OpticalDiffuserBlockEntity be, float partialTicks, PoseStack poseStack, MultiBufferSource bufferSource, int packedLight, int packedOverlay) {
-        // 1. Render rotating kinetic shaft connected to the bottom (or side) socket
+        // 1. Render rotating kinetic shaft connected to the left side or bottom socket
         if (be.getLevel() != null) {
             try {
                 Direction facing = be.getBlockState().getValue(OpticalDiffuserBlock.FACING);
-                Direction shaftFace = (facing == Direction.DOWN) ? Direction.NORTH : (facing == Direction.UP ? Direction.SOUTH : Direction.DOWN);
+                Direction left = OpticalDiffuserBlock.getLeftDirection(facing);
 
-                SuperByteBuffer shaft = CachedBuffers.partialFacing(AllPartialModels.SHAFT_HALF, be.getBlockState(), shaftFace);
-                int shaftLight = LevelRenderer.getLightColor(be.getLevel(), be.getBlockPos().relative(shaftFace));
+                SuperByteBuffer shaft = CachedBuffers.partialFacing(AllPartialModels.SHAFT_HALF, be.getBlockState(), left);
+                int shaftLight = LevelRenderer.getLightColor(be.getLevel(), be.getBlockPos().relative(left));
                 KineticBlockEntityRenderer.standardKineticRotationTransform(shaft, be, shaftLight);
                 shaft.renderInto(poseStack, bufferSource.getBuffer(RenderType.solid()));
             } catch (Exception ignored) {}
         }
 
-        // 2. Render optical beam only when active
+        // 2. Render 4-slot Lens Carousel Wheel on the left face
+        CarouselRenderer.renderCarousel(be, partialTicks, poseStack, bufferSource, packedLight, packedOverlay);
+
+        // 3. Render optical beam only when active
         if (!be.isActive()) {
             return;
         }
@@ -169,7 +172,7 @@ public class OpticalDiffuserRenderer implements BlockEntityRenderer<OpticalDiffu
         poseStack.popPose();
 
         // 3. Render Projector video screen if equipped with projector lens
-        ProjectorScreenRenderer.renderScreen(be, partialTicks, poseStack);
+        ProjectorScreenRenderer.renderScreen(be, partialTicks, poseStack, bufferSource);
     }
 
     /**
@@ -366,6 +369,16 @@ public class OpticalDiffuserRenderer implements BlockEntityRenderer<OpticalDiffu
     public AABB getRenderBoundingBox(OpticalDiffuserBlockEntity be) {
         BlockPos pos = be.getBlockPos();
         int r = be.getConeRange();
-        return new AABB(pos).inflate(r);
+        AABB box = new AABB(pos).inflate(r);
+
+        // Expand bounding box to enclose the configured projector screen
+        var coords = com.mik.optical_diffuser.item.ProjectorLensItem.getScreenCoords(be.getActiveLens());
+        if (coords.isComplete()) {
+            box = box.minmax(new AABB(
+                    coords.pos1.getX(), coords.pos1.getY(), coords.pos1.getZ(),
+                    coords.pos2.getX() + 1, coords.pos2.getY() + 1, coords.pos2.getZ() + 1
+            ).inflate(2.0));
+        }
+        return box;
     }
 }

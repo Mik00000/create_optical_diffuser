@@ -63,9 +63,25 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
                 .setValue(FACING, context.getNearestLookingDirection().getOpposite());
     }
 
+    public static Direction getLeftDirection(Direction facing) {
+        return switch (facing) {
+            case NORTH -> Direction.WEST;
+            case SOUTH -> Direction.EAST;
+            case WEST  -> Direction.SOUTH;
+            case EAST  -> Direction.NORTH;
+            case UP    -> Direction.WEST;
+            case DOWN  -> Direction.WEST;
+        };
+    }
+
     @Override
     public boolean hasShaftTowards(LevelReader world, BlockPos pos, BlockState state, Direction face) {
         Direction facing = state.getValue(FACING);
+        Direction left = getLeftDirection(facing);
+        // Connect kinetic shaft on the left side (turret drive) or bottom
+        if (face == left) {
+            return true;
+        }
         if (facing == Direction.DOWN) {
             return face == Direction.NORTH;
         }
@@ -78,10 +94,8 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
     @Override
     public Direction.Axis getRotationAxis(BlockState state) {
         Direction facing = state.getValue(FACING);
-        if (facing == Direction.DOWN || facing == Direction.UP) {
-            return Direction.Axis.Z;
-        }
-        return Direction.Axis.Y;
+        Direction left = getLeftDirection(facing);
+        return left.getAxis();
     }
 
     @Override
@@ -153,22 +167,36 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
 
             if (isLensItem(stack)) {
                 if (!level.isClientSide) {
-                    ItemStack oldModule = diffuser.getInstalledModuleItem();
+                    Direction hitFace = hit.getDirection();
+                    Direction leftFace = getLeftDirection(state.getValue(FACING));
+
                     ItemStack newModule = stack.copyWithCount(1);
-                    diffuser.setInstalledModuleItem(newModule);
+                    boolean inserted = false;
 
-                    if (!player.isCreative()) {
-                        stack.shrink(1);
+                    // If clicked on left side where the carousel is located, insert into carousel
+                    if (hitFace == leftFace) {
+                        inserted = diffuser.insertCarouselLens(newModule);
                     }
 
-                    if (!oldModule.isEmpty()) {
-                        if (!player.getInventory().add(oldModule)) {
-                            Block.popResource(level, pos, oldModule);
+                    // If not inserted into carousel (or clicked on other faces), set as direct module
+                    if (!inserted) {
+                        ItemStack oldModule = diffuser.getInstalledModuleItem();
+                        diffuser.setInstalledModuleItem(newModule);
+                        if (!oldModule.isEmpty()) {
+                            if (!player.getInventory().add(oldModule)) {
+                                Block.popResource(level, pos, oldModule);
+                            }
                         }
+                        inserted = true;
                     }
 
-                    level.playSound(null, pos, net.minecraft.sounds.SoundEvents.ARMOR_EQUIP_NETHERITE.value(), net.minecraft.sounds.SoundSource.BLOCKS, 1.0f, 1.2f);
-                    player.displayClientMessage(Component.translatable("chat.create_optical_diffuser.module_installed", newModule.getHoverName()).withStyle(ChatFormatting.GOLD), true);
+                    if (inserted) {
+                        if (!player.isCreative()) {
+                            stack.shrink(1);
+                        }
+                        level.playSound(null, pos, net.minecraft.sounds.SoundEvents.ARMOR_EQUIP_NETHERITE.value(), net.minecraft.sounds.SoundSource.BLOCKS, 1.0f, 1.2f);
+                        player.displayClientMessage(Component.translatable("chat.create_optical_diffuser.module_installed", newModule.getHoverName()).withStyle(ChatFormatting.GOLD), true);
+                    }
                 }
                 return ItemInteractionResult.sidedSuccess(level.isClientSide);
             }
@@ -204,6 +232,20 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
                     }
                     level.playSound(null, pos, net.minecraft.sounds.SoundEvents.ITEM_FRAME_REMOVE_ITEM, net.minecraft.sounds.SoundSource.BLOCKS, 1.0f, 1.0f);
                     player.displayClientMessage(Component.translatable("chat.create_optical_diffuser.module_removed", installed.getHoverName()).withStyle(ChatFormatting.YELLOW), true);
+                }
+                return InteractionResult.sidedSuccess(level.isClientSide);
+            }
+
+            if (diffuser.hasAnyCarouselLens()) {
+                if (!level.isClientSide) {
+                    ItemStack removed = diffuser.removeLastCarouselLens();
+                    if (!removed.isEmpty()) {
+                        if (!player.getInventory().add(removed)) {
+                            Block.popResource(level, pos, removed);
+                        }
+                        level.playSound(null, pos, net.minecraft.sounds.SoundEvents.ITEM_FRAME_REMOVE_ITEM, net.minecraft.sounds.SoundSource.BLOCKS, 1.0f, 1.0f);
+                        player.displayClientMessage(Component.translatable("chat.create_optical_diffuser.module_removed", removed.getHoverName()).withStyle(ChatFormatting.YELLOW), true);
+                    }
                 }
                 return InteractionResult.sidedSuccess(level.isClientSide);
             }

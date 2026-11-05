@@ -25,6 +25,9 @@ public class DiffuserMediaManager {
     private float lastSpeed = 1.0f;
     private long lastTimeMs = 0;
 
+    private DynamicMediaTexture dynamicTexture = null;
+    private net.minecraft.resources.ResourceLocation dynamicLocation = null;
+
     public DiffuserMediaManager(OpticalDiffuserBlockEntity diffuser) {
         this.diffuser = diffuser;
     }
@@ -152,6 +155,24 @@ public class DiffuserMediaManager {
         return -1;
     }
 
+    public synchronized net.minecraft.resources.ResourceLocation getTextureLocation() {
+        int texId = getTexture();
+        if (texId <= 0) return null;
+
+        if (this.dynamicTexture == null) {
+            var pos = diffuser.getBlockPos();
+            this.dynamicLocation = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
+                    com.mik.optical_diffuser.OpticalDiffuserMod.MOD_ID,
+                    "screen_" + pos.getX() + "_" + pos.getY() + "_" + pos.getZ()
+            );
+            this.dynamicTexture = new DynamicMediaTexture(this.dynamicLocation);
+            Minecraft.getInstance().getTextureManager().register(this.dynamicLocation, this.dynamicTexture);
+        }
+
+        this.dynamicTexture.updateTextureId(texId);
+        return this.dynamicLocation;
+    }
+
     public synchronized MediaPlayer getPlayer() {
         return player;
     }
@@ -162,6 +183,13 @@ public class DiffuserMediaManager {
                 player.release();
             } catch (Throwable ignored) {}
             player = null;
+        }
+        if (dynamicLocation != null) {
+            try {
+                Minecraft.getInstance().getTextureManager().release(dynamicLocation);
+            } catch (Throwable ignored) {}
+            dynamicLocation = null;
+            dynamicTexture = null;
         }
         currentUrl = "";
     }
