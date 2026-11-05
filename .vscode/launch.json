@@ -1,0 +1,49 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "request": "launch",
+      "name": "Client",
+      "presentation": {
+        "group": "Mod Development - create_optical_diffuser",
+        "order": 0
+      },
+      "projectName": "create_optical_diffuser",
+      "mainClass": "net.neoforged.devlaunch.Main",
+      "args": [
+        "@/home/mik/.local/share/atlauncher/instances/AllofAeronauticsNEW/create_optical_diffuser/build/moddev/clientRunProgramArgs.txt"
+      ],
+      "vmArgs": [
+        "@/home/mik/.local/share/atlauncher/instances/AllofAeronauticsNEW/create_optical_diffuser/build/moddev/clientRunVmArgs.txt",
+        "-Dfml.modFolders\u003dcreate_optical_diffuser%%/home/mik/.local/share/atlauncher/instances/AllofAeronauticsNEW/create_optical_diffuser/bin/main"
+      ],
+      "cwd": "${workspaceFolder}/run",
+      "env": {},
+      "console": "internalConsole",
+      "shortenCommandLine": "none"
+    },
+    {
+      "type": "java",
+      "request": "launch",
+      "name": "Server",
+      "presentation": {
+        "group": "Mod Development - create_optical_diffuser",
+        "order": 1
+      },
+      "projectName": "create_optical_diffuser",
+      "mainClass": "net.neoforged.devlaunch.Main",
+      "args": [
+        "@/home/mik/.local/share/atlauncher/instances/AllofAeronauticsNEW/create_optical_diffuser/build/moddev/serverRunProgramArgs.txt"
+      ],
+      "vmArgs": [
+        "@/home/mik/.local/share/atlauncher/instances/AllofAeronauticsNEW/create_optical_diffuser/build/moddev/serverRunVmArgs.txt",
+        "-Dfml.modFolders\u003dcreate_optical_diffuser%%/home/mik/.local/share/atlauncher/instances/AllofAeronauticsNEW/create_optical_diffuser/bin/main"
+      ],
+      "cwd": "${workspaceFolder}/run",
+      "env": {},
+      "console": "internalConsole",
+      "shortenCommandLine": "none"
+    }
+  ]
+}
