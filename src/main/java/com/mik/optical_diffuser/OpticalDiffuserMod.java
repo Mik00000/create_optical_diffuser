@@ -48,6 +48,9 @@ public class OpticalDiffuserMod {
             event.accept(ModRegistry.LEAD_GLASS_ITEM.get());
             event.accept(ModRegistry.FOCUSING_LENS.get());
             event.accept(ModRegistry.DISPERSING_LENS.get());
+            event.accept(ModRegistry.FILM_REEL.get());
+            event.accept(ModRegistry.SILENT_PROJECTOR_LENS.get());
+            event.accept(ModRegistry.SOUND_PROJECTOR_LENS.get());
         }
     }
 
@@ -57,6 +60,11 @@ public class OpticalDiffuserMod {
                 UpdateDiffuserPayload.TYPE,
                 UpdateDiffuserPayload.STREAM_CODEC,
                 UpdateDiffuserPayload::handle
+        );
+        registrar.playToServer(
+                com.mik.optical_diffuser.network.UpdateFilmReelPayload.TYPE,
+                com.mik.optical_diffuser.network.UpdateFilmReelPayload.STREAM_CODEC,
+                com.mik.optical_diffuser.network.UpdateFilmReelPayload::handle
         );
     }
 }

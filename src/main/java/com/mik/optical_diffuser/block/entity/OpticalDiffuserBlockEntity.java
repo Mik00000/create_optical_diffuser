@@ -66,10 +66,13 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
     public enum DiffuserModule {
         NONE,
         FOCUSER,
-        CONDENSER
+        CONDENSER,
+        PROJECTOR_SILENT,
+        PROJECTOR_SOUND
     }
 
     private ItemStack installedModule = ItemStack.EMPTY;
+    private ItemStack installedFilmReel = ItemStack.EMPTY;
     private int redstonePower = 0;
 
     private boolean hasBeam = false;
@@ -231,11 +234,23 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         return this.installedModule;
     }
 
+    public void setInstalledFilmReelItem(ItemStack reel) {
+        this.installedFilmReel = reel;
+        setChanged();
+        syncToClient();
+    }
+
+    public ItemStack getInstalledFilmReelItem() {
+        return this.installedFilmReel;
+    }
+
     public DiffuserModule getActiveModule() {
         if (!this.installedModule.isEmpty()) {
             String id = BuiltInRegistries.ITEM.getKey(this.installedModule.getItem()).toString();
             if (id.equals("create_optical_diffuser:focusing_lens") || id.equals("create_optical:beam_focuser")) return DiffuserModule.FOCUSER;
             if (id.equals("create_optical_diffuser:dispersing_lens") || id.equals("create_optical:beam_condenser")) return DiffuserModule.CONDENSER;
+            if (id.equals("create_optical_diffuser:silent_projector_lens")) return DiffuserModule.PROJECTOR_SILENT;
+            if (id.equals("create_optical_diffuser:sound_projector_lens")) return DiffuserModule.PROJECTOR_SOUND;
         }
         if (this.level != null) {
             Direction facing = getBlockState().getValue(OpticalDiffuserBlock.FACING);
@@ -1311,6 +1326,9 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         if (!this.installedModule.isEmpty()) {
             tag.put("InstalledModule", this.installedModule.save(registries, new CompoundTag()));
         }
+        if (!this.installedFilmReel.isEmpty()) {
+            tag.put("InstalledFilmReel", this.installedFilmReel.save(registries, new CompoundTag()));
+        }
 
         if (!clientPacket) {
             long[] posArray = new long[this.currentLightPositions.size()];
@@ -1362,6 +1380,12 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
             this.installedModule = ItemStack.EMPTY;
         }
 
+        if (tag.contains("InstalledFilmReel", 10)) {
+            this.installedFilmReel = ItemStack.parse(registries, tag.getCompound("InstalledFilmReel")).orElse(ItemStack.EMPTY);
+        } else {
+            this.installedFilmReel = ItemStack.EMPTY;
+        }
+
         if (!clientPacket && tag.contains("LightPositions")) {
             long[] posArray = tag.getLongArray("LightPositions");
             this.currentLightPositions.clear();
@@ -1397,8 +1421,15 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         tooltip.add(Component.literal("  ")
                 .append(Component.translatable("gui.create_optical_diffuser.goggles.module").withStyle(ChatFormatting.GRAY)));
         if (!this.installedModule.isEmpty()) {
+            ChatFormatting col = switch (mod) {
+                case FOCUSER -> ChatFormatting.GOLD;
+                case CONDENSER -> ChatFormatting.AQUA;
+                case PROJECTOR_SILENT -> ChatFormatting.WHITE;
+                case PROJECTOR_SOUND -> ChatFormatting.LIGHT_PURPLE;
+                default -> ChatFormatting.YELLOW;
+            };
             tooltip.add(Component.literal("    ")
-                    .append(this.installedModule.getHoverName().copy().withStyle(mod == DiffuserModule.FOCUSER ? ChatFormatting.GOLD : ChatFormatting.AQUA)));
+                    .append(this.installedModule.getHoverName().copy().withStyle(col)));
         } else if (mod == DiffuserModule.FOCUSER) {
             tooltip.add(Component.literal("    ")
                     .append(Component.literal("Beam Focuser (Фокусування)").withStyle(ChatFormatting.GOLD)));
@@ -1408,6 +1439,14 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         } else {
             tooltip.add(Component.literal("    ")
                     .append(Component.translatable("gui.create_optical_diffuser.goggles.module_none").withStyle(ChatFormatting.DARK_GRAY)));
+        }
+
+        if (!this.installedFilmReel.isEmpty()) {
+            String url = com.mik.optical_diffuser.item.FilmReelItem.getUrl(this.installedFilmReel);
+            String disp = url.isEmpty() ? "Empty" : (url.length() > 28 ? url.substring(0, 25) + "..." : url);
+            tooltip.add(Component.literal("  ")
+                    .append(Component.literal("Film Reel: ").withStyle(ChatFormatting.GRAY))
+                    .append(Component.literal(disp).withStyle(ChatFormatting.GOLD)));
         }
 
         tooltip.add(Component.literal("  ")

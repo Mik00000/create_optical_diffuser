@@ -105,8 +105,15 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
         String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
         return id.equals("create_optical_diffuser:focusing_lens")
                 || id.equals("create_optical_diffuser:dispersing_lens")
+                || id.equals("create_optical_diffuser:silent_projector_lens")
+                || id.equals("create_optical_diffuser:sound_projector_lens")
                 || id.equals("create_optical:beam_focuser")
                 || id.equals("create_optical:beam_condenser");
+    }
+
+    private boolean isFilmReelItem(ItemStack stack) {
+        if (stack.isEmpty()) return false;
+        return stack.getItem() instanceof com.mik.optical_diffuser.item.FilmReelItem;
     }
 
     @Override
@@ -122,6 +129,28 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
 
         BlockEntity be = level.getBlockEntity(pos);
         if (be instanceof OpticalDiffuserBlockEntity diffuser) {
+            if (isFilmReelItem(stack)) {
+                if (!level.isClientSide) {
+                    ItemStack oldReel = diffuser.getInstalledFilmReelItem();
+                    ItemStack newReel = stack.copyWithCount(1);
+                    diffuser.setInstalledFilmReelItem(newReel);
+
+                    if (!player.isCreative()) {
+                        stack.shrink(1);
+                    }
+
+                    if (!oldReel.isEmpty()) {
+                        if (!player.getInventory().add(oldReel)) {
+                            Block.popResource(level, pos, oldReel);
+                        }
+                    }
+
+                    level.playSound(null, pos, net.minecraft.sounds.SoundEvents.ARMOR_EQUIP_GENERIC.value(), net.minecraft.sounds.SoundSource.BLOCKS, 1.0f, 1.2f);
+                    player.displayClientMessage(Component.translatable("chat.create_optical_diffuser.film_reel_installed", newReel.getHoverName()).withStyle(ChatFormatting.GOLD), true);
+                }
+                return ItemInteractionResult.sidedSuccess(level.isClientSide);
+            }
+
             if (isLensItem(stack)) {
                 if (!level.isClientSide) {
                     ItemStack oldModule = diffuser.getInstalledModuleItem();
@@ -150,9 +179,22 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
 
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
-        // Shift + empty hand OR empty hand ПКМ removes installed lens/module
+        // Shift + empty hand OR empty hand ПКМ removes installed film reel first, then lens/module
         BlockEntity be = level.getBlockEntity(pos);
         if (be instanceof OpticalDiffuserBlockEntity diffuser) {
+            ItemStack installedReel = diffuser.getInstalledFilmReelItem();
+            if (!installedReel.isEmpty()) {
+                if (!level.isClientSide) {
+                    diffuser.setInstalledFilmReelItem(ItemStack.EMPTY);
+                    if (!player.getInventory().add(installedReel)) {
+                        Block.popResource(level, pos, installedReel);
+                    }
+                    level.playSound(null, pos, net.minecraft.sounds.SoundEvents.ITEM_FRAME_REMOVE_ITEM, net.minecraft.sounds.SoundSource.BLOCKS, 1.0f, 1.2f);
+                    player.displayClientMessage(Component.translatable("chat.create_optical_diffuser.film_reel_removed", installedReel.getHoverName()).withStyle(ChatFormatting.YELLOW), true);
+                }
+                return InteractionResult.sidedSuccess(level.isClientSide);
+            }
+
             ItemStack installed = diffuser.getInstalledModuleItem();
             if (!installed.isEmpty()) {
                 if (!level.isClientSide) {

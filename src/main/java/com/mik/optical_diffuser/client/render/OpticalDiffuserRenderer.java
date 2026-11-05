@@ -167,6 +167,9 @@ public class OpticalDiffuserRenderer implements BlockEntityRenderer<OpticalDiffu
         renderVolumetricCone(pose, consumer, be, range, lensBaseRadius, coneAngle, spinSpeed, partialTicks, polarization, red, green, blue, alphaMax);
 
         poseStack.popPose();
+
+        // 3. Render Projector video screen if equipped with projector lens
+        ProjectorScreenRenderer.renderScreen(be, partialTicks, poseStack);
     }
 
     /**
