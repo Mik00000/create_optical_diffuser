@@ -38,6 +38,19 @@ public class ProjectorScreenRenderer {
             return;
         }
 
+        com.mik.optical_diffuser.client.media.DynamicMediaTexture dynTex = media.getDynamicTexture();
+        if (dynTex == null) {
+            return;
+        }
+
+        boolean isSilent = (mod == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SILENT);
+        int srcTexId = media.getTexture();
+        dynTex.updateFromSource(srcTexId, isSilent);
+
+        if (!dynTex.hasValidFrame()) {
+            return;
+        }
+
         BlockPos p1 = coords.pos1;
         BlockPos p2 = coords.pos2;
 
@@ -112,16 +125,14 @@ public class ProjectorScreenRenderer {
         long gameTime = be.getLevel().getGameTime();
         float flicker = 0.94f + (float) Math.sin(gameTime * 1.8f) * 0.06f + (RANDOM.nextFloat() - 0.5f) * 0.04f;
 
-        boolean isSilent = (mod == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SILENT);
-        float r = isSilent ? 0.92f * flicker : 1.0f * flicker;
-        float g = isSilent ? 0.92f * flicker : 0.98f * flicker;
-        float b = isSilent ? 0.88f * flicker : 0.92f * flicker;
+        float r = 1.0f * flicker;
+        float g = 0.98f * flicker;
+        float b = 0.95f * flicker;
         float a = 1.0f;
 
-        // If silent cinema lens, use our monochrome core shader; otherwise full color
-        RenderType renderType = isSilent
-                ? ModShaders.getProjectorMonochrome(texLoc)
-                : RenderType.entityTranslucentCull(texLoc);
+        // Render textured quad with RenderType.entityTranslucentCull(texLoc)
+        // Works seamlessly across Iris shaders and vanilla pipeline
+        RenderType renderType = RenderType.entityTranslucentCull(texLoc);
         VertexConsumer vertexConsumer = bufferSource.getBuffer(renderType);
 
         Matrix4f mat = poseStack.last().pose();

@@ -52,3 +52,4 @@ public class ModShaders {
         return PROJECTOR_MONOCHROME.apply(texLoc);
     }
 }
+

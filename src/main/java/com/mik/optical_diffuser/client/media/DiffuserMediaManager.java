@@ -217,6 +217,7 @@ public class DiffuserMediaManager {
         this.lastRecordedTimeMs = resumeTimeMs;
 
         try {
+            com.mik.optical_diffuser.util.DiffuserLogger.info("Starting media player: url='{}', sound={}, resumeTime={}ms", url, sound, resumeTimeMs);
             var mrl = PlayerAPI.mrl(url);
             Minecraft mc = Minecraft.getInstance();
 
@@ -235,7 +236,7 @@ public class DiffuserMediaManager {
                 }
             }
         } catch (Throwable t) {
-            t.printStackTrace();
+            com.mik.optical_diffuser.util.DiffuserLogger.error("Failed to start media player for url=" + url, t);
         }
     }
 
@@ -250,9 +251,6 @@ public class DiffuserMediaManager {
     }
 
     public synchronized ResourceLocation getTextureLocation() {
-        int texId = getTexture();
-        if (texId <= 0) return null;
-
         if (this.dynamicTexture == null) {
             var pos = diffuser.getBlockPos();
             this.dynamicLocation = ResourceLocation.fromNamespaceAndPath(
@@ -261,10 +259,13 @@ public class DiffuserMediaManager {
             );
             this.dynamicTexture = new DynamicMediaTexture(this.dynamicLocation);
             Minecraft.getInstance().getTextureManager().register(this.dynamicLocation, this.dynamicTexture);
+            com.mik.optical_diffuser.util.DiffuserLogger.info("Registered dynamic media texture: {}", this.dynamicLocation);
         }
-
-        this.dynamicTexture.updateTextureId(texId);
         return this.dynamicLocation;
+    }
+
+    public synchronized DynamicMediaTexture getDynamicTexture() {
+        return this.dynamicTexture;
     }
 
     public synchronized MediaPlayer getPlayer() {
@@ -274,6 +275,7 @@ public class DiffuserMediaManager {
     public synchronized void release() {
         if (player != null) {
             try {
+                com.mik.optical_diffuser.util.DiffuserLogger.info("Releasing media player for url='{}'", currentUrl);
                 player.release();
             } catch (Throwable ignored) {}
             player = null;
