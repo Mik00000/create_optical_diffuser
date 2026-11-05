@@ -26,6 +26,7 @@ public class DiffuserMediaManager {
     private int audioUpdateCooldown = 0;
     private int rewindTickCounter = 0;
     private boolean wasRewinding = false;
+    private boolean isMuted = false;
 
     private DynamicMediaTexture dynamicTexture = null;
     private ResourceLocation dynamicLocation = null;
@@ -143,22 +144,47 @@ public class DiffuserMediaManager {
                 }
             }
 
-            // Throttled Spatial 3D Audio update (every 5 ticks = 4 Hz)
-            if (sound && player.spatial()) {
-                audioUpdateCooldown++;
-                if (audioUpdateCooldown >= 5) {
-                    audioUpdateCooldown = 0;
-                    double px = diffuser.getBlockPos().getX() + 0.5;
-                    double py = diffuser.getBlockPos().getY() + 0.5;
-                    double pz = diffuser.getBlockPos().getZ() + 0.5;
-                    player.spatialAudio(new SFXEngine.SpatialAudio(
-                            px, py, pz,
-                            4.0f,
-                            48.0f,
-                            1.0f,
-                            false,
-                            null
-                    ));
+            // Direct Audio Zone Check (Projector 12-block radius OR linked Speaker 9x9 zones)
+            if (sound) {
+                Minecraft mc = Minecraft.getInstance();
+                boolean audible = false;
+                if (mc.player != null) {
+                    net.minecraft.world.phys.Vec3 playerPos = mc.player.position();
+                    net.minecraft.world.phys.Vec3 diffuserCenter = net.minecraft.world.phys.Vec3.atCenterOf(diffuser.getBlockPos());
+
+                    // 1. Direct audio within 12 blocks of projector
+                    if (playerPos.distanceTo(diffuserCenter) <= 12.0) {
+                        audible = true;
+                    } else {
+                        // 2. Check all linked speakers
+                        java.util.List<com.mik.optical_diffuser.block.entity.SpeakerBlockEntity> speakers =
+                                ClientSpeakerRegistry.getSpeakersForDiffuser(diffuser.getBlockPos());
+                        for (com.mik.optical_diffuser.block.entity.SpeakerBlockEntity s : speakers) {
+                            if (com.mik.optical_diffuser.block.SpeakerBlock.isInsideSpeakerZone(
+                                    s.getBlockPos(),
+                                    s.getBlockState().getValue(com.mik.optical_diffuser.block.SpeakerBlock.FACING),
+                                    playerPos)) {
+                                audible = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // If player is in projector zone or any speaker zone, unmute direct flat audio!
+                // Since this is a single media stream, sound NEVER overlaps or echoes!
+                if (audible) {
+                    if (this.isMuted) {
+                        player.mute(false);
+                        this.isMuted = false;
+                    }
+                    player.volume(100);
+                } else {
+                    if (!this.isMuted) {
+                        player.mute(true);
+                        this.isMuted = true;
+                    }
+                    player.volume(0);
                 }
             }
         }

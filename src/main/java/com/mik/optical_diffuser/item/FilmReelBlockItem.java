@@ -108,3 +108,4 @@ public class FilmReelBlockItem extends BlockItem {
         tooltip.add(Component.translatable("tooltip.create_optical_diffuser.film_reel.base_speed").withStyle(ChatFormatting.YELLOW));
     }
 }
+

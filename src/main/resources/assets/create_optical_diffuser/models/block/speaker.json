@@ -1,0 +1,82 @@
+{
+	"credit": "Create Optical Diffuser",
+	"parent": "minecraft:block/block",
+	"textures": {
+		"particle": "create:block/brass_casing",
+		"casing": "create:block/brass_casing",
+		"frame": "create:block/gearbox",
+		"grille": "minecraft:block/note_block",
+		"accent": "create:block/brass_gearbox"
+	},
+	"elements": [
+		{
+			"name": "MainCabinet",
+			"from": [0, 0, 1],
+			"to": [16, 16, 16],
+			"faces": {
+				"north": {"uv": [0, 0, 16, 16], "texture": "#casing"},
+				"east": {"uv": [0, 0, 15, 16], "texture": "#casing"},
+				"south": {"uv": [0, 0, 16, 16], "texture": "#casing"},
+				"west": {"uv": [1, 0, 16, 16], "texture": "#casing"},
+				"up": {"uv": [0, 0, 16, 15], "texture": "#casing"},
+				"down": {"uv": [0, 1, 16, 16], "texture": "#casing"}
+			}
+		},
+		{
+			"name": "FrontBezel",
+			"from": [1, 1, 0],
+			"to": [15, 15, 1],
+			"faces": {
+				"north": {"uv": [1, 1, 15, 15], "texture": "#frame"},
+				"east": {"uv": [0, 1, 1, 15], "texture": "#frame"},
+				"west": {"uv": [0, 1, 1, 15], "texture": "#frame"},
+				"up": {"uv": [1, 0, 15, 1], "texture": "#frame"},
+				"down": {"uv": [1, 0, 15, 1], "texture": "#frame"}
+			}
+		},
+		{
+			"name": "SpeakerGrilleCone",
+			"from": [2.5, 2.5, -0.3],
+			"to": [13.5, 13.5, 0.4],
+			"faces": {
+				"north": {"uv": [2.5, 2.5, 13.5, 13.5], "texture": "#grille"},
+				"east": {"uv": [0, 2.5, 0.7, 13.5], "texture": "#accent"},
+				"west": {"uv": [0, 2.5, 0.7, 13.5], "texture": "#accent"},
+				"up": {"uv": [2.5, 0, 13.5, 0.7], "texture": "#accent"},
+				"down": {"uv": [2.5, 0, 13.5, 0.7], "texture": "#accent"}
+			}
+		}
+	],
+	"display": {
+		"gui": {
+			"rotation": [30, 225, 0],
+			"translation": [0, 0, 0],
+			"scale": [0.625, 0.625, 0.625]
+		},
+		"ground": {
+			"rotation": [0, 0, 0],
+			"translation": [0, 3, 0],
+			"scale": [0.25, 0.25, 0.25]
+		},
+		"fixed": {
+			"rotation": [0, 0, 0],
+			"translation": [0, 0, 0],
+			"scale": [0.5, 0.5, 0.5]
+		},
+		"thirdperson_righthand": {
+			"rotation": [75, 45, 0],
+			"translation": [0, 2.5, 0],
+			"scale": [0.375, 0.375, 0.375]
+		},
+		"firstperson_righthand": {
+			"rotation": [0, 45, 0],
+			"translation": [0, 0, 0],
+			"scale": [0.4, 0.4, 0.4]
+		},
+		"firstperson_lefthand": {
+			"rotation": [0, 225, 0],
+			"translation": [0, 0, 0],
+			"scale": [0.4, 0.4, 0.4]
+		}
+	}
+}

@@ -142,6 +142,13 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
 
         // Allow Create Wrench to handle rotation / dismantling
         if (isWrenchItem(stack)) {
+            if (level.isClientSide) {
+                com.mik.optical_diffuser.client.DiffuserSelectionTracker.selectDiffuser(pos);
+                player.displayClientMessage(
+                        Component.literal("Selected Optical Diffuser for Speaker linking. Right-click a Speaker!").withStyle(ChatFormatting.AQUA),
+                        true
+                );
+            }
             return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
 

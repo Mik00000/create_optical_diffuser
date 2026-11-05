@@ -1,0 +1,27 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "create_optical_diffuser:block/speaker"
+    },
+    "facing=south": {
+      "model": "create_optical_diffuser:block/speaker",
+      "y": 180
+    },
+    "facing=east": {
+      "model": "create_optical_diffuser:block/speaker",
+      "y": 90
+    },
+    "facing=west": {
+      "model": "create_optical_diffuser:block/speaker",
+      "y": 270
+    },
+    "facing=up": {
+      "model": "create_optical_diffuser:block/speaker",
+      "x": -90
+    },
+    "facing=down": {
+      "model": "create_optical_diffuser:block/speaker",
+      "x": 90
+    }
+  }
+}

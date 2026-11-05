@@ -54,6 +54,16 @@ public class ModRegistry {
 
     public static final DeferredItem<BlockItem> LEAD_GLASS_ITEM = ITEMS.registerSimpleBlockItem("lead_glass", LEAD_GLASS);
 
+    public static final DeferredBlock<com.mik.optical_diffuser.block.SpeakerBlock> SPEAKER = BLOCKS.register("speaker",
+            () -> new com.mik.optical_diffuser.block.SpeakerBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_BROWN)
+                    .strength(2.0F)
+                    .sound(SoundType.WOOD)
+            )
+    );
+
+    public static final DeferredItem<BlockItem> SPEAKER_ITEM = ITEMS.registerSimpleBlockItem("speaker", SPEAKER);
+
     public static final DeferredItem<Item> FOCUSING_LENS = ITEMS.register("focusing_lens",
             () -> new Item(new Item.Properties().stacksTo(16))
     );
@@ -89,6 +99,10 @@ public class ModRegistry {
 
     public static final Supplier<BlockEntityType<com.mik.optical_diffuser.block.entity.FilmReelBlockEntity>> FILM_REEL_BE = BLOCK_ENTITY_TYPES.register("film_reel",
             () -> BlockEntityType.Builder.of(com.mik.optical_diffuser.block.entity.FilmReelBlockEntity::new, FILM_REEL_BLOCK.get()).build(null)
+    );
+
+    public static final Supplier<BlockEntityType<com.mik.optical_diffuser.block.entity.SpeakerBlockEntity>> SPEAKER_BE = BLOCK_ENTITY_TYPES.register("speaker",
+            () -> BlockEntityType.Builder.of(com.mik.optical_diffuser.block.entity.SpeakerBlockEntity::new, SPEAKER.get()).build(null)
     );
 
     public static final DeferredHolder<MenuType<?>, MenuType<OpticalDiffuserMenu>> OPTICAL_DIFFUSER_MENU = MENUS.register("optical_diffuser",
