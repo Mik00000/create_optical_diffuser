@@ -1,9 +1,0 @@
-Manifest-Version: 1.0
-Specification-Title: create_optical_diffuser
-Specification-Vendor: mik
-Specification-Version: 1
-Implementation-Title: Create Optical Diffuser
-Implementation-Version: 1.0.0
-Implementation-Vendor: mik
-MixinConfigs: create_optical_diffuser.mixins.json
-
