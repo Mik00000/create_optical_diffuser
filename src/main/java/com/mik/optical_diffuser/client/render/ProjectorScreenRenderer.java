@@ -118,11 +118,14 @@ public class ProjectorScreenRenderer {
         float b = isSilent ? 0.90f * flicker : 0.95f * flicker;
         float a = 1.0f;
 
-        // If silent lens and shaders off, use custom monochrome shader; otherwise translucent entity
-        boolean useMonochrome = isSilent && !isShaderPackActive();
-        RenderType renderType = useMonochrome
-                ? ModShaders.getProjectorMonochrome(texLoc)
-                : RenderType.entityTranslucentCull(texLoc);
+        // Core shaders with chroma fail-safe when shaders off; fallback to entityTranslucentCull if Iris pack active
+        boolean isIrisActive = isShaderPackActive();
+        RenderType renderType;
+        if (isSilent) {
+            renderType = isIrisActive ? RenderType.entityTranslucentCull(texLoc) : ModShaders.getProjectorMonochrome(texLoc);
+        } else {
+            renderType = isIrisActive ? RenderType.entityTranslucentCull(texLoc) : ModShaders.getProjectorColor(texLoc);
+        }
         VertexConsumer vertexConsumer = bufferSource.getBuffer(renderType);
 
         Matrix4f mat = poseStack.last().pose();

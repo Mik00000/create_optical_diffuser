@@ -36,8 +36,16 @@ public class ClientModEvents {
                     ),
                     ModShaders::setProjectorMonochromeShader
             );
+            event.registerShader(
+                    new ShaderInstance(
+                            event.getResourceProvider(),
+                            ResourceLocation.fromNamespaceAndPath(OpticalDiffuserMod.MOD_ID, "rendertype_projector_color"),
+                            DefaultVertexFormat.NEW_ENTITY
+                    ),
+                    ModShaders::setProjectorColorShader
+            );
         } catch (IOException e) {
-            OpticalDiffuserMod.LOGGER.error("Failed to register projector monochrome shader", e);
+            OpticalDiffuserMod.LOGGER.error("Failed to register projector shaders", e);
         }
     }
 }
