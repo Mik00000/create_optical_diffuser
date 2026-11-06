@@ -44,6 +44,21 @@ public class FilmReelBlockEntity extends KineticBlockEntity {
         setChanged();
     }
 
+    public float getEffectiveSpeed() {
+        if (Math.abs(getSpeed()) > 0.001f) {
+            return getSpeed();
+        }
+        if (level != null) {
+            net.minecraft.core.Direction facing = getBlockState().getValue(com.mik.optical_diffuser.block.FilmReelBlock.FACING);
+            net.minecraft.core.Direction left = com.mik.optical_diffuser.block.OpticalDiffuserBlock.getLeftDirection(facing);
+            net.minecraft.world.level.block.entity.BlockEntity be = level.getBlockEntity(getBlockPos().relative(left));
+            if (be instanceof OpticalDiffuserBlockEntity diffuser) {
+                return diffuser.getSpeed();
+            }
+        }
+        return 0.0f;
+    }
+
     public float getVisualAngle() {
         return this.visualAngle;
     }
@@ -52,7 +67,7 @@ public class FilmReelBlockEntity extends KineticBlockEntity {
     public void tick() {
         super.tick();
         if (level != null && level.isClientSide) {
-            float speed = getSpeed();
+            float speed = getEffectiveSpeed();
             if (speed != 0.0f) {
                 this.visualAngle += (speed * 6.0f / 20.0f);
             }

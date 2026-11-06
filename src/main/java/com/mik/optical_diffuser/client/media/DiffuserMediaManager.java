@@ -80,16 +80,21 @@ public class DiffuserMediaManager {
         float rpm = 0.0f;
         long savedTime = 0;
 
+        // Prioritize shaft rotation on the diffuser (left face where lenses are) OR on the film reel (right face)
+        if (Math.abs(diffuser.getSpeed()) > 0.1f) {
+            rpm = diffuser.getSpeed();
+        } else if (filmReel != null && Math.abs(filmReel.getEffectiveSpeed()) > 0.1f) {
+            rpm = filmReel.getEffectiveSpeed();
+        }
+
         if (filmReel != null) {
             url = filmReel.getUrl();
-            rpm = filmReel.getSpeed();
             savedTime = filmReel.getCurrentTimeMs();
         } else {
             ItemStack reel = diffuser.getInstalledFilmReelItem();
             if (!reel.isEmpty()) {
                 url = FilmReelBlockItem.getUrl(reel);
                 savedTime = FilmReelBlockItem.getCurrentTimeMs(reel);
-                rpm = 0.0f;
             }
         }
 
@@ -145,8 +150,9 @@ public class DiffuserMediaManager {
                     player.resume();
                 }
 
-                // Snap to 1.0x if near 16 RPM (13.5 to 18.5 RPM) for perfect natural pitch
-                float targetSpeed = (speedFactor >= 0.85f && speedFactor <= 1.15f) ? 1.0f : speedFactor;
+                // Natural Voice Pitch Tuning:
+                // Snap to 1.0x if near 16 RPM (12.0 to 20.0 RPM) for 100% natural voice pitch
+                float targetSpeed = (speedFactor >= 0.75f && speedFactor <= 1.25f) ? 1.0f : speedFactor;
                 float clampedSpeed = Math.max(0.25f, Math.min(4.0f, targetSpeed));
                 if (Math.abs(clampedSpeed - lastSpeed) > 0.05f) {
                     player.speed(clampedSpeed);
@@ -178,17 +184,30 @@ public class DiffuserMediaManager {
                     player.seekQuick(this.lastRecordedTimeMs);
                 }
 
-                // Mechanical projector reel click sound while rewinding
-                if (rewindTickCounter % 3 == 0 && diffuser.getLevel() != null) {
+                // Authentic continuous vintage film reel whir and ratchet flutter sound while rewinding
+                if (diffuser.getLevel() != null) {
                     var pos = diffuser.getBlockPos();
-                    diffuser.getLevel().playLocalSound(
-                            pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
-                            net.minecraft.sounds.SoundEvents.UI_BUTTON_CLICK.value(),
-                            net.minecraft.sounds.SoundSource.BLOCKS,
-                            0.20f,
-                            1.6f + (float) (Math.random() * 0.4f),
-                            false
-                    );
+                    if (rewindTickCounter % 2 == 0) {
+                        float flutterPitch = 1.5f + Math.min(0.5f, Math.abs(speedFactor) * 0.1f) + (float) (Math.random() * 0.15f);
+                        diffuser.getLevel().playLocalSound(
+                                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                                net.minecraft.sounds.SoundEvents.BRUSH_GENERIC,
+                                net.minecraft.sounds.SoundSource.BLOCKS,
+                                0.30f,
+                                flutterPitch,
+                                false
+                        );
+                    } else if (rewindTickCounter % 3 == 0) {
+                        float ratchetPitch = 1.7f + (float) (Math.random() * 0.3f);
+                        diffuser.getLevel().playLocalSound(
+                                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                                net.minecraft.sounds.SoundEvents.ITEM_FRAME_ROTATE_ITEM,
+                                net.minecraft.sounds.SoundSource.BLOCKS,
+                                0.15f,
+                                ratchetPitch,
+                                false
+                        );
+                    }
                 }
             }
 

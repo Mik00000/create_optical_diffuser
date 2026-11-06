@@ -61,7 +61,7 @@ public class FilmReelRenderer implements BlockEntityRenderer<FilmReelBlockEntity
         // Slight offset from center towards outer face
         poseStack.translate(0.0, 0.0, 0.1);
 
-        float speed = be.getSpeed();
+        float speed = be.getEffectiveSpeed();
         float angle = be.getVisualAngle() + (speed != 0.0f ? (speed * 6.0f / 20.0f) * partialTicks : 0.0f);
         poseStack.mulPose(Axis.ZP.rotationDegrees(-angle));
 

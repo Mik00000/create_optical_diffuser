@@ -83,17 +83,8 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
     public boolean hasShaftTowards(LevelReader world, BlockPos pos, BlockState state, Direction face) {
         Direction facing = state.getValue(FACING);
         Direction left = getLeftDirection(facing);
-        // Connect kinetic shaft on the left side (turret drive) or bottom
-        if (face == left) {
-            return true;
-        }
-        if (facing == Direction.DOWN) {
-            return face == Direction.NORTH;
-        }
-        if (facing == Direction.UP) {
-            return face == Direction.SOUTH;
-        }
-        return face == Direction.DOWN;
+        // Connect kinetic shaft through the left face (lens turret) and right face (film reel drive)
+        return face.getAxis() == left.getAxis();
     }
 
     @Override
