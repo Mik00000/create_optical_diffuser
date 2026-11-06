@@ -23,6 +23,7 @@ public class DiffuserMediaManager {
     private boolean soundEnabled = false;
     private float lastSpeed = 1.0f;
     private long lastRecordedTimeMs = 0;
+    private long pendingSeekMs = -1;
     private int audioUpdateCooldown = 0;
     private int rewindTickCounter = 0;
     private boolean wasRewinding = false;
@@ -90,6 +91,12 @@ public class DiffuserMediaManager {
         }
 
         if (player != null) {
+            if (this.pendingSeekMs >= 0 && player.canSeek()) {
+                player.seek(this.pendingSeekMs);
+                this.lastRecordedTimeMs = this.pendingSeekMs;
+                this.pendingSeekMs = -1;
+            }
+
             float speedFactor = rpm / 16.0f;
             boolean isFastForward = speedFactor > 2.0f;
             boolean isRewinding = speedFactor < -0.05f;
@@ -119,11 +126,13 @@ public class DiffuserMediaManager {
                     lastSpeed = clampedSpeed;
                 }
 
-                long curTime = player.time();
-                if (curTime > 0) {
-                    this.lastRecordedTimeMs = curTime;
-                    if (filmReel != null) {
-                        filmReel.setCurrentTimeMs(curTime);
+                if (this.pendingSeekMs < 0) {
+                    long curTime = player.time();
+                    if (curTime > 0) {
+                        this.lastRecordedTimeMs = curTime;
+                        if (filmReel != null) {
+                            filmReel.setCurrentTimeMs(curTime);
+                        }
                     }
                 }
             } else {
@@ -211,13 +220,18 @@ public class DiffuserMediaManager {
     }
 
     private void startMedia(String url, boolean sound, long resumeTimeMs) {
+        long effectiveTime = resumeTimeMs;
+        if (effectiveTime <= 0 && url.equals(this.currentUrl)) {
+            effectiveTime = this.lastRecordedTimeMs;
+        }
         release();
         this.currentUrl = url;
         this.soundEnabled = sound;
-        this.lastRecordedTimeMs = resumeTimeMs;
+        this.lastRecordedTimeMs = effectiveTime;
+        this.pendingSeekMs = effectiveTime;
 
         try {
-            com.mik.optical_diffuser.util.DiffuserLogger.info("Starting media player: url='{}', sound={}, resumeTime={}ms", url, sound, resumeTimeMs);
+            com.mik.optical_diffuser.util.DiffuserLogger.info("Starting media player: url='{}', sound={}, resumeTime={}ms", url, sound, effectiveTime);
             var mrl = PlayerAPI.mrl(url);
             Minecraft mc = Minecraft.getInstance();
             Thread renderThread = Thread.currentThread();
@@ -246,9 +260,6 @@ public class DiffuserMediaManager {
                 this.player.repeat(true);
                 this.player.start();
                 this.lastSpeed = 1.0f;
-                if (resumeTimeMs > 0) {
-                    this.player.seek(resumeTimeMs);
-                }
             }
         } catch (Throwable t) {
             com.mik.optical_diffuser.util.DiffuserLogger.error("Failed to start media player for url=" + url, t);
@@ -310,6 +321,5 @@ public class DiffuserMediaManager {
             dynamicTexture = null;
         }
         currentUrl = "";
-        lastRecordedTimeMs = 0;
     }
 }

@@ -73,7 +73,6 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         PROJECTOR_SOUND
     }
 
-    private ItemStack installedModule = ItemStack.EMPTY;
     private final ItemStack[] carouselLenses = new ItemStack[]{ItemStack.EMPTY, ItemStack.EMPTY, ItemStack.EMPTY, ItemStack.EMPTY};
     private float carouselAngle = 0.0f;
     private ItemStack installedFilmReel = ItemStack.EMPTY;
@@ -226,18 +225,6 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         syncToClient();
     }
 
-    public void setInstalledModuleItem(ItemStack module) {
-        this.installedModule = module;
-        updateModuleAndRedstone();
-        updateBeamingState();
-        setChanged();
-        syncToClient();
-    }
-
-    public ItemStack getInstalledModuleItem() {
-        return this.installedModule;
-    }
-
     public void setInstalledFilmReelItem(ItemStack reel) {
         this.installedFilmReel = reel;
         setChanged();
@@ -274,7 +261,45 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         if (slot >= 0 && slot < 4 && !this.carouselLenses[slot].isEmpty()) {
             return this.carouselLenses[slot];
         }
-        return this.installedModule;
+        return ItemStack.EMPTY;
+    }
+
+    public void rotateCarousel(float degrees) {
+        this.carouselAngle = ((this.carouselAngle + degrees) % 360.0f + 360.0f) % 360.0f;
+        updateModuleAndRedstone();
+        updateBeamingState();
+        setChanged();
+        syncToClient();
+    }
+
+    public ItemStack getCarouselLens(int slot) {
+        if (slot >= 0 && slot < 4) {
+            return this.carouselLenses[slot];
+        }
+        return ItemStack.EMPTY;
+    }
+
+    public void setCarouselLens(int slot, ItemStack stack) {
+        if (slot >= 0 && slot < 4) {
+            this.carouselLenses[slot] = stack;
+            updateModuleAndRedstone();
+            updateBeamingState();
+            setChanged();
+            syncToClient();
+        }
+    }
+
+    public ItemStack removeCarouselLens(int slot) {
+        if (slot >= 0 && slot < 4 && !this.carouselLenses[slot].isEmpty()) {
+            ItemStack removed = this.carouselLenses[slot];
+            this.carouselLenses[slot] = ItemStack.EMPTY;
+            updateModuleAndRedstone();
+            updateBeamingState();
+            setChanged();
+            syncToClient();
+            return removed;
+        }
+        return ItemStack.EMPTY;
     }
 
     public boolean insertCarouselLens(ItemStack stack) {
@@ -614,15 +639,6 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         super.tick();
 
         float effectiveSpeed = getEffectiveSpinSpeed();
-        if (effectiveSpeed != 0.0f) {
-            this.carouselAngle += (effectiveSpeed * 6.0f) / 20.0f;
-            if (this.carouselAngle >= 360.0f) {
-                this.carouselAngle -= 360.0f;
-            } else if (this.carouselAngle < 0.0f) {
-                this.carouselAngle += 360.0f;
-            }
-        }
-
         if (this.isActive() && effectiveSpeed != 0.0f) {
             this.currentRotation += (effectiveSpeed * 6.0f) / 20.0f;
             if (this.currentRotation >= 360.0f) {
@@ -1431,9 +1447,6 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         tag.putFloat("CachedSpeed", this.cachedSpeed);
         tag.putBoolean("IsFiltered", this.isFiltered);
 
-        if (!this.installedModule.isEmpty()) {
-            tag.put("InstalledModule", this.installedModule.save(registries, new CompoundTag()));
-        }
         for (int i = 0; i < 4; i++) {
             if (!this.carouselLenses[i].isEmpty()) {
                 tag.put("CarouselLens" + i, this.carouselLenses[i].save(registries, new CompoundTag()));
@@ -1488,18 +1501,17 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         if (tag.contains("CachedSpeed")) this.cachedSpeed = tag.getFloat("CachedSpeed");
         if (tag.contains("IsFiltered")) this.isFiltered = tag.getBoolean("IsFiltered");
 
-        if (tag.contains("InstalledModule", 10)) {
-            this.installedModule = ItemStack.parse(registries, tag.getCompound("InstalledModule")).orElse(ItemStack.EMPTY);
-        } else {
-            this.installedModule = ItemStack.EMPTY;
-        }
-
         for (int i = 0; i < 4; i++) {
             if (tag.contains("CarouselLens" + i, 10)) {
                 this.carouselLenses[i] = ItemStack.parse(registries, tag.getCompound("CarouselLens" + i)).orElse(ItemStack.EMPTY);
             } else {
                 this.carouselLenses[i] = ItemStack.EMPTY;
             }
+        }
+
+        // Backward compatibility migration from ancient single InstalledModule tag
+        if (tag.contains("InstalledModule", 10) && this.carouselLenses[0].isEmpty()) {
+            this.carouselLenses[0] = ItemStack.parse(registries, tag.getCompound("InstalledModule")).orElse(ItemStack.EMPTY);
         }
 
         if (tag.contains("InstalledFilmReel", 10)) {

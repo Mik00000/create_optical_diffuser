@@ -30,6 +30,7 @@ import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDiffuserBlockEntity>, GenericOpticalSourceBlockEntity.IBeamActivator {
@@ -114,6 +115,7 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
 
     private boolean isWrenchItem(ItemStack stack) {
         if (stack.isEmpty()) return false;
+        if (com.simibubi.create.AllItems.WRENCH.isIn(stack)) return true;
         String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
         return id.contains("wrench");
     }
@@ -129,9 +131,62 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
                 || id.equals("create_optical:beam_condenser");
     }
 
-    private boolean isFilmReelItem(ItemStack stack) {
-        if (stack.isEmpty()) return false;
-        return stack.getItem() instanceof com.mik.optical_diffuser.item.FilmReelBlockItem;
+    public static int getTargetCarouselSlot(BlockState state, BlockPos pos, Direction leftFace, Vec3 hitLocation, float carouselAngle) {
+        Vec3 localPos = hitLocation.subtract(Vec3.atLowerCornerOf(pos));
+        double u, v;
+
+        switch (leftFace) {
+            case SOUTH -> {
+                u = localPos.x - 0.5;
+                v = localPos.y - 0.5;
+            }
+            case NORTH -> {
+                u = -(localPos.x - 0.5);
+                v = localPos.y - 0.5;
+            }
+            case EAST -> {
+                u = -(localPos.z - 0.5);
+                v = localPos.y - 0.5;
+            }
+            case WEST -> {
+                u = localPos.z - 0.5;
+                v = localPos.y - 0.5;
+            }
+            case UP -> {
+                u = localPos.x - 0.5;
+                v = -(localPos.z - 0.5);
+            }
+            case DOWN -> {
+                u = localPos.x - 0.5;
+                v = localPos.z - 0.5;
+            }
+            default -> {
+                return -1;
+            }
+        }
+
+        double socketRadius = 0.26;
+        float[] slotAngles = new float[]{0.0f, 90.0f, 180.0f, 270.0f};
+
+        int bestSlot = -1;
+        double minDistance = Double.MAX_VALUE;
+
+        for (int i = 0; i < 4; i++) {
+            double rad = Math.toRadians(slotAngles[i] + carouselAngle);
+            double sx = Math.sin(rad) * socketRadius;
+            double sy = Math.cos(rad) * socketRadius;
+            double d = Math.sqrt((u - sx) * (u - sx) + (v - sy) * (v - sy));
+            if (d < minDistance) {
+                minDistance = d;
+                bestSlot = i;
+            }
+        }
+
+        // Target slot radius: 0.18 blocks around socket center
+        if (minDistance <= 0.18) {
+            return bestSlot;
+        }
+        return -1;
     }
 
     @Override
@@ -140,7 +195,41 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
             return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
 
-        // Allow Create Wrench to handle rotation / dismantling
+        Direction hitFace = hit.getDirection();
+        Direction leftFace = getLeftDirection(state.getValue(FACING));
+
+        // 1. Right-click with Wrench on carousel face: rotate carousel 90 degrees (crouching allows dismantle)
+        if (isWrenchItem(stack) && hitFace == leftFace) {
+            if (player.isShiftKeyDown()) {
+                return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+            }
+            if (!level.isClientSide) {
+                BlockEntity be = level.getBlockEntity(pos);
+                if (be instanceof OpticalDiffuserBlockEntity diffuser) {
+                    diffuser.rotateCarousel(90.0f);
+                    level.playSound(null, pos, net.minecraft.sounds.SoundEvents.SPYGLASS_USE, net.minecraft.sounds.SoundSource.BLOCKS, 0.9f, 1.3f);
+                    int activeSlot = diffuser.getActiveCarouselSlot();
+                    ItemStack active = diffuser.getCarouselLens(activeSlot);
+                    if (!active.isEmpty()) {
+                        player.displayClientMessage(
+                                Component.literal("Carousel rotated 90° - Active Slot " + (activeSlot + 1) + ": ")
+                                        .withStyle(ChatFormatting.GOLD)
+                                        .append(active.getHoverName().copy().withStyle(ChatFormatting.YELLOW)),
+                                true
+                        );
+                    } else {
+                        player.displayClientMessage(
+                                Component.literal("Carousel rotated 90° - Active Slot " + (activeSlot + 1) + " (Empty)")
+                                        .withStyle(ChatFormatting.GRAY),
+                                true
+                        );
+                    }
+                }
+            }
+            return ItemInteractionResult.sidedSuccess(level.isClientSide);
+        }
+
+        // Create Wrench on other faces handles rotation / dismantling / speaker linking
         if (isWrenchItem(stack)) {
             if (level.isClientSide) {
                 com.mik.optical_diffuser.client.DiffuserSelectionTracker.selectDiffuser(pos);
@@ -152,43 +241,43 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
             return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
 
-        BlockEntity be = level.getBlockEntity(pos);
-        if (be instanceof OpticalDiffuserBlockEntity diffuser) {
-            if (isLensItem(stack)) {
-                if (!level.isClientSide) {
-                    Direction hitFace = hit.getDirection();
-                    Direction leftFace = getLeftDirection(state.getValue(FACING));
+        // 2. Lens installation and swapping strictly on carousel sockets
+        if (isLensItem(stack)) {
+            if (hitFace != leftFace) {
+                return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+            }
 
-                    ItemStack newModule = stack.copyWithCount(1);
-                    boolean inserted = false;
+            BlockEntity be = level.getBlockEntity(pos);
+            if (be instanceof OpticalDiffuserBlockEntity diffuser) {
+                int targetSlot = getTargetCarouselSlot(state, pos, leftFace, hit.getLocation(), diffuser.getCarouselAngle());
+                if (targetSlot >= 0 && targetSlot < 4) {
+                    if (!level.isClientSide) {
+                        ItemStack newLens = stack.copyWithCount(1);
+                        ItemStack existing = diffuser.getCarouselLens(targetSlot);
 
-                    // If clicked on left side where the carousel is located, insert into carousel
-                    if (hitFace == leftFace) {
-                        inserted = diffuser.insertCarouselLens(newModule);
-                    }
+                        diffuser.setCarouselLens(targetSlot, newLens);
 
-                    // If not inserted into carousel (or clicked on other faces), set as direct module
-                    if (!inserted) {
-                        ItemStack oldModule = diffuser.getInstalledModuleItem();
-                        diffuser.setInstalledModuleItem(newModule);
-                        if (!oldModule.isEmpty()) {
-                            if (!player.getInventory().add(oldModule)) {
-                                Block.popResource(level, pos, oldModule);
-                            }
-                        }
-                        inserted = true;
-                    }
-
-                    if (inserted) {
                         if (!player.isCreative()) {
                             stack.shrink(1);
                         }
+
+                        if (!existing.isEmpty()) {
+                            if (!player.getInventory().add(existing)) {
+                                Block.popResource(level, pos, existing);
+                            }
+                        }
+
                         level.playSound(null, pos, net.minecraft.sounds.SoundEvents.ARMOR_EQUIP_NETHERITE.value(), net.minecraft.sounds.SoundSource.BLOCKS, 1.0f, 1.2f);
-                        player.displayClientMessage(Component.translatable("chat.create_optical_diffuser.module_installed", newModule.getHoverName()).withStyle(ChatFormatting.GOLD), true);
+                        player.displayClientMessage(
+                                Component.translatable("chat.create_optical_diffuser.module_installed", newLens.getHoverName())
+                                        .withStyle(ChatFormatting.GOLD),
+                                true
+                        );
                     }
+                    return ItemInteractionResult.sidedSuccess(level.isClientSide);
                 }
-                return ItemInteractionResult.sidedSuccess(level.isClientSide);
             }
+            return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
 
         return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
@@ -196,33 +285,34 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
 
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
-        BlockEntity be = level.getBlockEntity(pos);
-        if (be instanceof OpticalDiffuserBlockEntity diffuser) {
-            ItemStack installed = diffuser.getInstalledModuleItem();
-            if (!installed.isEmpty()) {
-                if (!level.isClientSide) {
-                    diffuser.setInstalledModuleItem(ItemStack.EMPTY);
-                    if (!player.getInventory().add(installed)) {
-                        Block.popResource(level, pos, installed);
-                    }
-                    level.playSound(null, pos, net.minecraft.sounds.SoundEvents.ITEM_FRAME_REMOVE_ITEM, net.minecraft.sounds.SoundSource.BLOCKS, 1.0f, 1.0f);
-                    player.displayClientMessage(Component.translatable("chat.create_optical_diffuser.module_removed", installed.getHoverName()).withStyle(ChatFormatting.YELLOW), true);
-                }
-                return InteractionResult.sidedSuccess(level.isClientSide);
-            }
+        Direction hitFace = hit.getDirection();
+        Direction leftFace = getLeftDirection(state.getValue(FACING));
 
-            if (diffuser.hasAnyCarouselLens()) {
-                if (!level.isClientSide) {
-                    ItemStack removed = diffuser.removeLastCarouselLens();
-                    if (!removed.isEmpty()) {
-                        if (!player.getInventory().add(removed)) {
-                            Block.popResource(level, pos, removed);
+        // 3. Remove lens from specific slot when clicking with empty hand
+        if (hitFace == leftFace && player.getItemInHand(InteractionHand.MAIN_HAND).isEmpty()) {
+            BlockEntity be = level.getBlockEntity(pos);
+            if (be instanceof OpticalDiffuserBlockEntity diffuser) {
+                int targetSlot = getTargetCarouselSlot(state, pos, leftFace, hit.getLocation(), diffuser.getCarouselAngle());
+                if (targetSlot >= 0 && targetSlot < 4) {
+                    ItemStack existing = diffuser.getCarouselLens(targetSlot);
+                    if (!existing.isEmpty()) {
+                        if (!level.isClientSide) {
+                            ItemStack removed = diffuser.removeCarouselLens(targetSlot);
+                            if (!removed.isEmpty()) {
+                                if (!player.getInventory().add(removed)) {
+                                    Block.popResource(level, pos, removed);
+                                }
+                                level.playSound(null, pos, net.minecraft.sounds.SoundEvents.ITEM_FRAME_REMOVE_ITEM, net.minecraft.sounds.SoundSource.BLOCKS, 1.0f, 1.0f);
+                                player.displayClientMessage(
+                                        Component.translatable("chat.create_optical_diffuser.module_removed", removed.getHoverName())
+                                                .withStyle(ChatFormatting.YELLOW),
+                                        true
+                                );
+                            }
                         }
-                        level.playSound(null, pos, net.minecraft.sounds.SoundEvents.ITEM_FRAME_REMOVE_ITEM, net.minecraft.sounds.SoundSource.BLOCKS, 1.0f, 1.0f);
-                        player.displayClientMessage(Component.translatable("chat.create_optical_diffuser.module_removed", removed.getHoverName()).withStyle(ChatFormatting.YELLOW), true);
+                        return InteractionResult.sidedSuccess(level.isClientSide);
                     }
                 }
-                return InteractionResult.sidedSuccess(level.isClientSide);
             }
         }
         return InteractionResult.PASS;
@@ -260,9 +350,11 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof OpticalDiffuserBlockEntity diffuser) {
                 diffuser.clearIllumination();
-                ItemStack module = diffuser.getInstalledModuleItem();
-                if (!module.isEmpty()) {
-                    Block.popResource(level, pos, module);
+                for (int i = 0; i < 4; i++) {
+                    ItemStack lens = diffuser.getCarouselLens(i);
+                    if (!lens.isEmpty()) {
+                        Block.popResource(level, pos, lens);
+                    }
                 }
             }
         }

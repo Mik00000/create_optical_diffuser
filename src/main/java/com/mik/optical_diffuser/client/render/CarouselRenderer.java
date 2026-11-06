@@ -52,9 +52,8 @@ public class CarouselRenderer {
         // Move to the outer surface of the left face
         poseStack.translate(0.0, 0.0, 0.505);
 
-        // Rotate carousel wheel based on continuous shaft angle
-        float speed = be.getSpeed();
-        float angle = be.getCarouselAngle() + (speed != 0.0f ? (speed * 6.0f / 20.0f) * partialTicks : 0.0f);
+        // Carousel wheel angle is static and rotated in 90-degree steps via Wrench
+        float angle = be.getCarouselAngle();
 
         poseStack.pushPose();
         poseStack.mulPose(Axis.ZP.rotationDegrees(-angle));
