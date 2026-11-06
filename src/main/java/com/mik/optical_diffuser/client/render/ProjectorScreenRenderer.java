@@ -38,19 +38,6 @@ public class ProjectorScreenRenderer {
             return;
         }
 
-        com.mik.optical_diffuser.client.media.DynamicMediaTexture dynTex = media.getDynamicTexture();
-        if (dynTex == null) {
-            return;
-        }
-
-        boolean isSilent = (mod == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SILENT);
-        int srcTexId = media.getTexture();
-        dynTex.updateFromSource(srcTexId, isSilent);
-
-        if (!dynTex.hasValidFrame()) {
-            return;
-        }
-
         BlockPos p1 = coords.pos1;
         BlockPos p2 = coords.pos2;
 
@@ -125,14 +112,17 @@ public class ProjectorScreenRenderer {
         long gameTime = be.getLevel().getGameTime();
         float flicker = 0.94f + (float) Math.sin(gameTime * 1.8f) * 0.06f + (RANDOM.nextFloat() - 0.5f) * 0.04f;
 
-        float r = 1.0f * flicker;
-        float g = 0.98f * flicker;
-        float b = 0.95f * flicker;
+        boolean isSilent = (mod == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SILENT);
+        float r = isSilent ? 0.94f * flicker : 1.0f * flicker;
+        float g = isSilent ? 0.94f * flicker : 0.98f * flicker;
+        float b = isSilent ? 0.90f * flicker : 0.95f * flicker;
         float a = 1.0f;
 
-        // Render textured quad with RenderType.entityTranslucentCull(texLoc)
-        // Works seamlessly across Iris shaders and vanilla pipeline
-        RenderType renderType = RenderType.entityTranslucentCull(texLoc);
+        // If silent lens and shaders off, use custom monochrome shader; otherwise translucent entity
+        boolean useMonochrome = isSilent && !isShaderPackActive();
+        RenderType renderType = useMonochrome
+                ? ModShaders.getProjectorMonochrome(texLoc)
+                : RenderType.entityTranslucentCull(texLoc);
         VertexConsumer vertexConsumer = bufferSource.getBuffer(renderType);
 
         Matrix4f mat = poseStack.last().pose();
@@ -193,5 +183,15 @@ public class ProjectorScreenRenderer {
                 .setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(15728880)
                 .setNormal(0.0f, -1.0f, 0.0f);
+    }
+
+    public static boolean isShaderPackActive() {
+        try {
+            Class<?> clazz = Class.forName("net.irisshaders.iris.api.v0.IrisApi");
+            Object instance = clazz.getMethod("getInstance").invoke(null);
+            return (boolean) clazz.getMethod("isShaderPackInUse").invoke(instance);
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 }

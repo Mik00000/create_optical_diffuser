@@ -26,3 +26,4 @@ public class DiffuserLogger {
         LOGGER.debug(message, params);
     }
 }
+

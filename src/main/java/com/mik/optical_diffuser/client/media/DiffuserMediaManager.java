@@ -220,11 +220,13 @@ public class DiffuserMediaManager {
             com.mik.optical_diffuser.util.DiffuserLogger.info("Starting media player: url='{}', sound={}, resumeTime={}ms", url, sound, resumeTimeMs);
             var mrl = PlayerAPI.mrl(url);
             Minecraft mc = Minecraft.getInstance();
+            Thread renderThread = Thread.currentThread();
 
+            // Use 32 buffers without spatial distortion to prevent OpenAL underrun / clock jitter
             this.player = PlayerAPI.player(
                     mrl,
-                    () -> PlayerAPI.glEngine(Thread.currentThread(), mc),
-                    sound ? PlayerAPI::alEngine : () -> null
+                    () -> PlayerAPI.glEngine(renderThread, mc),
+                    sound ? () -> PlayerAPI.alEngine(32, false) : () -> null
             );
 
             if (this.player != null) {
@@ -251,6 +253,11 @@ public class DiffuserMediaManager {
     }
 
     public synchronized ResourceLocation getTextureLocation() {
+        int texId = getTexture();
+        if (texId <= 0) {
+            return null;
+        }
+
         if (this.dynamicTexture == null) {
             var pos = diffuser.getBlockPos();
             this.dynamicLocation = ResourceLocation.fromNamespaceAndPath(
@@ -261,6 +268,8 @@ public class DiffuserMediaManager {
             Minecraft.getInstance().getTextureManager().register(this.dynamicLocation, this.dynamicTexture);
             com.mik.optical_diffuser.util.DiffuserLogger.info("Registered dynamic media texture: {}", this.dynamicLocation);
         }
+
+        this.dynamicTexture.setTextureId(texId);
         return this.dynamicLocation;
     }
 
