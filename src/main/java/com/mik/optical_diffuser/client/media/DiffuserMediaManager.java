@@ -6,6 +6,8 @@ import com.mik.optical_diffuser.item.FilmReelBlockItem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.neoforged.neoforge.network.PacketDistributor;
+import com.mik.optical_diffuser.network.UpdateFilmReelTimePayload;
 import org.watermedia.api.player.MediaPlayer;
 import org.watermedia.api.player.PlayerAPI;
 import org.watermedia.api.player.SFXEngine;
@@ -24,10 +26,26 @@ public class DiffuserMediaManager {
     private float lastSpeed = 1.0f;
     private long lastRecordedTimeMs = 0;
     private long pendingSeekMs = -1;
+    private int seekWaitTicks = 0;
     private int audioUpdateCooldown = 0;
     private int rewindTickCounter = 0;
     private boolean wasRewinding = false;
     private boolean isMuted = false;
+    private long lastServerSyncTimeMs = -1;
+    private int syncTickCounter = 0;
+
+    private void syncTimeToReel(FilmReelBlockEntity filmReel, long timeMs) {
+        if (filmReel == null) return;
+        filmReel.setCurrentTimeMs(timeMs);
+        syncTickCounter++;
+        if (syncTickCounter >= 20 || Math.abs(timeMs - lastServerSyncTimeMs) >= 1000) {
+            syncTickCounter = 0;
+            lastServerSyncTimeMs = timeMs;
+            try {
+                PacketDistributor.sendToServer(new UpdateFilmReelTimePayload(filmReel.getBlockPos(), timeMs));
+            } catch (Throwable ignored) {}
+        }
+    }
 
     private DynamicMediaTexture dynamicTexture = null;
     private ResourceLocation dynamicLocation = null;
@@ -91,10 +109,18 @@ public class DiffuserMediaManager {
         }
 
         if (player != null) {
-            if (this.pendingSeekMs >= 0 && player.canSeek()) {
-                player.seek(this.pendingSeekMs);
-                this.lastRecordedTimeMs = this.pendingSeekMs;
-                this.pendingSeekMs = -1;
+            if (this.pendingSeekMs >= 0) {
+                this.seekWaitTicks++;
+                if (player.canSeek()) {
+                    player.seek(this.pendingSeekMs);
+                    this.lastRecordedTimeMs = this.pendingSeekMs;
+                    this.pendingSeekMs = -1;
+                    this.seekWaitTicks = 0;
+                    syncTimeToReel(filmReel, this.lastRecordedTimeMs);
+                } else if (this.seekWaitTicks > 200) {
+                    this.pendingSeekMs = -1;
+                    this.seekWaitTicks = 0;
+                }
             }
 
             float speedFactor = rpm / 16.0f;
@@ -105,6 +131,7 @@ public class DiffuserMediaManager {
                 // 0 RPM: Pause
                 if (player.playing()) {
                     player.pause(true);
+                    syncTimeToReel(filmReel, this.lastRecordedTimeMs);
                 }
                 wasRewinding = false;
             } else if (speedFactor > 0) {
@@ -130,9 +157,7 @@ public class DiffuserMediaManager {
                     long curTime = player.time();
                     if (curTime > 0) {
                         this.lastRecordedTimeMs = curTime;
-                        if (filmReel != null) {
-                            filmReel.setCurrentTimeMs(curTime);
-                        }
+                        syncTimeToReel(filmReel, curTime);
                     }
                 }
             } else {
@@ -144,10 +169,7 @@ public class DiffuserMediaManager {
 
                 long stepMs = (long) (Math.abs(speedFactor) * 50); // 50ms per game tick = 1x real-time at 16 RPM
                 this.lastRecordedTimeMs = Math.max(0, this.lastRecordedTimeMs - stepMs);
-
-                if (filmReel != null) {
-                    filmReel.setCurrentTimeMs(this.lastRecordedTimeMs);
-                }
+                syncTimeToReel(filmReel, this.lastRecordedTimeMs);
 
                 rewindTickCounter++;
                 if (Math.abs(speedFactor) <= 1.25f) {
@@ -220,15 +242,15 @@ public class DiffuserMediaManager {
     }
 
     private void startMedia(String url, boolean sound, long resumeTimeMs) {
-        long effectiveTime = resumeTimeMs;
-        if (effectiveTime <= 0 && url.equals(this.currentUrl)) {
-            effectiveTime = this.lastRecordedTimeMs;
-        }
+        long effectiveTime = (url.equals(this.currentUrl) && this.lastRecordedTimeMs > 0)
+                ? this.lastRecordedTimeMs
+                : (resumeTimeMs > 0 ? resumeTimeMs : this.lastRecordedTimeMs);
         release();
         this.currentUrl = url;
         this.soundEnabled = sound;
         this.lastRecordedTimeMs = effectiveTime;
         this.pendingSeekMs = effectiveTime;
+        this.seekWaitTicks = 0;
 
         try {
             com.mik.optical_diffuser.util.DiffuserLogger.info("Starting media player: url='{}', sound={}, resumeTime={}ms", url, sound, effectiveTime);
@@ -307,6 +329,10 @@ public class DiffuserMediaManager {
 
     public synchronized void release() {
         if (player != null) {
+            FilmReelBlockEntity filmReel = diffuser.getConnectedFilmReel();
+            if (filmReel != null && this.lastRecordedTimeMs > 0) {
+                syncTimeToReel(filmReel, this.lastRecordedTimeMs);
+            }
             try {
                 com.mik.optical_diffuser.util.DiffuserLogger.info("Releasing media player for url='{}'", currentUrl);
                 player.release();
