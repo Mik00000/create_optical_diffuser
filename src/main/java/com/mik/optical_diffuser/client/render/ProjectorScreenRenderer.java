@@ -110,20 +110,14 @@ public class ProjectorScreenRenderer {
 
         boolean isSilent = (mod == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SILENT);
 
-        // Visual effects disabled on Soundtrack Cinema Lens for clean baseline test:
-        // Pure 1.0f flat color, no lamp flicker, no vintage tinting
-        float r = 1.0f;
-        float g = 1.0f;
-        float b = 1.0f;
-        float a = 1.0f;
+        // Authentic vintage cinema shutter flicker (gentle 0.95..1.0 range, warm vintage tone)
+        long gameTime = be.getLevel().getGameTime();
+        float flicker = 0.96f + (float) Math.sin(gameTime * 1.8f) * 0.03f + (RANDOM.nextFloat() - 0.5f) * 0.02f;
 
-        if (isSilent) {
-            long gameTime = be.getLevel().getGameTime();
-            float flicker = 0.94f + (float) Math.sin(gameTime * 1.8f) * 0.06f + (RANDOM.nextFloat() - 0.5f) * 0.04f;
-            r = 0.94f * flicker;
-            g = 0.94f * flicker;
-            b = 0.90f * flicker;
-        }
+        float r = isSilent ? 0.94f * flicker : 1.0f * flicker;
+        float g = isSilent ? 0.94f * flicker : 0.98f * flicker;
+        float b = isSilent ? 0.90f * flicker : 0.95f * flicker;
+        float a = 1.0f;
 
         boolean isIrisActive = isShaderPackActive();
         RenderType renderType;

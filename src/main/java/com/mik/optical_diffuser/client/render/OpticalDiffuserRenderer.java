@@ -94,7 +94,7 @@ public class OpticalDiffuserRenderer implements BlockEntityRenderer<OpticalDiffu
         // 2. Render 4-slot Lens Carousel Wheel on the left face
         CarouselRenderer.renderCarousel(be, partialTicks, poseStack, bufferSource, packedLight, packedOverlay);
 
-        // 3. Render optical beam only when active and not in projector mode
+        // 3. Render optical beam only when active
         if (!be.isActive()) {
             return;
         }
@@ -103,8 +103,28 @@ public class OpticalDiffuserRenderer implements BlockEntityRenderer<OpticalDiffu
         boolean isProjector = (mod == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SILENT
                 || mod == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SOUND);
 
+        Direction facing = be.getBlockState().getValue(OpticalDiffuserBlock.FACING);
+
+        poseStack.pushPose();
+
+        // Translate to the center of the block
+        poseStack.translate(0.5, 0.5, 0.5);
+
+        // Rotate so that +Z points forward in the direction of FACING
+        switch (facing) {
+            case SOUTH -> poseStack.mulPose(Axis.YP.rotationDegrees(0));
+            case EAST  -> poseStack.mulPose(Axis.YP.rotationDegrees(90));
+            case NORTH -> poseStack.mulPose(Axis.YP.rotationDegrees(180));
+            case WEST  -> poseStack.mulPose(Axis.YP.rotationDegrees(270));
+            case UP    -> poseStack.mulPose(Axis.XP.rotationDegrees(-90));
+            case DOWN  -> poseStack.mulPose(Axis.XP.rotationDegrees(90));
+        }
+
+        // Offset slightly forward from the lens surface
+        poseStack.translate(0.0, 0.0, 0.51);
+
         if (!isProjector) {
-            Direction facing = be.getBlockState().getValue(OpticalDiffuserBlock.FACING);
+            // Standard volumetric spotlight cone (focusing / dispersing lenses)
             float coneAngle = be.getConeAngle();
             int range = be.getConeRange();
             float spinSpeed = be.getEffectiveSpinSpeed();
@@ -114,31 +134,11 @@ public class OpticalDiffuserRenderer implements BlockEntityRenderer<OpticalDiffu
             int green = be.getGreen();
             int blue = be.getBlue();
 
-            poseStack.pushPose();
-
-            // Translate to the center of the block
-            poseStack.translate(0.5, 0.5, 0.5);
-
-            // Rotate so that +Z points forward in the direction of FACING
-            switch (facing) {
-                case SOUTH -> poseStack.mulPose(Axis.YP.rotationDegrees(0));
-                case EAST  -> poseStack.mulPose(Axis.YP.rotationDegrees(90));
-                case NORTH -> poseStack.mulPose(Axis.YP.rotationDegrees(180));
-                case WEST  -> poseStack.mulPose(Axis.YP.rotationDegrees(270));
-                case UP    -> poseStack.mulPose(Axis.XP.rotationDegrees(-90));
-                case DOWN  -> poseStack.mulPose(Axis.XP.rotationDegrees(90));
-            }
-
-            // Offset slightly forward from the lens surface
-            poseStack.translate(0.0, 0.0, 0.51);
-
-            // Apply visual rotation around the beam axis
             float rotation = be.getCurrentRotation() + (be.isActive() && spinSpeed != 0.0f ? (spinSpeed * 6.0f / 20.0f) * partialTicks : 0.0f);
             if (rotation != 0.0f) {
                 poseStack.mulPose(Axis.ZP.rotationDegrees(rotation));
             }
 
-            // Apply polarization roll if diagonal
             if (polarization == BeamHelper.BeamPolarization.DIAGONAL_POSITIVE) {
                 poseStack.mulPose(Axis.ZP.rotationDegrees(45.0f));
             } else if (polarization == BeamHelper.BeamPolarization.DIAGONAL_NEGATIVE) {
@@ -147,35 +147,42 @@ public class OpticalDiffuserRenderer implements BlockEntityRenderer<OpticalDiffu
 
             VertexConsumer consumer = bufferSource.getBuffer(SPOTLIGHT_BEAM);
             PoseStack.Pose pose = poseStack.last();
-
-            // Calculate radii for unified beam cone (user configured cone angle & range)
-            float baseRadius = (float) (range * Math.tan(Math.toRadians(coneAngle / 2.0)));
-            float radiusX = baseRadius;
-            float radiusY = baseRadius;
-
-            // Apply polarization deformation to beam cone
-            if (polarization == BeamHelper.BeamPolarization.HORIZONTAL) {
-                radiusX = baseRadius * 2.0f;
-                radiusY = baseRadius * 0.35f;
-            } else if (polarization == BeamHelper.BeamPolarization.VERTICAL) {
-                radiusX = baseRadius * 0.35f;
-                radiusY = baseRadius * 2.0f;
-            } else if (polarization == BeamHelper.BeamPolarization.DIAGONAL_POSITIVE || polarization == BeamHelper.BeamPolarization.DIAGONAL_NEGATIVE) {
-                radiusX = baseRadius * 1.8f;
-                radiusY = baseRadius * 0.35f;
-            }
-
+            float lensBaseRadius = 0.30f;
             int intensityAlpha = (int) (255 * be.getIntensity());
             int alphaMax = Math.min(255, Math.max(90, intensityAlpha));
 
-            // Lens aperture radius so beam starts cleanly at the projector glass
-            float lensBaseRadius = 0.30f;
-
-            // Render clean 2-layer atmospheric volumetric beam with true 3D obstacle shadows
             renderVolumetricCone(pose, consumer, be, range, lensBaseRadius, coneAngle, spinSpeed, partialTicks, polarization, red, green, blue, alphaMax);
+        } else {
+            // Cinema Projector Beam:
+            // Static warm cinema light (no spinning, no green tinting), stops cleanly right before the screen
+            com.mik.optical_diffuser.item.ProjectorLensItem.ScreenCoords coords =
+                    com.mik.optical_diffuser.item.ProjectorLensItem.getScreenCoords(be.getActiveLens());
+            if (coords.isComplete()) {
+                net.minecraft.core.BlockPos p1 = coords.pos1;
+                net.minecraft.core.BlockPos p2 = coords.pos2;
+                double cx = (Math.min(p1.getX(), p2.getX()) + Math.max(p1.getX(), p2.getX()) + 1) * 0.5;
+                double cy = (Math.min(p1.getY(), p2.getY()) + Math.max(p1.getY(), p2.getY()) + 1) * 0.5;
+                double cz = (Math.min(p1.getZ(), p2.getZ()) + Math.max(p1.getZ(), p2.getZ()) + 1) * 0.5;
 
-            poseStack.popPose();
+                net.minecraft.core.BlockPos bpos = be.getBlockPos();
+                double dist = Math.sqrt(bpos.distToCenterSqr(cx, cy, cz));
+                float beamRange = (float) Math.max(1.0, dist - 0.25); // Terminate 0.25 blocks before screen to avoid Z-fighting
+
+                int projR = 255;
+                int projG = 248;
+                int projB = 232;
+                int projAlpha = 65; // Soft atmospheric cinema dust beam
+
+                VertexConsumer consumer = bufferSource.getBuffer(SPOTLIGHT_BEAM);
+                PoseStack.Pose pose = poseStack.last();
+                float lensBaseRadius = 0.25f;
+                float projAngle = Math.min(45.0f, Math.max(15.0f, be.getConeAngle()));
+
+                renderVolumetricCone(pose, consumer, be, beamRange, lensBaseRadius, projAngle, 0.0f, partialTicks, BeamHelper.BeamPolarization.RANDOM, projR, projG, projB, projAlpha);
+            }
         }
+
+        poseStack.popPose();
 
         // 4. Render Projector video screen if equipped with projector lens
         ProjectorScreenRenderer.renderScreen(be, partialTicks, poseStack, bufferSource);
