@@ -21,7 +21,7 @@ public class OpenALPitchFixer {
 
     private static final Map<Integer, EffectSlotPair> SOURCE_EFFECTS = new ConcurrentHashMap<>();
 
-    private record EffectSlotPair(int effectId, int slotId, int filterId) {}
+    private record EffectSlotPair(int effectId, int slotId, int dryFilterId, int sendFilterId) {}
 
     public static boolean checkEfxSupport() {
         if (!efxChecked) {
@@ -65,6 +65,12 @@ public class OpenALPitchFixer {
         return new int[0];
     }
 
+    /**
+     * Applies ergonomic pitch compensation and high-frequency de-essing.
+     *
+     * @param player       WaterMedia player instance
+     * @param currentSpeed Playback speed ratio (1.0 = 16 RPM)
+     */
     public static void applyPitchCompensation(MediaPlayer player, float currentSpeed) {
         if (player == null || currentSpeed <= 0.05f) return;
         if (!checkEfxSupport()) return;
@@ -73,39 +79,56 @@ public class OpenALPitchFixer {
             int[] sourceIds = getSourceIds(player);
             if (sourceIds == null || sourceIds.length == 0) return;
 
-            // Target coarse tune in semitones:
-            // S = 2.0 -> semitones = -12.0 * log2(2.0) = -12 semitones (1 octave lower)
-            // S = 0.5 -> semitones = -12.0 * log2(0.5) = +12 semitones (1 octave higher)
+            // ZONE 1 & ZONE 4 (Hi-Fi 1.0x OR Cinematic Slow-Mo < 1.0x):
+            // - At 1.0x: 100% clean bit-perfect direct output without DSP overhead.
+            // - At < 1.0x: Slow-mo pitch drops naturally with speed (deep, weighty cinematic tone).
+            //   We explicitly avoid shifting UP with delay-line pitch shifter, which causes robotic vocoder artifacts.
+            if (currentSpeed <= 1.05f) {
+                for (int sourceId : sourceIds) {
+                    if (sourceId > 0) detachSource(sourceId);
+                }
+                return;
+            }
+
+            // ZONE 2 & ZONE 3 (Accelerated > 1.05x up to high-speed scrub):
+            // Compensate pitch downward by -12.0 * log2(speed) semitones.
             float semitones = (float) (-12.0 * (Math.log(currentSpeed) / Math.log(2.0)));
-            int coarseTune = Math.max(-12, Math.min(12, Math.round(semitones)));
+            int coarseTune = Math.max(-12, Math.min(0, Math.round(semitones))); // clamped to max -12 semitones
             float cents = (semitones - coarseTune) * 100.0f;
-            int fineTune = Math.max(-50, Math.min(50, Math.round(cents)));
+            int fineTune = Math.max(-50, Math.min(0, Math.round(cents)));
+
+            // High-frequency roll-off (De-esser):
+            // When speeding up audio, high sibilants ("s", "sh") double in frequency and sound shrill.
+            // Apply gentle lowpass damping on the wet send: 0.75 at 1.5x down to 0.40 at 3.0x+
+            float gainHF = Math.max(0.35f, Math.min(0.85f, 1.0f - (currentSpeed - 1.0f) * 0.30f));
 
             for (int sourceId : sourceIds) {
                 if (sourceId <= 0) continue;
 
-                if (Math.abs(currentSpeed - 1.0f) < 0.05f) {
-                    // Normal speed: detach pitch shifter and restore standard direct playback
-                    detachSource(sourceId);
-                    continue;
-                }
-
-                // Speed != 1.0x: update or create pitch shifter effect + mute dry signal
                 EffectSlotPair pair = SOURCE_EFFECTS.computeIfAbsent(sourceId, id -> {
                     try {
-                        int filter = EXTEfx.alGenFilters();
-                        EXTEfx.alFilteri(filter, EXTEfx.AL_FILTER_TYPE, EXTEfx.AL_FILTER_LOWPASS);
-                        EXTEfx.alFilterf(filter, EXTEfx.AL_LOWPASS_GAIN, 0.0f);
-                        EXTEfx.alFilterf(filter, EXTEfx.AL_LOWPASS_GAINHF, 0.0f);
+                        // 1. Dry Mute Filter
+                        int dryFilter = EXTEfx.alGenFilters();
+                        EXTEfx.alFilteri(dryFilter, EXTEfx.AL_FILTER_TYPE, EXTEfx.AL_FILTER_LOWPASS);
+                        EXTEfx.alFilterf(dryFilter, EXTEfx.AL_LOWPASS_GAIN, 0.0f);
+                        EXTEfx.alFilterf(dryFilter, EXTEfx.AL_LOWPASS_GAINHF, 0.0f);
 
+                        // 2. Wet De-essing Send Filter
+                        int sendFilter = EXTEfx.alGenFilters();
+                        EXTEfx.alFilteri(sendFilter, EXTEfx.AL_FILTER_TYPE, EXTEfx.AL_FILTER_LOWPASS);
+                        EXTEfx.alFilterf(sendFilter, EXTEfx.AL_LOWPASS_GAIN, 1.0f);
+                        EXTEfx.alFilterf(sendFilter, EXTEfx.AL_LOWPASS_GAINHF, 0.75f);
+
+                        // 3. Pitch Shifter Effect
                         int effect = EXTEfx.alGenEffects();
                         EXTEfx.alEffecti(effect, EXTEfx.AL_EFFECT_TYPE, EXTEfx.AL_EFFECT_PITCH_SHIFTER);
 
+                        // 4. Auxiliary Effect Slot
                         int slot = EXTEfx.alGenAuxiliaryEffectSlots();
                         EXTEfx.alAuxiliaryEffectSloti(slot, EXTEfx.AL_EFFECTSLOT_EFFECT, effect);
                         EXTEfx.alAuxiliaryEffectSlotf(slot, EXTEfx.AL_EFFECTSLOT_GAIN, 1.0f);
 
-                        return new EffectSlotPair(effect, slot, filter);
+                        return new EffectSlotPair(effect, slot, dryFilter, sendFilter);
                     } catch (Throwable t) {
                         return null;
                     }
@@ -116,9 +139,12 @@ public class OpenALPitchFixer {
                     EXTEfx.alEffecti(pair.effectId(), EXTEfx.AL_PITCH_SHIFTER_FINE_TUNE, fineTune);
                     EXTEfx.alAuxiliaryEffectSloti(pair.slotId(), EXTEfx.AL_EFFECTSLOT_EFFECT, pair.effectId());
 
-                    // Mute dry direct signal, route wet output via pitch shifter slot
-                    AL10.alSourcei(sourceId, EXTEfx.AL_DIRECT_FILTER, pair.filterId());
-                    AL11.alSource3i(sourceId, EXTEfx.AL_AUXILIARY_SEND_FILTER, pair.slotId(), 0, EXTEfx.AL_FILTER_NULL);
+                    // Update high frequency damping on the send filter
+                    EXTEfx.alFilterf(pair.sendFilterId(), EXTEfx.AL_LOWPASS_GAINHF, gainHF);
+
+                    // Mute dry direct signal, route wet signal via pitch shifter + de-esser
+                    AL10.alSourcei(sourceId, EXTEfx.AL_DIRECT_FILTER, pair.dryFilterId());
+                    AL11.alSource3i(sourceId, EXTEfx.AL_AUXILIARY_SEND_FILTER, pair.slotId(), 0, pair.sendFilterId());
                 }
             }
         } catch (Throwable ignored) {}
@@ -133,7 +159,8 @@ public class OpenALPitchFixer {
                 EXTEfx.alAuxiliaryEffectSloti(pair.slotId(), EXTEfx.AL_EFFECTSLOT_EFFECT, EXTEfx.AL_EFFECT_NULL);
                 EXTEfx.alDeleteAuxiliaryEffectSlots(pair.slotId());
                 EXTEfx.alDeleteEffects(pair.effectId());
-                EXTEfx.alDeleteFilters(pair.filterId());
+                EXTEfx.alDeleteFilters(pair.sendFilterId());
+                EXTEfx.alDeleteFilters(pair.dryFilterId());
             } catch (Throwable ignored) {}
         }
     }
@@ -156,7 +183,8 @@ public class OpenALPitchFixer {
                 EXTEfx.alAuxiliaryEffectSloti(pair.slotId(), EXTEfx.AL_EFFECTSLOT_EFFECT, EXTEfx.AL_EFFECT_NULL);
                 EXTEfx.alDeleteAuxiliaryEffectSlots(pair.slotId());
                 EXTEfx.alDeleteEffects(pair.effectId());
-                EXTEfx.alDeleteFilters(pair.filterId());
+                EXTEfx.alDeleteFilters(pair.sendFilterId());
+                EXTEfx.alDeleteFilters(pair.dryFilterId());
             } catch (Throwable ignored) {}
         }
         SOURCE_EFFECTS.clear();

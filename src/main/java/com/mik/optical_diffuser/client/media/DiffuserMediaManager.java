@@ -31,6 +31,9 @@ public class DiffuserMediaManager {
     private int rewindTickCounter = 0;
     private boolean wasRewinding = false;
     private boolean isMuted = false;
+    private float currentMasterVolume = 0.0f;
+    private float accumulatedReelAngle = 0.0f;
+    private int fastForwardSoundTicks = 0;
     private long lastServerSyncTimeMs = -1;
     private int syncTickCounter = 0;
 
@@ -126,11 +129,11 @@ public class DiffuserMediaManager {
                 }
             }
 
+            float absRpm = Math.abs(rpm);
             float speedFactor = rpm / 16.0f;
-            boolean isFastForward = speedFactor > 4.0f;
-            boolean isRewinding = speedFactor < -0.05f;
+            boolean isRewinding = rpm < -0.1f;
 
-            if (Math.abs(rpm) < 0.1f) {
+            if (absRpm < 0.1f) {
                 // 0 RPM: Pause
                 if (player.playing()) {
                     player.pause(true);
@@ -149,16 +152,65 @@ public class DiffuserMediaManager {
                     player.resume();
                 }
 
-                // Natural Voice Pitch Tuning:
-                // Snap to 1.0x if near 16 RPM (12.0 to 20.0 RPM) for 100% natural voice pitch
-                float targetSpeed = (speedFactor >= 0.75f && speedFactor <= 1.25f) ? 1.0f : speedFactor;
-                float clampedSpeed = Math.max(0.25f, Math.min(4.0f, targetSpeed));
-                if (Math.abs(clampedSpeed - lastSpeed) > 0.05f) {
-                    player.speed(clampedSpeed);
-                    lastSpeed = clampedSpeed;
+                // 4 Ergonomic Speed Zones:
+                // Zone 1: Hi-Fi Snap Window (14.0 - 18.0 RPM) -> pristine 1.0x bit-perfect
+                // Zone 2: Intelligible Accelerated Range (18.0 - 36.0 RPM / 1.125x - 2.25x)
+                // Zone 3: High-Speed Shuttle (36.0+ RPM up to 128+ RPM) -> cap decoder at 4.0x, duck audio
+                // Zone 4: Cinematic Slow-Mo (< 14.0 RPM / 0.25x - 0.875x) -> deep baritone, no robotic comb filter
+                float targetSpeed;
+                if (rpm >= 14.0f && rpm <= 18.0f) {
+                    targetSpeed = 1.0f;
+                } else if (rpm < 14.0f) {
+                    targetSpeed = Math.max(0.25f, speedFactor);
+                } else if (rpm <= 36.0f) {
+                    targetSpeed = speedFactor;
+                } else {
+                    targetSpeed = Math.min(4.0f, speedFactor);
                 }
-                // Apply OpenAL hardware EFX pitch shifter to neutralize chipmunk squeak
-                OpenALPitchFixer.applyPitchCompensation(player, clampedSpeed);
+
+                if (Math.abs(targetSpeed - lastSpeed) > 0.03f) {
+                    player.speed(targetSpeed);
+                    lastSpeed = targetSpeed;
+                }
+
+                // Apply OpenAL hardware EFX pitch shifter and de-esser
+                OpenALPitchFixer.applyPitchCompensation(player, targetSpeed);
+
+                // Ambient projector spool sound for Zone 3 (high-speed shuttle):
+                if (rpm > 36.0f && diffuser.getLevel() != null) {
+                    fastForwardSoundTicks++;
+                    if (fastForwardSoundTicks % 8 == 0) {
+                        var pos = diffuser.getBlockPos();
+                        float whirPitch = 1.2f + Math.min(0.6f, (rpm - 36.0f) / 64.0f);
+                        diffuser.getLevel().playLocalSound(
+                                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                                net.minecraft.sounds.SoundEvents.WOOL_STEP,
+                                net.minecraft.sounds.SoundSource.BLOCKS,
+                                0.25f,
+                                whirPitch,
+                                false
+                        );
+                    }
+                } else {
+                    fastForwardSoundTicks = 0;
+                }
+
+                // Slow-Mo Geneva drive tick for Zone 4:
+                if (rpm < 14.0f && diffuser.getLevel() != null) {
+                    accumulatedReelAngle += (absRpm * 6.0f) / 20.0f;
+                    if (accumulatedReelAngle >= 90.0f) {
+                        accumulatedReelAngle -= 90.0f;
+                        var pos = diffuser.getBlockPos();
+                        diffuser.getLevel().playLocalSound(
+                                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                                net.minecraft.sounds.SoundEvents.ITEM_FRAME_ROTATE_ITEM,
+                                net.minecraft.sounds.SoundSource.BLOCKS,
+                                0.20f,
+                                0.85f,
+                                false
+                        );
+                    }
+                }
 
                 if (this.pendingSeekMs < 0) {
                     long curTime = player.time();
@@ -185,48 +237,52 @@ public class DiffuserMediaManager {
                     player.seekQuick(this.lastRecordedTimeMs);
                 }
 
-                // Authentic continuous vintage film reel whir and ratchet flutter sound while rewinding
+                // Physical-angle tied vintage rewind sounds (ZERO machine-gun drone!):
                 if (diffuser.getLevel() != null) {
                     var pos = diffuser.getBlockPos();
-                    if (rewindTickCounter % 2 == 0) {
-                        float flutterPitch = 1.3f + Math.min(0.7f, Math.abs(speedFactor) * 0.1f);
-                        diffuser.getLevel().playLocalSound(
-                                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
-                                net.minecraft.sounds.SoundEvents.BRUSH_GENERIC,
-                                net.minecraft.sounds.SoundSource.BLOCKS,
-                                0.85f,
-                                flutterPitch,
-                                false
-                        );
-                    }
-                    if (rewindTickCounter % 3 == 0) {
-                        float ratchetPitch = 1.6f + (float) (Math.random() * 0.3f);
+                    accumulatedReelAngle += (absRpm * 6.0f) / 20.0f;
+
+                    // 1 ratchet click per 90 degrees of reel shaft rotation:
+                    if (accumulatedReelAngle >= 90.0f) {
+                        accumulatedReelAngle -= 90.0f;
+                        float ratchetPitch = 1.3f + (float) (Math.random() * 0.25f);
                         diffuser.getLevel().playLocalSound(
                                 pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
                                 net.minecraft.sounds.SoundEvents.ITEM_FRAME_ROTATE_ITEM,
                                 net.minecraft.sounds.SoundSource.BLOCKS,
-                                0.60f,
+                                0.28f, // Balanced volume
                                 ratchetPitch,
+                                false
+                        );
+                    }
+
+                    // Gentle periodic reel glide sound (every 10 ticks = twice per second):
+                    if (rewindTickCounter % 10 == 0) {
+                        float whirPitch = 1.4f + Math.min(0.5f, (absRpm / 64.0f) * 0.4f);
+                        diffuser.getLevel().playLocalSound(
+                                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                                net.minecraft.sounds.SoundEvents.WOOL_STEP,
+                                net.minecraft.sounds.SoundSource.BLOCKS,
+                                0.22f, // Soft background film whir
+                                whirPitch,
                                 false
                         );
                     }
                 }
             }
 
-            // Direct Audio Zone Check (Projector 12-block radius OR linked Speaker 9x9 zones)
+            // Direct Audio Zone Check with Smooth Volume Ramping & High-Speed Ducking
             if (sound) {
                 Minecraft mc = Minecraft.getInstance();
-                boolean audible = false;
+                boolean inZone = false;
 
-                // Mute during reverse playback (digital audio codecs cannot play backwards)
-                // and during fast-forward > 2.0x (to prevent high-pitched screeching)
-                if (!isRewinding && !isFastForward && mc.player != null) {
+                if (mc.player != null) {
                     net.minecraft.world.phys.Vec3 playerPos = mc.player.position();
                     net.minecraft.world.phys.Vec3 diffuserCenter = net.minecraft.world.phys.Vec3.atCenterOf(diffuser.getBlockPos());
 
                     // 1. Direct audio within 12 blocks of projector
                     if (playerPos.distanceTo(diffuserCenter) <= 12.0) {
-                        audible = true;
+                        inZone = true;
                     } else {
                         // 2. Check all linked speakers
                         java.util.List<com.mik.optical_diffuser.block.entity.SpeakerBlockEntity> speakers =
@@ -236,21 +292,39 @@ public class DiffuserMediaManager {
                                     s.getBlockPos(),
                                     s.getBlockState().getValue(com.mik.optical_diffuser.block.SpeakerBlock.FACING),
                                     playerPos)) {
-                                audible = true;
+                                inZone = true;
                                 break;
                             }
                         }
                     }
                 }
 
-                // If player is in projector zone or any speaker zone, unmute direct flat audio!
-                // Since this is a single media stream, sound NEVER overlaps or echoes!
-                if (audible) {
+                // Zone volume multiplier:
+                // - During rewind: video track is muted (0.0f) because physical rewind sounds play
+                // - At 0 RPM (pause): 0.0f
+                // - In Zone 3 (high-speed shuttle > 36 RPM): smoothly duck from 1.0 down to 0.35 (NO ABRUPT CUTOFF!)
+                float speedVolumeFactor = 1.0f;
+                if (isRewinding || absRpm < 0.1f) {
+                    speedVolumeFactor = 0.0f;
+                } else if (absRpm > 36.0f) {
+                    speedVolumeFactor = Math.max(0.35f, 1.0f - (absRpm - 36.0f) / 45.0f);
+                }
+
+                float targetVolume = inZone ? speedVolumeFactor : 0.0f;
+
+                // Smooth exponential volume ramping (3-4 ticks ramp) to eliminate popping/clicking:
+                this.currentMasterVolume += (targetVolume - this.currentMasterVolume) * 0.30f;
+                if (this.currentMasterVolume < 0.02f) {
+                    this.currentMasterVolume = 0.0f;
+                }
+
+                int intVol = Math.round(this.currentMasterVolume * 100.0f);
+                if (intVol > 0) {
                     if (this.isMuted) {
                         player.mute(false);
                         this.isMuted = false;
                     }
-                    player.volume(100);
+                    player.volume(intVol);
                 } else {
                     if (!this.isMuted) {
                         player.mute(true);
@@ -369,5 +443,8 @@ public class DiffuserMediaManager {
             dynamicTexture = null;
         }
         currentUrl = "";
+        currentMasterVolume = 0.0f;
+        accumulatedReelAngle = 0.0f;
+        fastForwardSoundTicks = 0;
     }
 }
