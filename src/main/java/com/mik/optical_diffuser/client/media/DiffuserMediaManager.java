@@ -222,10 +222,23 @@ public class DiffuserMediaManager {
             Minecraft mc = Minecraft.getInstance();
             Thread renderThread = Thread.currentThread();
 
-            // Use 32 buffers without spatial distortion to prevent OpenAL underrun / clock jitter
+            // Use 32 buffers without spatial distortion to prevent OpenAL underrun / clock jitter,
+            // and disable the experimental persistent PBO ring in GLEngine (ringCapable = false)
+            // which causes the Cr chroma plane desync and green flicker on Linux/NVIDIA.
             this.player = PlayerAPI.player(
                     mrl,
-                    () -> PlayerAPI.glEngine(renderThread, mc),
+                    () -> {
+                        org.watermedia.api.player.GLEngine engine = PlayerAPI.glEngine(renderThread, mc);
+                        try {
+                            java.lang.reflect.Field field = org.watermedia.api.player.GLEngine.class.getDeclaredField("ringCapable");
+                            field.setAccessible(true);
+                            field.set(engine, Boolean.FALSE);
+                            com.mik.optical_diffuser.util.DiffuserLogger.info("Disabled persistent PBO ring in GLEngine (forcing stable uploadClient)");
+                        } catch (Throwable t) {
+                            com.mik.optical_diffuser.util.DiffuserLogger.error("Failed to disable ringCapable in GLEngine", t);
+                        }
+                        return engine;
+                    },
                     sound ? () -> PlayerAPI.alEngine(32, false) : () -> null
             );
 
