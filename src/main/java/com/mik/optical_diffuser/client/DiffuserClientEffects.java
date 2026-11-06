@@ -79,6 +79,11 @@ public class DiffuserClientEffects {
         for (OpticalDiffuserBlockEntity be : OpticalDiffuserBlockEntity.CLIENT_INSTANCES) {
             if (be == null || be.isRemoved() || !be.isActive() || be.getLevel() == null) continue;
 
+            OpticalDiffuserBlockEntity.DiffuserModule mod = be.getActiveModule();
+            if (mod == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SILENT || mod == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SOUND) {
+                continue;
+            }
+
             Direction facing;
             try {
                 facing = be.getBlockState().getValue(OpticalDiffuserBlock.FACING);

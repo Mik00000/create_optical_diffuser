@@ -39,3 +39,4 @@ void main() {
     vec4 color = vec4(finalColor, alpha);
     fragColor = linear_fog(color, vertexDistance, FogStart, FogEnd, FogColor);
 }
+

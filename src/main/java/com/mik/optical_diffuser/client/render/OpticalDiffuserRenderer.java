@@ -94,84 +94,90 @@ public class OpticalDiffuserRenderer implements BlockEntityRenderer<OpticalDiffu
         // 2. Render 4-slot Lens Carousel Wheel on the left face
         CarouselRenderer.renderCarousel(be, partialTicks, poseStack, bufferSource, packedLight, packedOverlay);
 
-        // 3. Render optical beam only when active
+        // 3. Render optical beam only when active and not in projector mode
         if (!be.isActive()) {
             return;
         }
 
-        Direction facing = be.getBlockState().getValue(OpticalDiffuserBlock.FACING);
-        float coneAngle = be.getConeAngle();
-        int range = be.getConeRange();
-        float spinSpeed = be.getEffectiveSpinSpeed();
-        BeamHelper.BeamPolarization polarization = be.getPolarization();
+        OpticalDiffuserBlockEntity.DiffuserModule mod = be.getActiveModule();
+        boolean isProjector = (mod == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SILENT
+                || mod == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SOUND);
 
-        int red = be.getRed();
-        int green = be.getGreen();
-        int blue = be.getBlue();
+        if (!isProjector) {
+            Direction facing = be.getBlockState().getValue(OpticalDiffuserBlock.FACING);
+            float coneAngle = be.getConeAngle();
+            int range = be.getConeRange();
+            float spinSpeed = be.getEffectiveSpinSpeed();
+            BeamHelper.BeamPolarization polarization = be.getPolarization();
 
-        poseStack.pushPose();
+            int red = be.getRed();
+            int green = be.getGreen();
+            int blue = be.getBlue();
 
-        // Translate to the center of the block
-        poseStack.translate(0.5, 0.5, 0.5);
+            poseStack.pushPose();
 
-        // Rotate so that +Z points forward in the direction of FACING
-        switch (facing) {
-            case SOUTH -> poseStack.mulPose(Axis.YP.rotationDegrees(0));
-            case EAST  -> poseStack.mulPose(Axis.YP.rotationDegrees(90));
-            case NORTH -> poseStack.mulPose(Axis.YP.rotationDegrees(180));
-            case WEST  -> poseStack.mulPose(Axis.YP.rotationDegrees(270));
-            case UP    -> poseStack.mulPose(Axis.XP.rotationDegrees(-90));
-            case DOWN  -> poseStack.mulPose(Axis.XP.rotationDegrees(90));
+            // Translate to the center of the block
+            poseStack.translate(0.5, 0.5, 0.5);
+
+            // Rotate so that +Z points forward in the direction of FACING
+            switch (facing) {
+                case SOUTH -> poseStack.mulPose(Axis.YP.rotationDegrees(0));
+                case EAST  -> poseStack.mulPose(Axis.YP.rotationDegrees(90));
+                case NORTH -> poseStack.mulPose(Axis.YP.rotationDegrees(180));
+                case WEST  -> poseStack.mulPose(Axis.YP.rotationDegrees(270));
+                case UP    -> poseStack.mulPose(Axis.XP.rotationDegrees(-90));
+                case DOWN  -> poseStack.mulPose(Axis.XP.rotationDegrees(90));
+            }
+
+            // Offset slightly forward from the lens surface
+            poseStack.translate(0.0, 0.0, 0.51);
+
+            // Apply visual rotation around the beam axis
+            float rotation = be.getCurrentRotation() + (be.isActive() && spinSpeed != 0.0f ? (spinSpeed * 6.0f / 20.0f) * partialTicks : 0.0f);
+            if (rotation != 0.0f) {
+                poseStack.mulPose(Axis.ZP.rotationDegrees(rotation));
+            }
+
+            // Apply polarization roll if diagonal
+            if (polarization == BeamHelper.BeamPolarization.DIAGONAL_POSITIVE) {
+                poseStack.mulPose(Axis.ZP.rotationDegrees(45.0f));
+            } else if (polarization == BeamHelper.BeamPolarization.DIAGONAL_NEGATIVE) {
+                poseStack.mulPose(Axis.ZP.rotationDegrees(-45.0f));
+            }
+
+            VertexConsumer consumer = bufferSource.getBuffer(SPOTLIGHT_BEAM);
+            PoseStack.Pose pose = poseStack.last();
+
+            // Calculate radii for unified beam cone (user configured cone angle & range)
+            float baseRadius = (float) (range * Math.tan(Math.toRadians(coneAngle / 2.0)));
+            float radiusX = baseRadius;
+            float radiusY = baseRadius;
+
+            // Apply polarization deformation to beam cone
+            if (polarization == BeamHelper.BeamPolarization.HORIZONTAL) {
+                radiusX = baseRadius * 2.0f;
+                radiusY = baseRadius * 0.35f;
+            } else if (polarization == BeamHelper.BeamPolarization.VERTICAL) {
+                radiusX = baseRadius * 0.35f;
+                radiusY = baseRadius * 2.0f;
+            } else if (polarization == BeamHelper.BeamPolarization.DIAGONAL_POSITIVE || polarization == BeamHelper.BeamPolarization.DIAGONAL_NEGATIVE) {
+                radiusX = baseRadius * 1.8f;
+                radiusY = baseRadius * 0.35f;
+            }
+
+            int intensityAlpha = (int) (255 * be.getIntensity());
+            int alphaMax = Math.min(255, Math.max(90, intensityAlpha));
+
+            // Lens aperture radius so beam starts cleanly at the projector glass
+            float lensBaseRadius = 0.30f;
+
+            // Render clean 2-layer atmospheric volumetric beam with true 3D obstacle shadows
+            renderVolumetricCone(pose, consumer, be, range, lensBaseRadius, coneAngle, spinSpeed, partialTicks, polarization, red, green, blue, alphaMax);
+
+            poseStack.popPose();
         }
 
-        // Offset slightly forward from the lens surface
-        poseStack.translate(0.0, 0.0, 0.51);
-
-        // Apply visual rotation around the beam axis
-        float rotation = be.getCurrentRotation() + (be.isActive() && spinSpeed != 0.0f ? (spinSpeed * 6.0f / 20.0f) * partialTicks : 0.0f);
-        if (rotation != 0.0f) {
-            poseStack.mulPose(Axis.ZP.rotationDegrees(rotation));
-        }
-
-        // Apply polarization roll if diagonal
-        if (polarization == BeamHelper.BeamPolarization.DIAGONAL_POSITIVE) {
-            poseStack.mulPose(Axis.ZP.rotationDegrees(45.0f));
-        } else if (polarization == BeamHelper.BeamPolarization.DIAGONAL_NEGATIVE) {
-            poseStack.mulPose(Axis.ZP.rotationDegrees(-45.0f));
-        }
-
-        VertexConsumer consumer = bufferSource.getBuffer(SPOTLIGHT_BEAM);
-        PoseStack.Pose pose = poseStack.last();
-
-        // Calculate radii for unified beam cone (user configured cone angle & range)
-        float baseRadius = (float) (range * Math.tan(Math.toRadians(coneAngle / 2.0)));
-        float radiusX = baseRadius;
-        float radiusY = baseRadius;
-
-        // Apply polarization deformation to beam cone
-        if (polarization == BeamHelper.BeamPolarization.HORIZONTAL) {
-            radiusX = baseRadius * 2.0f;
-            radiusY = baseRadius * 0.35f;
-        } else if (polarization == BeamHelper.BeamPolarization.VERTICAL) {
-            radiusX = baseRadius * 0.35f;
-            radiusY = baseRadius * 2.0f;
-        } else if (polarization == BeamHelper.BeamPolarization.DIAGONAL_POSITIVE || polarization == BeamHelper.BeamPolarization.DIAGONAL_NEGATIVE) {
-            radiusX = baseRadius * 1.8f;
-            radiusY = baseRadius * 0.35f;
-        }
-
-        int intensityAlpha = (int) (255 * be.getIntensity());
-        int alphaMax = Math.min(255, Math.max(90, intensityAlpha));
-
-        // Lens aperture radius so beam starts cleanly at the projector glass
-        float lensBaseRadius = 0.30f;
-
-        // Render clean 2-layer atmospheric volumetric beam with true 3D obstacle shadows
-        renderVolumetricCone(pose, consumer, be, range, lensBaseRadius, coneAngle, spinSpeed, partialTicks, polarization, red, green, blue, alphaMax);
-
-        poseStack.popPose();
-
-        // 3. Render Projector video screen if equipped with projector lens
+        // 4. Render Projector video screen if equipped with projector lens
         ProjectorScreenRenderer.renderScreen(be, partialTicks, poseStack, bufferSource);
     }
 

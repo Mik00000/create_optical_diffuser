@@ -108,23 +108,30 @@ public class ProjectorScreenRenderer {
             }
         }
 
-        // Projector lamp flicker effect (vintage shutter flicker ~18-24 FPS)
-        long gameTime = be.getLevel().getGameTime();
-        float flicker = 0.94f + (float) Math.sin(gameTime * 1.8f) * 0.06f + (RANDOM.nextFloat() - 0.5f) * 0.04f;
-
         boolean isSilent = (mod == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SILENT);
-        float r = isSilent ? 0.94f * flicker : 1.0f * flicker;
-        float g = isSilent ? 0.94f * flicker : 0.98f * flicker;
-        float b = isSilent ? 0.90f * flicker : 0.95f * flicker;
+
+        // Visual effects disabled on Soundtrack Cinema Lens for clean baseline test:
+        // Pure 1.0f flat color, no lamp flicker, no vintage tinting
+        float r = 1.0f;
+        float g = 1.0f;
+        float b = 1.0f;
         float a = 1.0f;
 
-        // Core shaders with chroma fail-safe when shaders off; fallback to entityTranslucentCull if Iris pack active
+        if (isSilent) {
+            long gameTime = be.getLevel().getGameTime();
+            float flicker = 0.94f + (float) Math.sin(gameTime * 1.8f) * 0.06f + (RANDOM.nextFloat() - 0.5f) * 0.04f;
+            r = 0.94f * flicker;
+            g = 0.94f * flicker;
+            b = 0.90f * flicker;
+        }
+
         boolean isIrisActive = isShaderPackActive();
         RenderType renderType;
         if (isSilent) {
             renderType = isIrisActive ? RenderType.entityTranslucentCull(texLoc) : ModShaders.getProjectorMonochrome(texLoc);
         } else {
-            renderType = isIrisActive ? RenderType.entityTranslucentCull(texLoc) : ModShaders.getProjectorColor(texLoc);
+            // Raw translucent entity - no custom shaders or color filters
+            renderType = RenderType.entityTranslucentCull(texLoc);
         }
         VertexConsumer vertexConsumer = bufferSource.getBuffer(renderType);
 
