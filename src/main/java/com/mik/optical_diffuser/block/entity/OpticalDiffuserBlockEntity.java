@@ -648,6 +648,27 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
             }
         }
 
+        // Kinetic shaft connected to the left face rotates the lens carousel wheel
+        float shaftSpeed = getSpeed();
+        if (shaftSpeed != 0.0f) {
+            int prevSlot = getActiveCarouselSlot();
+            this.carouselAngle += (shaftSpeed * 6.0f) / 20.0f;
+            if (this.carouselAngle >= 360.0f) {
+                this.carouselAngle -= 360.0f;
+            } else if (this.carouselAngle < 0.0f) {
+                this.carouselAngle += 360.0f;
+            }
+            int newSlot = getActiveCarouselSlot();
+            if (prevSlot != newSlot) {
+                updateModuleAndRedstone();
+                updateBeamingState();
+                setChanged();
+                if (level != null && !level.isClientSide) {
+                    syncToClient();
+                }
+            }
+        }
+
         if (level != null && level.isClientSide) {
             if (this.isActive() && level.getGameTime() % 2 == 0) {
                 updateObstacleGrid();

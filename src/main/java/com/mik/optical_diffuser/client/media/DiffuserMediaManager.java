@@ -80,10 +80,8 @@ public class DiffuserMediaManager {
         float rpm = 0.0f;
         long savedTime = 0;
 
-        // Prioritize shaft rotation on the diffuser (left face where lenses are) OR on the film reel (right face)
-        if (Math.abs(diffuser.getSpeed()) > 0.1f) {
-            rpm = diffuser.getSpeed();
-        } else if (filmReel != null && Math.abs(filmReel.getEffectiveSpeed()) > 0.1f) {
+        // Video playback speed is driven strictly by shaft rotation connected to the film reel
+        if (filmReel != null && Math.abs(filmReel.getEffectiveSpeed()) > 0.1f) {
             rpm = filmReel.getEffectiveSpeed();
         }
 
@@ -129,7 +127,7 @@ public class DiffuserMediaManager {
             }
 
             float speedFactor = rpm / 16.0f;
-            boolean isFastForward = speedFactor > 2.0f;
+            boolean isFastForward = speedFactor > 4.0f;
             boolean isRewinding = speedFactor < -0.05f;
 
             if (Math.abs(rpm) < 0.1f) {
@@ -139,10 +137,11 @@ public class DiffuserMediaManager {
                     syncTimeToReel(filmReel, this.lastRecordedTimeMs);
                 }
                 wasRewinding = false;
+                OpenALPitchFixer.release(player);
             } else if (speedFactor > 0) {
                 // Forward playback
                 if (wasRewinding) {
-                    player.seek(this.lastRecordedTimeMs);
+                    player.seekQuick(this.lastRecordedTimeMs);
                     wasRewinding = false;
                 }
 
@@ -158,6 +157,8 @@ public class DiffuserMediaManager {
                     player.speed(clampedSpeed);
                     lastSpeed = clampedSpeed;
                 }
+                // Apply OpenAL hardware EFX pitch shifter to neutralize chipmunk squeak
+                OpenALPitchFixer.applyPitchCompensation(player, clampedSpeed);
 
                 if (this.pendingSeekMs < 0) {
                     long curTime = player.time();
@@ -172,15 +173,15 @@ public class DiffuserMediaManager {
                 if (player.playing()) {
                     player.pause(true);
                 }
+                OpenALPitchFixer.release(player);
 
                 long stepMs = (long) (Math.abs(speedFactor) * 50); // 50ms per game tick = 1x real-time at 16 RPM
                 this.lastRecordedTimeMs = Math.max(0, this.lastRecordedTimeMs - stepMs);
                 syncTimeToReel(filmReel, this.lastRecordedTimeMs);
 
                 rewindTickCounter++;
-                if (Math.abs(speedFactor) <= 1.25f) {
-                    player.previousFrame();
-                } else if (rewindTickCounter % 3 == 0) {
+                // Smooth backward stepping without FFmpeg decode lockup
+                if (rewindTickCounter % 2 == 0) {
                     player.seekQuick(this.lastRecordedTimeMs);
                 }
 
@@ -188,22 +189,23 @@ public class DiffuserMediaManager {
                 if (diffuser.getLevel() != null) {
                     var pos = diffuser.getBlockPos();
                     if (rewindTickCounter % 2 == 0) {
-                        float flutterPitch = 1.5f + Math.min(0.5f, Math.abs(speedFactor) * 0.1f) + (float) (Math.random() * 0.15f);
+                        float flutterPitch = 1.3f + Math.min(0.7f, Math.abs(speedFactor) * 0.1f);
                         diffuser.getLevel().playLocalSound(
                                 pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
                                 net.minecraft.sounds.SoundEvents.BRUSH_GENERIC,
                                 net.minecraft.sounds.SoundSource.BLOCKS,
-                                0.30f,
+                                0.85f,
                                 flutterPitch,
                                 false
                         );
-                    } else if (rewindTickCounter % 3 == 0) {
-                        float ratchetPitch = 1.7f + (float) (Math.random() * 0.3f);
+                    }
+                    if (rewindTickCounter % 3 == 0) {
+                        float ratchetPitch = 1.6f + (float) (Math.random() * 0.3f);
                         diffuser.getLevel().playLocalSound(
                                 pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
                                 net.minecraft.sounds.SoundEvents.ITEM_FRAME_ROTATE_ITEM,
                                 net.minecraft.sounds.SoundSource.BLOCKS,
-                                0.15f,
+                                0.60f,
                                 ratchetPitch,
                                 false
                         );
@@ -348,6 +350,7 @@ public class DiffuserMediaManager {
 
     public synchronized void release() {
         if (player != null) {
+            OpenALPitchFixer.release(player);
             FilmReelBlockEntity filmReel = diffuser.getConnectedFilmReel();
             if (filmReel != null && this.lastRecordedTimeMs > 0) {
                 syncTimeToReel(filmReel, this.lastRecordedTimeMs);
