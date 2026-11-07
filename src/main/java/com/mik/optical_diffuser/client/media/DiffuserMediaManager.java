@@ -3,19 +3,14 @@ package com.mik.optical_diffuser.client.media;
 import com.mik.optical_diffuser.block.entity.FilmReelBlockEntity;
 import com.mik.optical_diffuser.block.entity.OpticalDiffuserBlockEntity;
 import com.mik.optical_diffuser.item.FilmReelBlockItem;
-import com.mojang.blaze3d.platform.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
 import com.mik.optical_diffuser.network.UpdateFilmReelTimePayload;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL15;
-import org.lwjgl.opengl.GL21;
 import org.watermedia.api.player.MediaPlayer;
 import org.watermedia.api.player.PlayerAPI;
 
-import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -31,7 +26,6 @@ public class DiffuserMediaManager {
     private long lastRecordedTimeMs = 0;
     private long pendingSeekMs = -1;
     private int seekWaitTicks = 0;
-    private int rewindTickCounter = 0;
     private int rewindCooldown = 0;
     private boolean wasRewinding = false;
     private boolean isMuted = false;
@@ -39,12 +33,6 @@ public class DiffuserMediaManager {
     private float currentReverseVolume = 0.0f;
 
     private final ProjectorAudioEngine projectorAudioEngine = new ProjectorAudioEngine();
-    private ReverseGopDecoder reverseGopDecoder = null;
-    private int reverseTextureId = 0;
-    private int reverseTextureWidth = 0;
-    private int reverseTextureHeight = 0;
-    private boolean reverseTextureAllocated = false;
-
     private float accumulatedReelAngle = 0.0f;
     private long lastServerSyncTimeMs = -1;
     private int syncTickCounter = 0;
@@ -215,7 +203,7 @@ public class DiffuserMediaManager {
                     }
                 }
             } else {
-                // Negative RPM: Rewind playback
+                // Negative RPM: Paced Keyframe Shuttle Rewind
                 wasRewinding = true;
                 if (player.playing()) {
                     player.pause(true);
@@ -226,19 +214,15 @@ public class DiffuserMediaManager {
                 this.lastRecordedTimeMs = Math.max(0, this.lastRecordedTimeMs - stepMs);
                 syncTimeToReel(filmReel, this.lastRecordedTimeMs);
 
-                rewindTickCounter++;
-
-                // If reverse GOP decoder is not available, fallback to quick keyframe seek
-                if (reverseGopDecoder == null || !reverseGopDecoder.isAvailable()) {
-                    if (rewindCooldown <= 0 && player.canSeek()) {
-                        player.seekQuick(this.lastRecordedTimeMs);
-                        rewindCooldown = 2;
-                    } else if (rewindCooldown > 0) {
-                        rewindCooldown--;
-                    }
+                // Paced rapid keyframe seek: 8-10 keyframe updates/sec without decoder stall
+                if (rewindCooldown <= 0 && player.canSeek()) {
+                    player.seekQuick(this.lastRecordedTimeMs);
+                    rewindCooldown = (Math.abs(speedFactor) > 2.0f) ? 1 : 2;
+                } else if (rewindCooldown > 0) {
+                    rewindCooldown--;
                 }
 
-                // Play authentic cine-mechanical audio
+                // Play authentic cine-mechanical spool flutter and Geneva clicks
                 if (sound) {
                     this.projectorAudioEngine.tickRewind(Math.abs(speedFactor), this.currentReverseVolume, diffuser.getBlockPos());
                 }
@@ -262,9 +246,9 @@ public class DiffuserMediaManager {
                                 ClientSpeakerRegistry.getSpeakersForDiffuser(diffuser.getBlockPos());
                         for (com.mik.optical_diffuser.block.entity.SpeakerBlockEntity s : speakers) {
                             if (com.mik.optical_diffuser.block.SpeakerBlock.isInsideSpeakerZone(
-                                    s.getBlockPos(),
-                                    s.getBlockState().getValue(com.mik.optical_diffuser.block.SpeakerBlock.FACING),
-                                    playerPos)) {
+                                     s.getBlockPos(),
+                                     s.getBlockState().getValue(com.mik.optical_diffuser.block.SpeakerBlock.FACING),
+                                     playerPos)) {
                                 inZone = true;
                                 break;
                             }
@@ -273,7 +257,7 @@ public class DiffuserMediaManager {
                 }
 
                 // Forward player volume:
-                // - During rewind: video track is muted (0.0f) because projector audio engine plays
+                // - During rewind: video audio track is muted (0.0f) because projector audio engine plays
                 // - At 0 RPM (pause): 0.0f
                 // - In Zone 3 (high-speed shuttle > 36 RPM): smoothly duck from 1.0 down to 0.35
                 float speedVolumeFactor = 1.0f;
@@ -318,44 +302,6 @@ public class DiffuserMediaManager {
         }
     }
 
-    private void uploadReverseFrame(ByteBuffer buf, int w, int h) {
-        if (buf == null || w <= 0 || h <= 0) return;
-        try {
-            if (reverseTextureId <= 0) {
-                reverseTextureId = GlStateManager._genTexture();
-            }
-            GlStateManager._bindTexture(reverseTextureId);
-            if (reverseTextureWidth != w || reverseTextureHeight != h) {
-                reverseTextureWidth = w;
-                reverseTextureHeight = h;
-                GL15.glBindBuffer(GL21.GL_PIXEL_UNPACK_BUFFER, 0);
-                GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
-                GL11.glPixelStorei(GL11.GL_UNPACK_ROW_LENGTH, 0);
-                GL11.glPixelStorei(GL11.GL_UNPACK_SKIP_ROWS, 0);
-                GL11.glPixelStorei(GL11.GL_UNPACK_SKIP_PIXELS, 0);
-                GL11.glTexImage2D(
-                        GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA8,
-                        w, h, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, (ByteBuffer) null
-                );
-                GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
-                GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
-                GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, 0x812F); // GL_CLAMP_TO_EDGE
-                GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, 0x812F); // GL_CLAMP_TO_EDGE
-                reverseTextureAllocated = true;
-            }
-            buf.position(0);
-            GL15.glBindBuffer(GL21.GL_PIXEL_UNPACK_BUFFER, 0);
-            GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
-            GL11.glPixelStorei(GL11.GL_UNPACK_ROW_LENGTH, 0);
-            GL11.glTexSubImage2D(
-                    GL11.GL_TEXTURE_2D, 0, 0, 0,
-                    w, h, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buf
-            );
-        } catch (Throwable t) {
-            com.mik.optical_diffuser.util.DiffuserLogger.error("Failed to upload reverse frame to texture", t);
-        }
-    }
-
     private void startMedia(String url, boolean sound, long resumeTimeMs) {
         long effectiveTime = (url.equals(this.currentUrl) && this.lastRecordedTimeMs > 0)
                 ? this.lastRecordedTimeMs
@@ -372,13 +318,6 @@ public class DiffuserMediaManager {
             var mrl = PlayerAPI.mrl(url);
             Minecraft mc = Minecraft.getInstance();
             Thread renderThread = Thread.currentThread();
-
-            // Initialize asynchronous reverse GOP decoder
-            try {
-                this.reverseGopDecoder = new ReverseGopDecoder(url);
-            } catch (Throwable t) {
-                com.mik.optical_diffuser.util.DiffuserLogger.error("Failed to create ReverseGopDecoder", t);
-            }
 
             // Disable persistent PBO ring in GLEngine (ringCapable = false) to prevent chroma desync
             this.player = PlayerAPI.player(
@@ -409,23 +348,6 @@ public class DiffuserMediaManager {
     }
 
     public synchronized int getTexture() {
-        if (wasRewinding && reverseGopDecoder != null && reverseGopDecoder.isAvailable()) {
-            boolean trickPlay = (Math.abs(lastSpeed) > 4.0f);
-            ByteBuffer frameBuf = trickPlay
-                    ? reverseGopDecoder.getTrickPlayKeyframe(this.lastRecordedTimeMs)
-                    : reverseGopDecoder.getFrameForTime(this.lastRecordedTimeMs);
-
-            if (frameBuf != null) {
-                uploadReverseFrame(frameBuf, reverseGopDecoder.getWidth(), reverseGopDecoder.getHeight());
-            }
-
-            // Only switch to reverseTextureId if valid frame data was uploaded into it
-            if (reverseTextureId > 0 && reverseTextureAllocated) {
-                return reverseTextureId;
-            }
-        }
-
-        // Always fallback to player.texture() so the picture NEVER disappears
         if (player != null && player.video()) {
             long tex = player.texture();
             if (tex != MediaPlayer.NO_TEXTURE && tex > 0) {
@@ -448,11 +370,13 @@ public class DiffuserMediaManager {
                     "screen_" + pos.getX() + "_" + pos.getY() + "_" + pos.getZ()
             );
             this.dynamicTexture = new DynamicMediaTexture(this.dynamicLocation);
+            this.dynamicTexture.setTextureId(texId);
             Minecraft.getInstance().getTextureManager().register(this.dynamicLocation, this.dynamicTexture);
             com.mik.optical_diffuser.util.DiffuserLogger.info("Registered dynamic media texture: {}", this.dynamicLocation);
+        } else {
+            this.dynamicTexture.setTextureId(texId);
         }
 
-        this.dynamicTexture.setTextureId(texId);
         return this.dynamicLocation;
     }
 
@@ -483,21 +407,6 @@ public class DiffuserMediaManager {
             } catch (Throwable ignored) {}
             dynamicLocation = null;
             dynamicTexture = null;
-        }
-        if (reverseTextureId > 0) {
-            try {
-                GlStateManager._deleteTexture(reverseTextureId);
-            } catch (Throwable ignored) {}
-            reverseTextureId = 0;
-            reverseTextureWidth = 0;
-            reverseTextureHeight = 0;
-            reverseTextureAllocated = false;
-        }
-        if (reverseGopDecoder != null) {
-            try {
-                reverseGopDecoder.close();
-            } catch (Throwable ignored) {}
-            reverseGopDecoder = null;
         }
         this.projectorAudioEngine.release();
         currentUrl = "";

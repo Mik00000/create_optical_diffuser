@@ -15,6 +15,7 @@ public class DynamicMediaTexture extends AbstractTexture {
 
     public void setTextureId(int id) {
         this.glTextureId = id;
+        this.id = id;
     }
 
     @Override
@@ -29,12 +30,14 @@ public class DynamicMediaTexture extends AbstractTexture {
     @Override
     public void close() {
         this.glTextureId = -1;
+        this.id = -1;
     }
 
     @Override
     public void releaseId() {
         // Do not delete OpenGL texture ID here: WATERMeDIA manages its own texture lifecycle!
         this.glTextureId = -1;
+        this.id = -1;
     }
 
     public ResourceLocation getLocation() {
