@@ -111,6 +111,24 @@ public class FilmReelBlockEntity extends KineticBlockEntity {
         this.currentTimeMs = tag.getLong("CurrentTimeMs");
     }
 
+    public static String getDisplayFilename(String url) {
+        if (url == null || url.trim().isEmpty()) return "";
+        try {
+            String clean = url.trim();
+            if (clean.contains("?")) clean = clean.substring(0, clean.indexOf("?"));
+            if (clean.contains("#")) clean = clean.substring(0, clean.indexOf("#"));
+            if (clean.endsWith("/")) clean = clean.substring(0, clean.length() - 1);
+            int lastSlash = clean.lastIndexOf('/');
+            if (lastSlash >= 0 && lastSlash < clean.length() - 1) {
+                String name = java.net.URLDecoder.decode(clean.substring(lastSlash + 1), java.nio.charset.StandardCharsets.UTF_8);
+                if (!name.isEmpty()) {
+                    return name.length() > 30 ? name.substring(0, 27) + "..." : name;
+                }
+            }
+        } catch (Throwable ignored) {}
+        return url.length() > 30 ? url.substring(0, 27) + "..." : url;
+    }
+
     @Override
     public boolean addToGoggleTooltip(List<Component> tooltip, boolean isPlayerSneaking) {
         super.addToGoggleTooltip(tooltip, isPlayerSneaking);
@@ -119,7 +137,7 @@ public class FilmReelBlockEntity extends KineticBlockEntity {
         tooltip.add(Component.literal("Film Reel:").withStyle(ChatFormatting.GOLD));
 
         if (!this.videoUrl.isEmpty()) {
-            String displayUrl = this.videoUrl.length() > 32 ? this.videoUrl.substring(0, 29) + "..." : this.videoUrl;
+            String displayUrl = getDisplayFilename(this.videoUrl);
             tooltip.add(Component.literal("  Source: ").withStyle(ChatFormatting.GRAY)
                     .append(Component.literal(displayUrl).withStyle(ChatFormatting.YELLOW)));
 

@@ -178,9 +178,11 @@ public class FilmReelScreen extends Screen {
                 if (!dest.getCanonicalPath().equals(file.getCanonicalPath())) {
                     Files.copy(file.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 }
-                String fileUri = dest.toURI().toString();
-                this.urlInput.setValue(fileUri);
-                this.statusMessage = "Файл збережено в projector_media/" + dest.getName();
+                int port = com.mik.optical_diffuser.config.DiffuserServerConfig.INSTANCE.httpPort.get();
+                String encodedName = java.net.URLEncoder.encode(dest.getName(), java.nio.charset.StandardCharsets.UTF_8).replace("+", "%20");
+                String streamUrl = "http://localhost:" + port + "/media/" + encodedName;
+                this.urlInput.setValue(streamUrl);
+                this.statusMessage = "Файл збережено: " + dest.getName();
                 this.statusColor = 0x55FF55;
             } catch (Throwable t) {
                 this.statusMessage = "Помилка копіювання: " + t.getMessage();

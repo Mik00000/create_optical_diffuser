@@ -95,7 +95,7 @@ public class FilmReelBlockItem extends BlockItem {
         long timeMs = getCurrentTimeMs(stack);
 
         if (!url.isEmpty()) {
-            String displayUrl = url.length() > 36 ? url.substring(0, 33) + "..." : url;
+            String displayUrl = com.mik.optical_diffuser.block.entity.FilmReelBlockEntity.getDisplayFilename(url);
             tooltip.add(Component.translatable("tooltip.create_optical_diffuser.film_reel.url", displayUrl).withStyle(ChatFormatting.GOLD));
 
             if (timeMs > 0) {
