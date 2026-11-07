@@ -203,10 +203,14 @@ public class DiffuserMediaManager {
                     }
                 }
             } else {
-                // Negative RPM: Paced Keyframe Shuttle Rewind
+                // Negative RPM: Paced Keyframe Shuttle Rewind (Keep player active so lifecycle thread renders frames)
                 wasRewinding = true;
-                if (player.playing()) {
-                    player.pause(true);
+                if (player.paused()) {
+                    player.resume();
+                }
+                if (Math.abs(lastSpeed - 0.1f) > 0.01f) {
+                    player.speed(0.1f);
+                    lastSpeed = 0.1f;
                 }
                 OpenALPitchFixer.release(player);
 
