@@ -2,7 +2,7 @@ package com.mik.optical_diffuser.block;
 
 import com.mik.optical_diffuser.ModRegistry;
 import com.mik.optical_diffuser.block.entity.SpeakerBlockEntity;
-import com.mik.optical_diffuser.client.DiffuserSelectionTracker;
+import com.mik.optical_diffuser.item.SpeakerBlockItem;
 import com.mik.optical_diffuser.network.LinkSpeakerPayload;
 import com.mojang.serialization.MapCodec;
 import com.simibubi.create.foundation.block.IBE;
@@ -15,10 +15,12 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.ItemInteractionResult;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -26,11 +28,14 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
+import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.Optional;
 
 public class SpeakerBlock extends Block implements IBE<SpeakerBlockEntity> {
@@ -60,6 +65,38 @@ public class SpeakerBlock extends Block implements IBE<SpeakerBlockEntity> {
     }
 
     @Override
+    public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
+        super.setPlacedBy(level, pos, state, placer, stack);
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be instanceof SpeakerBlockEntity speaker) {
+            BlockPos linkedPos = SpeakerBlockItem.getLinkedDiffuserPos(stack);
+            if (linkedPos != null) {
+                speaker.setLinkedDiffuserPos(linkedPos);
+            }
+        }
+    }
+
+    @Override
+    public ItemStack getCloneItemStack(LevelReader level, BlockPos pos, BlockState state) {
+        ItemStack stack = new ItemStack(this);
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be instanceof SpeakerBlockEntity speaker && speaker.isLinked()) {
+            SpeakerBlockItem.setLinkedDiffuserPos(stack, speaker.getLinkedDiffuserPos());
+        }
+        return stack;
+    }
+
+    @Override
+    protected List<ItemStack> getDrops(BlockState state, LootParams.Builder params) {
+        ItemStack stack = new ItemStack(this);
+        BlockEntity be = params.getOptionalParameter(LootContextParams.BLOCK_ENTITY);
+        if (be instanceof SpeakerBlockEntity speaker && speaker.isLinked()) {
+            SpeakerBlockItem.setLinkedDiffuserPos(stack, speaker.getLinkedDiffuserPos());
+        }
+        return List.of(stack);
+    }
+
+    @Override
     public Class<SpeakerBlockEntity> getBlockEntityClass() {
         return SpeakerBlockEntity.class;
     }
@@ -71,6 +108,9 @@ public class SpeakerBlock extends Block implements IBE<SpeakerBlockEntity> {
 
     @Override
     protected ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
+        if (stack.is(ModRegistry.SPEAKER_ITEM.get())) {
+            return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+        }
         if (level.isClientSide) {
             handleInteraction(level, pos, player);
         }
@@ -89,65 +129,37 @@ public class SpeakerBlock extends Block implements IBE<SpeakerBlockEntity> {
         BlockEntity be = level.getBlockEntity(pos);
         if (!(be instanceof SpeakerBlockEntity speaker)) return;
 
-        // Shift + Right-Click: Unlink
-        if (player.isShiftKeyDown()) {
+        // Shift + Right-Click with empty hand: Unlink
+        if (player.isShiftKeyDown() && player.getItemInHand(InteractionHand.MAIN_HAND).isEmpty()) {
             if (speaker.isLinked()) {
                 speaker.setLinkedDiffuserPos(null);
                 PacketDistributor.sendToServer(new LinkSpeakerPayload(pos, Optional.empty()));
                 level.playSound(player, pos, SoundEvents.DISPENSER_FAIL, SoundSource.BLOCKS, 1.0f, 0.8f);
-                player.displayClientMessage(Component.literal("Speaker unlinked.").withStyle(ChatFormatting.YELLOW), true);
+                player.displayClientMessage(
+                        Component.translatable("chat.create_optical_diffuser.speaker_unlinked")
+                                .withStyle(ChatFormatting.YELLOW),
+                        true
+                );
             }
             return;
         }
 
-        // Try pre-selected diffuser first
-        BlockPos targetPos = DiffuserSelectionTracker.getLastSelectedDiffuser();
-        if (targetPos != null && level.getBlockState(targetPos).getBlock() instanceof OpticalDiffuserBlock) {
-            linkToDiffuser(level, pos, speaker, targetPos, player);
-            return;
-        }
-
-        // Otherwise find nearest Optical Diffuser within 32 blocks
-        BlockPos nearest = null;
-        double nearestDistSq = Double.MAX_VALUE;
-        int searchRadius = 32;
-
-        for (int dx = -searchRadius; dx <= searchRadius; dx++) {
-            for (int dy = -searchRadius / 2; dy <= searchRadius / 2; dy++) {
-                for (int dz = -searchRadius; dz <= searchRadius; dz++) {
-                    BlockPos p = pos.offset(dx, dy, dz);
-                    if (level.getBlockState(p).getBlock() instanceof OpticalDiffuserBlock) {
-                        double distSq = pos.distSqr(p);
-                        if (distSq < nearestDistSq) {
-                            nearestDistSq = distSq;
-                            nearest = p.immutable();
-                        }
-                    }
-                }
-            }
-        }
-
-        if (nearest != null) {
-            linkToDiffuser(level, pos, speaker, nearest, player);
+        // Normal interaction shows current link status
+        if (speaker.isLinked()) {
+            BlockPos linked = speaker.getLinkedDiffuserPos();
+            player.displayClientMessage(
+                    Component.translatable("chat.create_optical_diffuser.speaker_status_linked",
+                            linked.getX(), linked.getY(), linked.getZ())
+                            .withStyle(ChatFormatting.GREEN),
+                    true
+            );
         } else {
             player.displayClientMessage(
-                    Component.literal("No Optical Diffuser found nearby! Right-click an Optical Diffuser first to select it.")
-                            .withStyle(ChatFormatting.RED),
+                    Component.translatable("chat.create_optical_diffuser.speaker_status_unlinked")
+                            .withStyle(ChatFormatting.GRAY),
                     true
             );
         }
-    }
-
-    private void linkToDiffuser(Level level, BlockPos pos, SpeakerBlockEntity speaker, BlockPos targetDiffuser, Player player) {
-        speaker.setLinkedDiffuserPos(targetDiffuser);
-        PacketDistributor.sendToServer(new LinkSpeakerPayload(pos, Optional.of(targetDiffuser)));
-        level.playSound(player, pos, SoundEvents.NOTE_BLOCK_CHIME.value(), SoundSource.BLOCKS, 1.0f, 1.4f);
-        player.displayClientMessage(
-                Component.literal(String.format("Speaker connected to Optical Diffuser at [%d, %d, %d]! (Coverage: 9x9 zone ahead)",
-                        targetDiffuser.getX(), targetDiffuser.getY(), targetDiffuser.getZ()))
-                        .withStyle(ChatFormatting.GREEN),
-                true
-        );
     }
 
     public static boolean isInsideSpeakerZone(BlockPos speakerPos, Direction facing, Vec3 playerPos) {
@@ -173,4 +185,3 @@ public class SpeakerBlock extends Block implements IBE<SpeakerBlockEntity> {
         }
     }
 }
-

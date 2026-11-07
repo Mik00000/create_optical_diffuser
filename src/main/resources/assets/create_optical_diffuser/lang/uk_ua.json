@@ -31,5 +31,14 @@
   "gui.create_optical_diffuser.film_reel.save": "Зберегти",
   "gui.create_optical_diffuser.film_reel.cancel": "Скасувати",
   "gui.create_optical_diffuser.film_reel.admin_only_note": "Завантаження локальних файлів на сервер доступне лише операторам.",
-  "gui.create_optical_diffuser.film_reel.admin_only_warn": "Лише адміністратори можуть завантажувати локальні файли на сервер. Використовуйте посилання HTTP/HTTPS."
+  "gui.create_optical_diffuser.film_reel.admin_only_warn": "Лише адміністратори можуть завантажувати локальні файли на сервер. Використовуйте посилання HTTP/HTTPS.",
+  "block.create_optical_diffuser.speaker": "Гучномовець",
+  "item.create_optical_diffuser.speaker": "Гучномовець",
+  "chat.create_optical_diffuser.speaker_linked": "Гучномовець прив'язано до оптичного дифузора [%d, %d, %d]!",
+  "chat.create_optical_diffuser.speaker_unlinked": "Гучномовець відв'язано.",
+  "chat.create_optical_diffuser.speaker_status_linked": "Гучномовець підключено до оптичного дифузора [%d, %d, %d].",
+  "chat.create_optical_diffuser.speaker_status_unlinked": "Гучномовець не прив'язано. Візьміть його в руку і натисніть ПКМ по оптичному дифузору.",
+  "tooltip.create_optical_diffuser.speaker.linked": "Підключений дифузор: [%d, %d, %d]",
+  "tooltip.create_optical_diffuser.speaker.unlinked": "Не прив'язано (ПКМ по оптичному дифузору для прив'язки)",
+  "tooltip.create_optical_diffuser.speaker.coverage": "Зона покриття: 9x9 попереду"
 }

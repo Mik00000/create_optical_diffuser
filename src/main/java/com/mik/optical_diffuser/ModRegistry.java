@@ -26,6 +26,7 @@ public class ModRegistry {
     public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(OpticalDiffuserMod.MOD_ID);
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITY_TYPES = DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, OpticalDiffuserMod.MOD_ID);
     public static final DeferredRegister<MenuType<?>> MENUS = DeferredRegister.create(Registries.MENU, OpticalDiffuserMod.MOD_ID);
+    public static final DeferredRegister<net.minecraft.world.item.crafting.RecipeSerializer<?>> RECIPE_SERIALIZERS = DeferredRegister.create(Registries.RECIPE_SERIALIZER, OpticalDiffuserMod.MOD_ID);
 
     public static final DeferredBlock<OpticalDiffuserBlock> OPTICAL_DIFFUSER = BLOCKS.register("optical_diffuser",
             () -> new OpticalDiffuserBlock(BlockBehaviour.Properties.of()
@@ -62,7 +63,9 @@ public class ModRegistry {
             )
     );
 
-    public static final DeferredItem<BlockItem> SPEAKER_ITEM = ITEMS.registerSimpleBlockItem("speaker", SPEAKER);
+    public static final DeferredItem<com.mik.optical_diffuser.item.SpeakerBlockItem> SPEAKER_ITEM = ITEMS.register("speaker",
+            () -> new com.mik.optical_diffuser.item.SpeakerBlockItem(SPEAKER.get(), new Item.Properties().stacksTo(64))
+    );
 
     public static final DeferredItem<Item> FOCUSING_LENS = ITEMS.register("focusing_lens",
             () -> new Item(new Item.Properties().stacksTo(16))
@@ -108,4 +111,7 @@ public class ModRegistry {
     public static final DeferredHolder<MenuType<?>, MenuType<OpticalDiffuserMenu>> OPTICAL_DIFFUSER_MENU = MENUS.register("optical_diffuser",
             () -> IMenuTypeExtension.create(OpticalDiffuserMenu::new)
     );
+
+    public static final Supplier<net.minecraft.world.item.crafting.RecipeSerializer<com.mik.optical_diffuser.recipe.ClearSpeakerRecipe>> CLEAR_SPEAKER_RECIPE_SERIALIZER =
+            RECIPE_SERIALIZERS.register("clear_speaker", () -> new net.minecraft.world.item.crafting.SimpleCraftingRecipeSerializer<>(com.mik.optical_diffuser.recipe.ClearSpeakerRecipe::new));
 }

@@ -27,6 +27,7 @@ public class OpticalDiffuserMod {
         ModRegistry.ITEMS.register(modEventBus);
         ModRegistry.BLOCK_ENTITY_TYPES.register(modEventBus);
         ModRegistry.MENUS.register(modEventBus);
+        ModRegistry.RECIPE_SERIALIZERS.register(modEventBus);
 
         modEventBus.addListener(this::registerPayloads);
         modEventBus.addListener(this::addCreative);

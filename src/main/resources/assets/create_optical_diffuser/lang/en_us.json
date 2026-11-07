@@ -49,5 +49,12 @@
   "tooltip.create_optical_diffuser.projector_lens.use1": "Right-Click block: Set screen corner 1",
   "tooltip.create_optical_diffuser.projector_lens.use2": "Shift + Right-Click block: Set screen corner 2",
   "tooltip.create_optical_diffuser.projector_lens.screen_configured": "Screen: [%s, %s, %s] -> [%s, %s, %s] (%sx%s)",
-  "tooltip.create_optical_diffuser.projector_lens.screen_not_configured": "Screen: Not configured"
+  "tooltip.create_optical_diffuser.projector_lens.screen_not_configured": "Screen: Not configured",
+  "chat.create_optical_diffuser.speaker_linked": "Loudspeaker paired to Optical Diffuser at [%d, %d, %d]!",
+  "chat.create_optical_diffuser.speaker_unlinked": "Loudspeaker unlinked.",
+  "chat.create_optical_diffuser.speaker_status_linked": "Loudspeaker connected to Optical Diffuser at [%d, %d, %d].",
+  "chat.create_optical_diffuser.speaker_status_unlinked": "Loudspeaker is unlinked. Right-click an Optical Diffuser while holding it to pair.",
+  "tooltip.create_optical_diffuser.speaker.linked": "Linked Diffuser: [%d, %d, %d]",
+  "tooltip.create_optical_diffuser.speaker.unlinked": "Unlinked (Right-click an Optical Diffuser to pair)",
+  "tooltip.create_optical_diffuser.speaker.coverage": "Coverage: 9x9 Zone Ahead"
 }

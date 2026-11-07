@@ -255,7 +255,7 @@ public class DiffuserMediaManager {
 
                 if (mc.player != null) {
                     net.minecraft.world.phys.Vec3 playerPos = mc.player.position();
-                    net.minecraft.world.phys.Vec3 diffuserCenter = net.minecraft.world.phys.Vec3.atCenterOf(diffuser.getBlockPos());
+                    net.minecraft.world.phys.Vec3 diffuserCenter = com.mik.optical_diffuser.compat.SableCompat.getWorldPos(diffuser.getLevel(), diffuser.getBlockPos());
 
                     // 1. Direct audio within 12 blocks of projector
                     if (playerPos.distanceTo(diffuserCenter) <= 12.0) {
@@ -265,7 +265,8 @@ public class DiffuserMediaManager {
                         java.util.List<com.mik.optical_diffuser.block.entity.SpeakerBlockEntity> speakers =
                                 ClientSpeakerRegistry.getSpeakersForDiffuser(diffuser.getBlockPos());
                         for (com.mik.optical_diffuser.block.entity.SpeakerBlockEntity s : speakers) {
-                            if (com.mik.optical_diffuser.block.SpeakerBlock.isInsideSpeakerZone(
+                            if (com.mik.optical_diffuser.compat.SableCompat.isInsideSpeakerZone(
+                                     s.getLevel(),
                                      s.getBlockPos(),
                                      s.getBlockState().getValue(com.mik.optical_diffuser.block.SpeakerBlock.FACING),
                                      playerPos)) {
