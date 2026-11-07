@@ -21,6 +21,7 @@ public class OpticalDiffuserMod {
 
     public OpticalDiffuserMod(IEventBus modEventBus, net.neoforged.fml.ModContainer modContainer) {
         modContainer.registerConfig(net.neoforged.fml.config.ModConfig.Type.CLIENT, com.mik.optical_diffuser.config.DiffuserClientConfig.SPEC);
+        modContainer.registerConfig(net.neoforged.fml.config.ModConfig.Type.SERVER, com.mik.optical_diffuser.config.DiffuserServerConfig.SPEC);
 
         ModRegistry.BLOCKS.register(modEventBus);
         ModRegistry.ITEMS.register(modEventBus);
@@ -42,8 +43,20 @@ public class OpticalDiffuserMod {
 
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.register(com.mik.optical_diffuser.server.ServerLightEventHandler.class);
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.register(com.mik.optical_diffuser.server.ModCommands.class);
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(this::onServerStarting);
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(this::onServerStopping);
 
         LOGGER.info("Create Optical Diffuser initialized!");
+    }
+
+    private void onServerStarting(net.neoforged.neoforge.event.server.ServerStartingEvent event) {
+        java.io.File mediaDir = new java.io.File(net.neoforged.fml.loading.FMLPaths.GAMEDIR.get().toFile(), "projector_media");
+        int port = com.mik.optical_diffuser.config.DiffuserServerConfig.INSTANCE.httpPort.get();
+        com.mik.optical_diffuser.server.media.MediaHttpServer.start(mediaDir, port);
+    }
+
+    private void onServerStopping(net.neoforged.neoforge.event.server.ServerStoppingEvent event) {
+        com.mik.optical_diffuser.server.media.MediaHttpServer.stop();
     }
 
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
@@ -85,6 +98,31 @@ public class OpticalDiffuserMod {
                 com.mik.optical_diffuser.network.LinkSpeakerPayload.TYPE,
                 com.mik.optical_diffuser.network.LinkSpeakerPayload.STREAM_CODEC,
                 com.mik.optical_diffuser.network.LinkSpeakerPayload::handle
+        );
+        registrar.playToServer(
+                com.mik.optical_diffuser.network.StartMediaUploadPayload.TYPE,
+                com.mik.optical_diffuser.network.StartMediaUploadPayload.STREAM_CODEC,
+                com.mik.optical_diffuser.network.StartMediaUploadPayload::handle
+        );
+        registrar.playToServer(
+                com.mik.optical_diffuser.network.MediaUploadChunkPayload.TYPE,
+                com.mik.optical_diffuser.network.MediaUploadChunkPayload.STREAM_CODEC,
+                com.mik.optical_diffuser.network.MediaUploadChunkPayload::handle
+        );
+        registrar.playToServer(
+                com.mik.optical_diffuser.network.FinishMediaUploadPayload.TYPE,
+                com.mik.optical_diffuser.network.FinishMediaUploadPayload.STREAM_CODEC,
+                com.mik.optical_diffuser.network.FinishMediaUploadPayload::handle
+        );
+        registrar.playToServer(
+                com.mik.optical_diffuser.network.CancelMediaUploadPayload.TYPE,
+                com.mik.optical_diffuser.network.CancelMediaUploadPayload.STREAM_CODEC,
+                com.mik.optical_diffuser.network.CancelMediaUploadPayload::handle
+        );
+        registrar.playToClient(
+                com.mik.optical_diffuser.network.MediaUploadStatusPayload.TYPE,
+                com.mik.optical_diffuser.network.MediaUploadStatusPayload.STREAM_CODEC,
+                com.mik.optical_diffuser.network.MediaUploadStatusPayload::handle
         );
     }
 }

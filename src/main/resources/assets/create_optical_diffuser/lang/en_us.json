@@ -14,6 +14,8 @@
   "gui.create_optical_diffuser.film_reel.browse": "Browse...",
   "gui.create_optical_diffuser.film_reel.save": "Save",
   "gui.create_optical_diffuser.film_reel.cancel": "Cancel",
+  "gui.create_optical_diffuser.film_reel.admin_only_note": "Local uploads to server restricted to operators.",
+  "gui.create_optical_diffuser.film_reel.admin_only_warn": "Only server operators can upload local files. Please use an HTTP/HTTPS link.",
   "itemGroup.create_optical_diffuser": "Create Optical Diffuser",
   "gui.create_optical_diffuser.goggles.title": "Beam Properties:",
   "gui.create_optical_diffuser.goggles.status": "Status:",

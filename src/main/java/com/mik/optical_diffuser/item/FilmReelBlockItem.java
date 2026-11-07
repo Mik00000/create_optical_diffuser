@@ -69,6 +69,16 @@ public class FilmReelBlockItem extends BlockItem {
         });
     }
 
+    public static void setCurrentTimeMs(ItemStack stack, long currentTimeMs) {
+        CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
+            if (currentTimeMs > 0) {
+                tag.putLong("CurrentTimeMs", currentTimeMs);
+            } else {
+                tag.remove("CurrentTimeMs");
+            }
+        });
+    }
+
     @Override
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
         ItemStack stack = player.getItemInHand(hand);
