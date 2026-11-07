@@ -10,9 +10,9 @@ import java.util.Random;
 /**
  * Authentic Cine-Mechanical Projector Sound Engine.
  *
- * Eliminates synthetic tape scrub / sine wave chirps and provides an authentic mechanical soundscape:
+ * Smooth vintage mechanical soundscape:
  * 1. Film reel whir / spool flutter (smooth lowpass-filtered Brownian noise tracking RPM).
- * 2. Sprocket claw / Geneva drive ratchet clicks (crisp acoustic transients spaced at 16 pulses/sec).
+ * 2. Subtle sprocket ratchet clicks (soft acoustic transients spaced at 16 pulses/sec).
  * 3. Spatialized 3D OpenAL audio centered at the projector block position.
  * 4. Dynamic pitch and volume modulation linked to Create shaft RPM.
  */
@@ -56,22 +56,21 @@ public class ProjectorAudioEngine {
             for (int i = 0; i < TOTAL_SAMPLES; i++) {
                 // 1. Spool flutter (integrated pink/brown noise filtered to low frequencies)
                 double white = (random.nextDouble() * 2.0 - 1.0);
-                brownian = (brownian * 0.96) + (white * 0.04);
-                double spoolWhir = brownian * 0.28;
+                brownian = (brownian * 0.97) + (white * 0.03);
+                double spoolWhir = brownian * 0.35;
 
-                // 2. Sprocket claw acoustic click (mechanical damped oscillation)
+                // 2. Soft mechanical sprocket click (subtle damped oscillation)
                 int pulsePhase = i % pulseInterval;
                 double sprocketClick = 0.0;
-                if (pulsePhase < 120) {
-                    // Damped 1400 Hz acoustic transient with quick 3ms exponential decay
+                if (pulsePhase < 80) {
                     double t = pulsePhase / (double) SAMPLE_RATE;
-                    sprocketClick = Math.sin(2.0 * Math.PI * 1400.0 * t) * Math.exp(-pulsePhase * 0.05) * 0.55;
+                    sprocketClick = Math.sin(2.0 * Math.PI * 1100.0 * t) * Math.exp(-pulsePhase * 0.08) * 0.18;
                 }
 
                 // Sum & soft clamp
                 double mixed = spoolWhir + sprocketClick;
                 mixed = Math.max(-1.0, Math.min(1.0, mixed));
-                short sample = (short) (mixed * 32767.0 * 0.65);
+                short sample = (short) (mixed * 32767.0 * 0.50);
                 pcm.putShort(sample);
             }
             pcm.flip();
@@ -109,8 +108,8 @@ public class ProjectorAudioEngine {
             float pitch = Math.max(0.35f, Math.min(3.5f, speedFactor));
             AL10.alSourcef(alSource, AL10.AL_PITCH, pitch);
 
-            // Gain scales with volume and speed (quieter at low RPM, capped at 0.55 to avoid harshness)
-            float gain = volume * Math.min(0.55f, 0.25f + speedFactor * 0.25f);
+            // Gain scales with volume and speed (quieter at low RPM, capped at 0.45 to avoid harshness)
+            float gain = volume * Math.min(0.45f, 0.20f + speedFactor * 0.20f);
             AL10.alSourcef(alSource, AL10.AL_GAIN, gain);
 
             int state = AL10.alGetSourcei(alSource, AL10.AL_SOURCE_STATE);

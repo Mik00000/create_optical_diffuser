@@ -224,18 +224,8 @@ public class DiffuserMediaManager {
 
                 rewindTickCounter++;
 
-                // Fast reverse video: Off-Heap Dual-GOP Ping-Pong buffer lookup (O(1))
-                boolean trickPlay = (absRpm > 64.0f);
-                if (reverseGopDecoder != null && reverseGopDecoder.isAvailable()) {
-                    ByteBuffer frameBuf = trickPlay
-                            ? reverseGopDecoder.getTrickPlayKeyframe(this.lastRecordedTimeMs)
-                            : reverseGopDecoder.getFrameForTime(this.lastRecordedTimeMs);
-
-                    if (frameBuf != null) {
-                        uploadReverseFrame(frameBuf, reverseGopDecoder.getWidth(), reverseGopDecoder.getHeight());
-                    }
-                } else {
-                    // Graceful fallback to quick keyframe seek if FFmpeg GOP decoder is initializing
+                // If reverse GOP decoder is not available, fallback to quick keyframe seek
+                if (reverseGopDecoder == null || !reverseGopDecoder.isAvailable()) {
                     if (rewindCooldown <= 0 && player.canSeek()) {
                         player.seekQuick(this.lastRecordedTimeMs);
                         rewindCooldown = 2;
@@ -334,13 +324,18 @@ public class DiffuserMediaManager {
             if (reverseTextureWidth != w || reverseTextureHeight != h) {
                 reverseTextureWidth = w;
                 reverseTextureHeight = h;
+                GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
                 GL11.glTexImage2D(
                         GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA,
                         w, h, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, (ByteBuffer) null
                 );
                 GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
                 GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+                GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, 0x812F); // GL_CLAMP_TO_EDGE
+                GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, 0x812F); // GL_CLAMP_TO_EDGE
             }
+            buf.position(0);
+            GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
             GL11.glTexSubImage2D(
                     GL11.GL_TEXTURE_2D, 0, 0, 0,
                     w, h, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buf
@@ -403,8 +398,19 @@ public class DiffuserMediaManager {
     }
 
     public synchronized int getTexture() {
-        if (wasRewinding && reverseTextureId > 0 && reverseGopDecoder != null && reverseGopDecoder.hasRenderableFrame()) {
-            return reverseTextureId;
+        if (wasRewinding && reverseGopDecoder != null && reverseGopDecoder.isAvailable()) {
+            boolean trickPlay = (Math.abs(lastSpeed) > 4.0f);
+            ByteBuffer frameBuf = trickPlay
+                    ? reverseGopDecoder.getTrickPlayKeyframe(this.lastRecordedTimeMs)
+                    : reverseGopDecoder.getFrameForTime(this.lastRecordedTimeMs);
+
+            if (frameBuf != null) {
+                uploadReverseFrame(frameBuf, reverseGopDecoder.getWidth(), reverseGopDecoder.getHeight());
+            }
+
+            if (reverseTextureId > 0 && reverseGopDecoder.hasRenderableFrame()) {
+                return reverseTextureId;
+            }
         }
         if (player != null && player.video()) {
             long tex = player.texture();
