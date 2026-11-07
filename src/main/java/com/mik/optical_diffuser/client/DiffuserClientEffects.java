@@ -16,11 +16,26 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
 import net.neoforged.neoforge.client.event.ViewportEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
+import net.neoforged.neoforge.event.level.LevelEvent;
+import com.mik.optical_diffuser.client.media.DiffuserMediaManager;
 
 public class DiffuserClientEffects {
+
+    @SubscribeEvent
+    public void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
+        DiffuserMediaManager.releaseAll();
+    }
+
+    @SubscribeEvent
+    public void onLevelUnload(LevelEvent.Unload event) {
+        if (event.getLevel() != null && event.getLevel().isClientSide()) {
+            DiffuserMediaManager.releaseAll();
+        }
+    }
 
     private static float currentTintR = 1.0f;
     private static float currentTintG = 1.0f;

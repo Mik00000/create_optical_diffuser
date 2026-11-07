@@ -34,10 +34,19 @@ public record LinkSpeakerPayload(BlockPos speakerPos, Optional<BlockPos> diffuse
     public static void handle(LinkSpeakerPayload payload, IPayloadContext context) {
         context.enqueueWork(() -> {
             Player player = context.player();
-            if (player != null && player.level().isLoaded(payload.speakerPos())) {
+            if (player != null && player.level().isLoaded(payload.speakerPos())
+                    && player.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(payload.speakerPos())) < 64.0) {
                 BlockEntity be = player.level().getBlockEntity(payload.speakerPos());
                 if (be instanceof SpeakerBlockEntity speaker) {
-                    speaker.setLinkedDiffuserPos(payload.diffuserPos().orElse(null));
+                    BlockPos target = payload.diffuserPos().orElse(null);
+                    if (target != null) {
+                        // Max link distance: 48 blocks
+                        if (payload.speakerPos().distSqr(target) <= 48 * 48) {
+                            speaker.setLinkedDiffuserPos(target);
+                        }
+                    } else {
+                        speaker.setLinkedDiffuserPos(null);
+                    }
                 }
             }
         });

@@ -17,6 +17,8 @@ public class FilmReelBlockEntity extends KineticBlockEntity {
     private String videoUrl = "";
     private long currentTimeMs = 0;
     private float visualAngle = 0.0f;
+    private int serverSyncTicks = 0;
+    private float lastServerSpeed = 0.0f;
 
     public FilmReelBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
         super(type, pos, state);
@@ -66,10 +68,31 @@ public class FilmReelBlockEntity extends KineticBlockEntity {
     @Override
     public void tick() {
         super.tick();
-        if (level != null && level.isClientSide) {
-            float speed = getEffectiveSpeed();
-            if (speed != 0.0f) {
-                this.visualAngle += (speed * 6.0f / 20.0f);
+        float speed = getEffectiveSpeed();
+        if (level != null) {
+            if (level.isClientSide) {
+                if (speed != 0.0f) {
+                    this.visualAngle += (speed * 6.0f / 20.0f);
+                }
+            } else {
+                // Authoritative server-side playback time tracking based on Create shaft RPM
+                if (Math.abs(speed) > 0.1f) {
+                    long deltaMs = (long) ((speed / 16.0f) * 50); // 50ms per tick at 16 RPM
+                    this.currentTimeMs = Math.max(0, this.currentTimeMs + deltaMs);
+                    serverSyncTicks++;
+                    // Periodically sync time to tracking clients (every 2 seconds / 40 ticks, or on speed change)
+                    if (serverSyncTicks >= 40 || Math.abs(speed - lastServerSpeed) > 1.0f) {
+                        serverSyncTicks = 0;
+                        lastServerSpeed = speed;
+                        sendData();
+                        setChanged();
+                    }
+                } else if (serverSyncTicks > 0 || Math.abs(lastServerSpeed) > 0.1f) {
+                    serverSyncTicks = 0;
+                    lastServerSpeed = 0.0f;
+                    sendData();
+                    setChanged();
+                }
             }
         }
     }

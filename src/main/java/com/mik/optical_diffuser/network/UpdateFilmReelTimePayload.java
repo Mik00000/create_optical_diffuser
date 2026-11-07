@@ -32,10 +32,13 @@ public record UpdateFilmReelTimePayload(BlockPos pos, long timeMs) implements Cu
     public static void handle(UpdateFilmReelTimePayload payload, IPayloadContext context) {
         context.enqueueWork(() -> {
             Player player = context.player();
-            if (player != null && player.level().isLoaded(payload.pos())) {
+            if (player != null && player.level().isLoaded(payload.pos())
+                    && player.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(payload.pos())) < 64.0) {
                 BlockEntity be = player.level().getBlockEntity(payload.pos());
                 if (be instanceof FilmReelBlockEntity reelBe) {
-                    reelBe.setCurrentTimeMs(payload.timeMs());
+                    if (payload.timeMs() >= 0 && payload.timeMs() < 86400000L) { // max 24 hours
+                        reelBe.setCurrentTimeMs(payload.timeMs());
+                    }
                 }
             }
         });

@@ -6,8 +6,6 @@ import com.mik.optical_diffuser.item.FilmReelBlockItem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.PacketDistributor;
-import com.mik.optical_diffuser.network.UpdateFilmReelTimePayload;
 import org.watermedia.api.player.MediaPlayer;
 import org.watermedia.api.player.PlayerAPI;
 
@@ -33,20 +31,10 @@ public class DiffuserMediaManager {
 
     private float accumulatedReelAngle = 0.0f;
     private float accumulatedReverseAngle = 0.0f;
-    private long lastServerSyncTimeMs = -1;
-    private int syncTickCounter = 0;
 
     private void syncTimeToReel(FilmReelBlockEntity filmReel, long timeMs) {
         if (filmReel == null) return;
         filmReel.setCurrentTimeMs(timeMs);
-        syncTickCounter++;
-        if (syncTickCounter >= 20 || Math.abs(timeMs - lastServerSyncTimeMs) >= 1000) {
-            syncTickCounter = 0;
-            lastServerSyncTimeMs = timeMs;
-            try {
-                PacketDistributor.sendToServer(new UpdateFilmReelTimePayload(filmReel.getBlockPos(), timeMs));
-            } catch (Throwable ignored) {}
-        }
     }
 
     private DynamicMediaTexture dynamicTexture = null;
@@ -65,6 +53,16 @@ public class DiffuserMediaManager {
         if (mgr != null) {
             mgr.release();
         }
+    }
+
+    public static void releaseAll() {
+        for (DiffuserMediaManager mgr : INSTANCES.values()) {
+            try {
+                mgr.release();
+            } catch (Throwable ignored) {}
+        }
+        INSTANCES.clear();
+        OpenALPitchFixer.releaseAll();
     }
 
     public synchronized void tick() {
@@ -198,6 +196,12 @@ public class DiffuserMediaManager {
                     if (curTime > 0) {
                         this.lastRecordedTimeMs = curTime;
                         syncTimeToReel(filmReel, curTime);
+                        // Resync local player if it drifts significantly (> 3.5s) from server authoritative reel time
+                        if (filmReel != null && filmReel.getCurrentTimeMs() > 0
+                                && Math.abs(curTime - filmReel.getCurrentTimeMs()) > 3500
+                                && player.canSeek() && player.status() != MediaPlayer.Status.BUFFERING) {
+                            player.seek(filmReel.getCurrentTimeMs());
+                        }
                     }
                 }
             } else {

@@ -44,10 +44,13 @@ public record UpdateDiffuserPayload(
             if (level.isLoaded(payload.pos()) && player.distanceToSqr(payload.pos().getX() + 0.5, payload.pos().getY() + 0.5, payload.pos().getZ() + 0.5) < 64.0) {
                 BlockEntity be = level.getBlockEntity(payload.pos());
                 if (be instanceof OpticalDiffuserBlockEntity diffuser) {
+                    float angle = Math.max(5.0f, Math.min(90.0f, payload.coneAngle()));
+                    float speed = Math.max(-256.0f, Math.min(256.0f, payload.spinSpeed()));
+                    int mode = Math.max(0, Math.min(2, payload.redstoneMode()));
                     diffuser.updateSettings(
-                            payload.coneAngle(),
-                            payload.spinSpeed(),
-                            payload.redstoneMode()
+                            angle,
+                            speed,
+                            mode
                     );
                 }
             }

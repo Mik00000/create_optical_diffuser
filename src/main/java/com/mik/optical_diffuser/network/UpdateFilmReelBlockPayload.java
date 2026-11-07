@@ -32,10 +32,14 @@ public record UpdateFilmReelBlockPayload(BlockPos pos, String url) implements Cu
     public static void handle(UpdateFilmReelBlockPayload payload, IPayloadContext context) {
         context.enqueueWork(() -> {
             Player player = context.player();
-            if (player != null && player.level().isLoaded(payload.pos())) {
+            if (player != null && player.level().isLoaded(payload.pos())
+                    && player.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(payload.pos())) < 64.0) {
                 BlockEntity be = player.level().getBlockEntity(payload.pos());
                 if (be instanceof FilmReelBlockEntity reelBe) {
-                    reelBe.setUrl(payload.url());
+                    String cleanUrl = payload.url() != null ? payload.url().trim() : "";
+                    if (cleanUrl.length() <= 2048) {
+                        reelBe.setUrl(cleanUrl);
+                    }
                 }
             }
         });

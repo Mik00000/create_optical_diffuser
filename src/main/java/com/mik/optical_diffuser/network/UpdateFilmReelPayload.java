@@ -32,10 +32,13 @@ public record UpdateFilmReelPayload(InteractionHand hand, String url) implements
     public static void handle(UpdateFilmReelPayload payload, IPayloadContext context) {
         context.enqueueWork(() -> {
             Player player = context.player();
-            if (player != null) {
+            if (player != null && payload.hand() != null) {
                 ItemStack stack = player.getItemInHand(payload.hand());
                 if (stack.getItem() instanceof FilmReelBlockItem) {
-                    FilmReelBlockItem.setUrl(stack, payload.url());
+                    String cleanUrl = payload.url() != null ? payload.url().trim() : "";
+                    if (cleanUrl.length() <= 2048) {
+                        FilmReelBlockItem.setUrl(stack, cleanUrl);
+                    }
                 }
             }
         });
