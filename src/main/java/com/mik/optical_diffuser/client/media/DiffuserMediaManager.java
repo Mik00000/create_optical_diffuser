@@ -30,10 +30,9 @@ public class DiffuserMediaManager {
     private boolean wasRewinding = false;
     private boolean isMuted = false;
     private float currentMasterVolume = 0.0f;
-    private float currentReverseVolume = 0.0f;
 
-    private final ProjectorAudioEngine projectorAudioEngine = new ProjectorAudioEngine();
     private float accumulatedReelAngle = 0.0f;
+    private float accumulatedReverseAngle = 0.0f;
     private long lastServerSyncTimeMs = -1;
     private int syncTickCounter = 0;
 
@@ -106,7 +105,6 @@ public class DiffuserMediaManager {
             if (player != null && player.playing()) {
                 player.pause(true);
             }
-            projectorAudioEngine.stop();
             return;
         }
 
@@ -136,7 +134,7 @@ public class DiffuserMediaManager {
 
             if (absRpm < 0.1f) {
                 // 0 RPM: Pause
-                this.projectorAudioEngine.stop();
+                accumulatedReverseAngle = 0.0f;
                 if (player.playing()) {
                     player.pause(true);
                     syncTimeToReel(filmReel, this.lastRecordedTimeMs);
@@ -145,9 +143,9 @@ public class DiffuserMediaManager {
             } else if (speedFactor > 0) {
                 // Forward playback
                 if (wasRewinding) {
-                    this.projectorAudioEngine.stop();
                     player.seek(this.lastRecordedTimeMs);
                     wasRewinding = false;
+                    accumulatedReverseAngle = 0.0f;
                 }
 
                 if (player.paused()) {
@@ -203,32 +201,46 @@ public class DiffuserMediaManager {
                     }
                 }
             } else {
-                // Negative RPM: Paced Keyframe Shuttle Rewind (Keep player active so lifecycle thread renders frames)
+                // Negative RPM: Option A - Paced Keyframe Shuttle Rewind (~5 FPS) + Authentic Mechanical Sfx
                 wasRewinding = true;
                 if (player.paused()) {
                     player.resume();
                 }
-                if (Math.abs(lastSpeed - 0.1f) > 0.01f) {
-                    player.speed(0.1f);
-                    lastSpeed = 0.1f;
+                if (Math.abs(lastSpeed - 1.0f) > 0.01f) {
+                    player.speed(1.0f);
+                    lastSpeed = 1.0f;
                 }
                 OpenALPitchFixer.release(player);
 
-                long stepMs = (long) (Math.abs(speedFactor) * 50); // 50ms per game tick = 1x real-time at 16 RPM
+                // Step time backward by shaft speed (50ms per tick = 1000ms/sec at 16 RPM)
+                long stepMs = (long) (Math.abs(speedFactor) * 50);
                 this.lastRecordedTimeMs = Math.max(0, this.lastRecordedTimeMs - stepMs);
                 syncTimeToReel(filmReel, this.lastRecordedTimeMs);
 
-                // Paced rapid keyframe seek: 8-10 keyframe updates/sec without decoder stall
-                if (rewindCooldown <= 0 && player.canSeek()) {
-                    player.seekQuick(this.lastRecordedTimeMs);
-                    rewindCooldown = (Math.abs(speedFactor) > 2.0f) ? 1 : 2;
+                // Paced keyframe seek: 3 ticks (150ms) gives FFmpeg decoder time to flush & decode cleanly (~5 keyframe updates/sec)
+                if (rewindCooldown <= 0 && player.canSeek() && player.status() != MediaPlayer.Status.BUFFERING) {
+                    player.seek(this.lastRecordedTimeMs);
+                    rewindCooldown = (Math.abs(speedFactor) > 2.0f) ? 2 : 3;
                 } else if (rewindCooldown > 0) {
                     rewindCooldown--;
                 }
 
-                // Play authentic cine-mechanical spool flutter and Geneva clicks
-                if (sound) {
-                    this.projectorAudioEngine.tickRewind(Math.abs(speedFactor), this.currentReverseVolume, diffuser.getBlockPos());
+                // Play authentic cine-mechanical reel ratchet / sprocket clicks tracking shaft rotation
+                if (diffuser.getLevel() != null) {
+                    accumulatedReverseAngle += (absRpm * 6.0f) / 20.0f;
+                    if (accumulatedReverseAngle >= 12.0f) {
+                        accumulatedReverseAngle -= 12.0f;
+                        float pitch = Math.min(2.0f, 0.9f + (Math.abs(speedFactor) * 0.25f));
+                        var pos = diffuser.getBlockPos();
+                        diffuser.getLevel().playLocalSound(
+                                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                                net.minecraft.sounds.SoundEvents.ITEM_FRAME_ROTATE_ITEM,
+                                net.minecraft.sounds.SoundSource.BLOCKS,
+                                0.32f,
+                                pitch,
+                                false
+                        );
+                    }
                 }
             }
 
@@ -260,48 +272,48 @@ public class DiffuserMediaManager {
                     }
                 }
 
-                // Forward player volume:
-                // - During rewind: video audio track is muted (0.0f) because projector audio engine plays
+                // Video audio track volume:
+                // - During rewind: video audio is completely silenced (mechanical clicks play instead)
                 // - At 0 RPM (pause): 0.0f
                 // - In Zone 3 (high-speed shuttle > 36 RPM): smoothly duck from 1.0 down to 0.35
-                float speedVolumeFactor = 1.0f;
-                if (isRewinding || absRpm < 0.1f) {
-                    speedVolumeFactor = 0.0f;
-                } else if (absRpm > 36.0f) {
-                    speedVolumeFactor = Math.max(0.35f, 1.0f - (absRpm - 36.0f) / 45.0f);
-                }
-
-                float forwardTargetVolume = inZone ? speedVolumeFactor : 0.0f;
-
-                // Smooth exponential volume ramping (3-4 ticks ramp) to eliminate popping/clicking:
-                this.currentMasterVolume += (forwardTargetVolume - this.currentMasterVolume) * 0.30f;
-                if (this.currentMasterVolume < 0.02f) {
+                if (isRewinding) {
                     this.currentMasterVolume = 0.0f;
-                }
-
-                // Reverse audio player volume:
-                float reverseTargetVolume = (inZone && isRewinding) ? 1.0f : 0.0f;
-                this.currentReverseVolume += (reverseTargetVolume - this.currentReverseVolume) * 0.30f;
-                if (this.currentReverseVolume < 0.02f) {
-                    this.currentReverseVolume = 0.0f;
-                }
-
-                int intVol = Math.round(this.currentMasterVolume * 100.0f);
-                if (intVol > 0) {
-                    if (this.isMuted) {
-                        player.mute(false);
-                        this.isMuted = false;
-                    }
-                    player.volume(intVol);
-                } else {
                     if (!this.isMuted) {
                         player.mute(true);
                         this.isMuted = true;
                     }
                     player.volume(0);
+                } else {
+                    float speedVolumeFactor = 1.0f;
+                    if (absRpm < 0.1f) {
+                        speedVolumeFactor = 0.0f;
+                    } else if (absRpm > 36.0f) {
+                        speedVolumeFactor = Math.max(0.35f, 1.0f - (absRpm - 36.0f) / 45.0f);
+                    }
+
+                    float forwardTargetVolume = inZone ? speedVolumeFactor : 0.0f;
+
+                    // Smooth exponential volume ramping (3-4 ticks ramp) to eliminate popping/clicking:
+                    this.currentMasterVolume += (forwardTargetVolume - this.currentMasterVolume) * 0.30f;
+                    if (this.currentMasterVolume < 0.02f) {
+                        this.currentMasterVolume = 0.0f;
+                    }
+
+                    int intVol = Math.round(this.currentMasterVolume * 100.0f);
+                    if (intVol > 0) {
+                        if (this.isMuted) {
+                            player.mute(false);
+                            this.isMuted = false;
+                        }
+                        player.volume(intVol);
+                    } else {
+                        if (!this.isMuted) {
+                            player.mute(true);
+                            this.isMuted = true;
+                        }
+                        player.volume(0);
+                    }
                 }
-            } else {
-                this.projectorAudioEngine.stop();
             }
         }
     }
@@ -412,11 +424,10 @@ public class DiffuserMediaManager {
             dynamicLocation = null;
             dynamicTexture = null;
         }
-        this.projectorAudioEngine.release();
         currentUrl = "";
         currentMasterVolume = 0.0f;
-        currentReverseVolume = 0.0f;
         accumulatedReelAngle = 0.0f;
+        accumulatedReverseAngle = 0.0f;
         rewindCooldown = 0;
         wasRewinding = false;
     }
