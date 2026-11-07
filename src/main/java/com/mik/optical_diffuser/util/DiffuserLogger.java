@@ -14,6 +14,10 @@ public class DiffuserLogger {
         LOGGER.warn(message, params);
     }
 
+    public static void error(String message) {
+        LOGGER.error(message);
+    }
+
     public static void error(String message, Throwable t) {
         if (t != null) {
             LOGGER.error(message, t);
@@ -26,4 +30,3 @@ public class DiffuserLogger {
         LOGGER.debug(message, params);
     }
 }
-

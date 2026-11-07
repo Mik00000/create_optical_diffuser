@@ -8,10 +8,11 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
 import com.mik.optical_diffuser.network.UpdateFilmReelTimePayload;
+import org.lwjgl.opengl.GL11;
 import org.watermedia.api.player.MediaPlayer;
 import org.watermedia.api.player.PlayerAPI;
-import org.watermedia.api.player.SFXEngine;
 
+import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -27,16 +28,20 @@ public class DiffuserMediaManager {
     private long lastRecordedTimeMs = 0;
     private long pendingSeekMs = -1;
     private int seekWaitTicks = 0;
-    private int audioUpdateCooldown = 0;
     private int rewindTickCounter = 0;
     private int rewindCooldown = 0;
     private boolean wasRewinding = false;
     private boolean isMuted = false;
     private float currentMasterVolume = 0.0f;
     private float currentReverseVolume = 0.0f;
-    private final ReverseAudioPlayer reverseAudioPlayer = new ReverseAudioPlayer();
+
+    private final ProjectorAudioEngine projectorAudioEngine = new ProjectorAudioEngine();
+    private ReverseGopDecoder reverseGopDecoder = null;
+    private int reverseTextureId = 0;
+    private int reverseTextureWidth = 0;
+    private int reverseTextureHeight = 0;
+
     private float accumulatedReelAngle = 0.0f;
-    private int fastForwardSoundTicks = 0;
     private long lastServerSyncTimeMs = -1;
     private int syncTickCounter = 0;
 
@@ -109,6 +114,7 @@ public class DiffuserMediaManager {
             if (player != null && player.playing()) {
                 player.pause(true);
             }
+            projectorAudioEngine.stop();
             return;
         }
 
@@ -138,17 +144,16 @@ public class DiffuserMediaManager {
 
             if (absRpm < 0.1f) {
                 // 0 RPM: Pause
-                this.reverseAudioPlayer.stop();
+                this.projectorAudioEngine.stop();
                 if (player.playing()) {
                     player.pause(true);
                     syncTimeToReel(filmReel, this.lastRecordedTimeMs);
                 }
-                wasRewinding = false;
                 OpenALPitchFixer.release(player);
             } else if (speedFactor > 0) {
                 // Forward playback
                 if (wasRewinding) {
-                    this.reverseAudioPlayer.stop();
+                    this.projectorAudioEngine.stop();
                     player.seek(this.lastRecordedTimeMs);
                     wasRewinding = false;
                 }
@@ -180,11 +185,6 @@ public class DiffuserMediaManager {
 
                 // Apply OpenAL hardware EFX pitch shifter and de-esser
                 OpenALPitchFixer.applyPitchCompensation(player, targetSpeed);
-
-                // Capture forward PCM audio into the rolling ring buffer for reverse scrubbing
-                if (sound && player.playing()) {
-                    this.reverseAudioPlayer.captureForwardAudio(player);
-                }
 
                 // Slow-Mo Geneva drive tick for Zone 4:
                 if (rpm < 14.0f && diffuser.getLevel() != null) {
@@ -223,18 +223,30 @@ public class DiffuserMediaManager {
                 syncTimeToReel(filmReel, this.lastRecordedTimeMs);
 
                 rewindTickCounter++;
-                // Non-blocking paced precise backward seek:
-                // Only seek when player is ready and not already buffering, preventing FFmpeg superseding
-                if (rewindCooldown <= 0 && player.canSeek() && player.status() != MediaPlayer.Status.BUFFERING) {
-                    player.seek(this.lastRecordedTimeMs);
-                    rewindCooldown = 3; // Give FFmpeg 150ms to decode and upload the frame
-                } else if (rewindCooldown > 0) {
-                    rewindCooldown--;
+
+                // Fast reverse video: Off-Heap Dual-GOP Ping-Pong buffer lookup (O(1))
+                boolean trickPlay = (absRpm > 64.0f);
+                if (reverseGopDecoder != null && reverseGopDecoder.isAvailable()) {
+                    ByteBuffer frameBuf = trickPlay
+                            ? reverseGopDecoder.getTrickPlayKeyframe(this.lastRecordedTimeMs)
+                            : reverseGopDecoder.getFrameForTime(this.lastRecordedTimeMs);
+
+                    if (frameBuf != null) {
+                        uploadReverseFrame(frameBuf, reverseGopDecoder.getWidth(), reverseGopDecoder.getHeight());
+                    }
+                } else {
+                    // Graceful fallback to quick keyframe seek if FFmpeg GOP decoder is initializing
+                    if (rewindCooldown <= 0 && player.canSeek()) {
+                        player.seekQuick(this.lastRecordedTimeMs);
+                        rewindCooldown = 2;
+                    } else if (rewindCooldown > 0) {
+                        rewindCooldown--;
+                    }
                 }
 
-                // Play authentic backwards audio track (Variant 2: Reverse Audio Scrub)
+                // Play authentic cine-mechanical audio
                 if (sound) {
-                    this.reverseAudioPlayer.tickRewind(Math.abs(speedFactor), this.currentReverseVolume);
+                    this.projectorAudioEngine.tickRewind(Math.abs(speedFactor), this.currentReverseVolume, diffuser.getBlockPos());
                 }
             }
 
@@ -267,9 +279,9 @@ public class DiffuserMediaManager {
                 }
 
                 // Forward player volume:
-                // - During rewind: video track is muted (0.0f) because reverse audio player plays
+                // - During rewind: video track is muted (0.0f) because projector audio engine plays
                 // - At 0 RPM (pause): 0.0f
-                // - In Zone 3 (high-speed shuttle > 36 RPM): smoothly duck from 1.0 down to 0.35 (NO ABRUPT CUTOFF!)
+                // - In Zone 3 (high-speed shuttle > 36 RPM): smoothly duck from 1.0 down to 0.35
                 float speedVolumeFactor = 1.0f;
                 if (isRewinding || absRpm < 0.1f) {
                     speedVolumeFactor = 0.0f;
@@ -307,8 +319,34 @@ public class DiffuserMediaManager {
                     player.volume(0);
                 }
             } else {
-                this.reverseAudioPlayer.stop();
+                this.projectorAudioEngine.stop();
             }
+        }
+    }
+
+    private void uploadReverseFrame(ByteBuffer buf, int w, int h) {
+        if (buf == null || w <= 0 || h <= 0) return;
+        try {
+            if (reverseTextureId <= 0) {
+                reverseTextureId = GL11.glGenTextures();
+            }
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, reverseTextureId);
+            if (reverseTextureWidth != w || reverseTextureHeight != h) {
+                reverseTextureWidth = w;
+                reverseTextureHeight = h;
+                GL11.glTexImage2D(
+                        GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA,
+                        w, h, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, (ByteBuffer) null
+                );
+                GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
+                GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+            }
+            GL11.glTexSubImage2D(
+                    GL11.GL_TEXTURE_2D, 0, 0, 0,
+                    w, h, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buf
+            );
+        } catch (Throwable t) {
+            com.mik.optical_diffuser.util.DiffuserLogger.error("Failed to upload reverse frame to texture", t);
         }
     }
 
@@ -329,9 +367,14 @@ public class DiffuserMediaManager {
             Minecraft mc = Minecraft.getInstance();
             Thread renderThread = Thread.currentThread();
 
-            // Use 32 buffers without spatial distortion to prevent OpenAL underrun / clock jitter,
-            // and disable the experimental persistent PBO ring in GLEngine (ringCapable = false)
-            // which causes the Cr chroma plane desync and green flicker on Linux/NVIDIA.
+            // Initialize asynchronous reverse GOP decoder
+            try {
+                this.reverseGopDecoder = new ReverseGopDecoder(url);
+            } catch (Throwable t) {
+                com.mik.optical_diffuser.util.DiffuserLogger.error("Failed to create ReverseGopDecoder", t);
+            }
+
+            // Disable persistent PBO ring in GLEngine (ringCapable = false) to prevent chroma desync
             this.player = PlayerAPI.player(
                     mrl,
                     () -> {
@@ -360,6 +403,9 @@ public class DiffuserMediaManager {
     }
 
     public synchronized int getTexture() {
+        if (wasRewinding && reverseTextureId > 0 && reverseGopDecoder != null && reverseGopDecoder.hasRenderableFrame()) {
+            return reverseTextureId;
+        }
         if (player != null && player.video()) {
             long tex = player.texture();
             if (tex != MediaPlayer.NO_TEXTURE && tex > 0) {
@@ -418,12 +464,26 @@ public class DiffuserMediaManager {
             dynamicLocation = null;
             dynamicTexture = null;
         }
-        this.reverseAudioPlayer.release();
+        if (reverseTextureId > 0) {
+            try {
+                GL11.glDeleteTextures(reverseTextureId);
+            } catch (Throwable ignored) {}
+            reverseTextureId = 0;
+            reverseTextureWidth = 0;
+            reverseTextureHeight = 0;
+        }
+        if (reverseGopDecoder != null) {
+            try {
+                reverseGopDecoder.close();
+            } catch (Throwable ignored) {}
+            reverseGopDecoder = null;
+        }
+        this.projectorAudioEngine.release();
         currentUrl = "";
         currentMasterVolume = 0.0f;
         currentReverseVolume = 0.0f;
         accumulatedReelAngle = 0.0f;
-        fastForwardSoundTicks = 0;
         rewindCooldown = 0;
+        wasRewinding = false;
     }
 }
