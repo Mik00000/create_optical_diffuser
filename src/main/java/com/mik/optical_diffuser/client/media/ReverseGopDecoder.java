@@ -338,12 +338,15 @@ public class ReverseGopDecoder implements AutoCloseable {
     private void decodeGopSegment(long targetPtsMs) {
         if (closed.get() || formatContext == null || videoCodecContext == null) return;
         try {
-            long seekTargetMs = Math.max(0, targetPtsMs - 300);
+            long seekTargetMs = Math.max(0, targetPtsMs - 400);
             long seekTargetPts = (long) ((seekTargetMs / 1000.0) / timeBaseSec);
             avformat.av_seek_frame(formatContext, videoStreamIndex, seekTargetPts, avformat.AVSEEK_FLAG_BACKWARD);
             avcodec.avcodec_flush_buffers(videoCodecContext);
 
             standbyBuffer.clear();
+
+            long lastEstimatedPtsMs = seekTargetMs;
+            long frameIntervalMs = 40; // Default ~25 FPS fallback
 
             while (!closed.get() && avformat.av_read_frame(formatContext, pkt) >= 0) {
                 if (pkt.stream_index() == videoStreamIndex) {
@@ -351,13 +354,21 @@ public class ReverseGopDecoder implements AutoCloseable {
                     if (sendRet >= 0) {
                         while (!closed.get() && avcodec.avcodec_receive_frame(videoCodecContext, frame) >= 0) {
                             long rawPts = frame.best_effort_timestamp();
-                            if (rawPts == avutil.AV_NOPTS_VALUE || rawPts < 0) {
+                            if (rawPts == avutil.AV_NOPTS_VALUE || rawPts == Long.MIN_VALUE) {
                                 rawPts = frame.pts();
                             }
-                            if (rawPts == avutil.AV_NOPTS_VALUE || rawPts < 0) {
+                            if (rawPts == avutil.AV_NOPTS_VALUE || rawPts == Long.MIN_VALUE) {
                                 rawPts = frame.pkt_dts();
                             }
-                            long pts = (long) (Math.max(0, rawPts) * timeBaseSec * 1000.0);
+
+                            long pts;
+                            if (rawPts != avutil.AV_NOPTS_VALUE && rawPts != Long.MIN_VALUE && rawPts >= 0) {
+                                pts = (long) (rawPts * timeBaseSec * 1000.0);
+                                lastEstimatedPtsMs = pts;
+                            } else {
+                                pts = lastEstimatedPtsMs + frameIntervalMs;
+                                lastEstimatedPtsMs = pts;
+                            }
 
                             tempDirectBuffer.clear();
                             swscale.sws_scale(
@@ -374,14 +385,14 @@ public class ReverseGopDecoder implements AutoCloseable {
 
                             standbyBuffer.appendFrame(pts, tempDirectBuffer);
 
-                            if (standbyBuffer.getFrameCount() >= GOP_CAPACITY || pts >= targetPtsMs + 400) {
+                            if (standbyBuffer.getFrameCount() >= GOP_CAPACITY || (pts >= targetPtsMs + 400 && standbyBuffer.getFrameCount() >= 15)) {
                                 break;
                             }
                         }
                     }
                 }
                 avcodec.av_packet_unref(pkt);
-                if (standbyBuffer.getFrameCount() >= GOP_CAPACITY || standbyBuffer.getEndPtsMs() >= targetPtsMs + 400) {
+                if (standbyBuffer.getFrameCount() >= GOP_CAPACITY || (standbyBuffer.getEndPtsMs() >= targetPtsMs + 400 && standbyBuffer.getFrameCount() >= 15)) {
                     break;
                 }
             }
@@ -417,13 +428,15 @@ public class ReverseGopDecoder implements AutoCloseable {
                     if (sendRet >= 0) {
                         if (avcodec.avcodec_receive_frame(videoCodecContext, frame) >= 0) {
                             long rawPts = frame.best_effort_timestamp();
-                            if (rawPts == avutil.AV_NOPTS_VALUE || rawPts < 0) {
+                            if (rawPts == avutil.AV_NOPTS_VALUE || rawPts == Long.MIN_VALUE) {
                                 rawPts = frame.pts();
                             }
-                            if (rawPts == avutil.AV_NOPTS_VALUE || rawPts < 0) {
+                            if (rawPts == avutil.AV_NOPTS_VALUE || rawPts == Long.MIN_VALUE) {
                                 rawPts = frame.pkt_dts();
                             }
-                            long pts = (long) (Math.max(0, rawPts) * timeBaseSec * 1000.0);
+                            long pts = (rawPts != avutil.AV_NOPTS_VALUE && rawPts != Long.MIN_VALUE && rawPts >= 0)
+                                    ? (long) (rawPts * timeBaseSec * 1000.0)
+                                    : Math.max(0, targetPtsMs);
 
                             tempDirectBuffer.clear();
                             swscale.sws_scale(

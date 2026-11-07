@@ -1,7 +1,6 @@
 package com.mik.optical_diffuser.client.media;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 /**
  * High-performance off-heap ring buffer holding decoded RGBA frames for one GOP.
@@ -46,8 +45,11 @@ public class OffHeapGopBuffer implements AutoCloseable {
         ptsMs[frameCount] = pts;
         if (frameCount == 0) {
             startPtsMs = pts;
+            endPtsMs = pts;
+        } else {
+            startPtsMs = Math.min(startPtsMs, pts);
+            endPtsMs = Math.max(endPtsMs, pts);
         }
-        endPtsMs = pts;
         frameCount++;
     }
 
@@ -81,28 +83,28 @@ public class OffHeapGopBuffer implements AutoCloseable {
 
     public boolean contains(long targetPtsMs) {
         if (!isReady()) return false;
-        long min = Math.min(startPtsMs, endPtsMs);
-        long max = Math.max(startPtsMs, endPtsMs);
-        return targetPtsMs >= min && targetPtsMs <= max;
+        return targetPtsMs >= (startPtsMs - 150) && targetPtsMs <= (endPtsMs + 150);
     }
 
     /**
-     * Finds the closest frame index for the given target timestamp in O(log N).
+     * Finds the closest frame index for the given target timestamp.
+     * Uses linear scan over <= 75 items (~30 nanoseconds), fully supporting
+     * non-monotonic B-frame PTS ordering without binary search failures.
      */
     public synchronized int findClosestFrameIndex(long targetPtsMs) {
         if (frameCount <= 0) return -1;
         if (frameCount == 1) return 0;
 
-        int idx = Arrays.binarySearch(ptsMs, 0, frameCount, targetPtsMs);
-        if (idx >= 0) return idx;
-
-        int insertionPoint = -idx - 1;
-        if (insertionPoint <= 0) return 0;
-        if (insertionPoint >= frameCount) return frameCount - 1;
-
-        long diffPrev = Math.abs(ptsMs[insertionPoint - 1] - targetPtsMs);
-        long diffNext = Math.abs(ptsMs[insertionPoint] - targetPtsMs);
-        return (diffPrev <= diffNext) ? insertionPoint - 1 : insertionPoint;
+        int bestIdx = 0;
+        long minDiff = Math.abs(ptsMs[0] - targetPtsMs);
+        for (int i = 1; i < frameCount; i++) {
+            long diff = Math.abs(ptsMs[i] - targetPtsMs);
+            if (diff < minDiff) {
+                minDiff = diff;
+                bestIdx = i;
+            }
+        }
+        return bestIdx;
     }
 
     /**

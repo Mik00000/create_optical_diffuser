@@ -3,12 +3,15 @@ package com.mik.optical_diffuser.client.media;
 import com.mik.optical_diffuser.block.entity.FilmReelBlockEntity;
 import com.mik.optical_diffuser.block.entity.OpticalDiffuserBlockEntity;
 import com.mik.optical_diffuser.item.FilmReelBlockItem;
+import com.mojang.blaze3d.platform.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
 import com.mik.optical_diffuser.network.UpdateFilmReelTimePayload;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL15;
+import org.lwjgl.opengl.GL21;
 import org.watermedia.api.player.MediaPlayer;
 import org.watermedia.api.player.PlayerAPI;
 
@@ -40,6 +43,7 @@ public class DiffuserMediaManager {
     private int reverseTextureId = 0;
     private int reverseTextureWidth = 0;
     private int reverseTextureHeight = 0;
+    private boolean reverseTextureAllocated = false;
 
     private float accumulatedReelAngle = 0.0f;
     private long lastServerSyncTimeMs = -1;
@@ -318,24 +322,31 @@ public class DiffuserMediaManager {
         if (buf == null || w <= 0 || h <= 0) return;
         try {
             if (reverseTextureId <= 0) {
-                reverseTextureId = GL11.glGenTextures();
+                reverseTextureId = GlStateManager._genTexture();
             }
-            GL11.glBindTexture(GL11.GL_TEXTURE_2D, reverseTextureId);
+            GlStateManager._bindTexture(reverseTextureId);
             if (reverseTextureWidth != w || reverseTextureHeight != h) {
                 reverseTextureWidth = w;
                 reverseTextureHeight = h;
+                GL15.glBindBuffer(GL21.GL_PIXEL_UNPACK_BUFFER, 0);
                 GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
+                GL11.glPixelStorei(GL11.GL_UNPACK_ROW_LENGTH, 0);
+                GL11.glPixelStorei(GL11.GL_UNPACK_SKIP_ROWS, 0);
+                GL11.glPixelStorei(GL11.GL_UNPACK_SKIP_PIXELS, 0);
                 GL11.glTexImage2D(
-                        GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA,
+                        GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA8,
                         w, h, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, (ByteBuffer) null
                 );
                 GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
                 GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
                 GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, 0x812F); // GL_CLAMP_TO_EDGE
                 GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, 0x812F); // GL_CLAMP_TO_EDGE
+                reverseTextureAllocated = true;
             }
             buf.position(0);
+            GL15.glBindBuffer(GL21.GL_PIXEL_UNPACK_BUFFER, 0);
             GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT, 1);
+            GL11.glPixelStorei(GL11.GL_UNPACK_ROW_LENGTH, 0);
             GL11.glTexSubImage2D(
                     GL11.GL_TEXTURE_2D, 0, 0, 0,
                     w, h, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buf
@@ -408,10 +419,13 @@ public class DiffuserMediaManager {
                 uploadReverseFrame(frameBuf, reverseGopDecoder.getWidth(), reverseGopDecoder.getHeight());
             }
 
-            if (reverseTextureId > 0 && reverseGopDecoder.hasRenderableFrame()) {
+            // Only switch to reverseTextureId if valid frame data was uploaded into it
+            if (reverseTextureId > 0 && reverseTextureAllocated) {
                 return reverseTextureId;
             }
         }
+
+        // Always fallback to player.texture() so the picture NEVER disappears
         if (player != null && player.video()) {
             long tex = player.texture();
             if (tex != MediaPlayer.NO_TEXTURE && tex > 0) {
@@ -472,11 +486,12 @@ public class DiffuserMediaManager {
         }
         if (reverseTextureId > 0) {
             try {
-                GL11.glDeleteTextures(reverseTextureId);
+                GlStateManager._deleteTexture(reverseTextureId);
             } catch (Throwable ignored) {}
             reverseTextureId = 0;
             reverseTextureWidth = 0;
             reverseTextureHeight = 0;
+            reverseTextureAllocated = false;
         }
         if (reverseGopDecoder != null) {
             try {
