@@ -63,17 +63,46 @@ public class SableCompat {
         return localCenter;
     }
 
-    public static boolean isInsideSpeakerZone(Level level, BlockPos speakerPos, Direction facing, Vec3 playerPos) {
-        if (speakerPos == null || facing == null || playerPos == null) return false;
+    public static float getSpeakerZoneGain(Level level, BlockPos speakerPos, Direction facing, Vec3 playerPos) {
+        if (speakerPos == null || facing == null || playerPos == null) return 0.0f;
         RayContext ctx = getBlockTransform(level, speakerPos, facing);
         Vec3 rel = playerPos.subtract(ctx.start());
         double forwardDist = rel.dot(ctx.direction());
         if (forwardDist < -0.5 || forwardDist > 9.5) {
-            return false;
+            return 0.0f;
         }
+
         double lateral = Math.abs(rel.dot(ctx.right()));
         double vertical = Math.abs(rel.dot(ctx.up()));
-        return lateral <= 4.5 && vertical <= 4.5;
+        if (lateral > 4.5 || vertical > 4.5) {
+            return 0.0f;
+        }
+
+        float forwardGain = 1.0f;
+        if (forwardDist < 0.5) {
+            forwardGain = (float) (0.40 + 0.60 * ((forwardDist + 0.5) / 1.0));
+        } else if (forwardDist > 7.0) {
+            double t = (9.5 - forwardDist) / 2.5;
+            forwardGain = (float) (t * t);
+        }
+
+        float lateralGain = 1.0f;
+        if (lateral > 3.0) {
+            double t = (4.5 - lateral) / 1.5;
+            lateralGain = (float) (t * t);
+        }
+
+        float verticalGain = 1.0f;
+        if (vertical > 3.0) {
+            double t = (4.5 - vertical) / 1.5;
+            verticalGain = (float) (t * t);
+        }
+
+        return forwardGain * lateralGain * verticalGain;
+    }
+
+    public static boolean isInsideSpeakerZone(Level level, BlockPos speakerPos, Direction facing, Vec3 playerPos) {
+        return getSpeakerZoneGain(level, speakerPos, facing, playerPos) > 0.01f;
     }
 
     private static RayContext projectFromSable(Level level, BlockPos pos, Vec3 localStart, Vec3 localDir, Vec3 localUp, Vec3 localRight) {

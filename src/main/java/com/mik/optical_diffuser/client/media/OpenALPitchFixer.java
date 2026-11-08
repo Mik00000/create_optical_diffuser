@@ -20,6 +20,7 @@ public class OpenALPitchFixer {
     private static Field sourceIdsField = null;
 
     private static final Map<Integer, EffectSlotPair> SOURCE_EFFECTS = new ConcurrentHashMap<>();
+    private static final Map<Integer, Integer> RETRO_FILTERS = new ConcurrentHashMap<>();
 
     private record EffectSlotPair(int effectId, int slotId, int dryFilterId, int sendFilterId) {}
 
@@ -165,11 +166,60 @@ public class OpenALPitchFixer {
         }
     }
 
+    public static void applyRetroSoundFilter(MediaPlayer player, boolean enableRetro) {
+        if (player == null || !checkEfxSupport()) return;
+        try {
+            int[] sourceIds = getSourceIds(player);
+            if (sourceIds == null || sourceIds.length == 0) return;
+
+            for (int sourceId : sourceIds) {
+                if (sourceId <= 0) continue;
+                if (enableRetro) {
+                    if (SOURCE_EFFECTS.containsKey(sourceId)) continue;
+
+                    int filter = RETRO_FILTERS.computeIfAbsent(sourceId, id -> {
+                        try {
+                            int f = EXTEfx.alGenFilters();
+                            EXTEfx.alFilteri(f, EXTEfx.AL_FILTER_TYPE, EXTEfx.AL_FILTER_LOWPASS);
+                            EXTEfx.alFilterf(f, EXTEfx.AL_LOWPASS_GAIN, 0.92f);
+                            EXTEfx.alFilterf(f, EXTEfx.AL_LOWPASS_GAINHF, 0.44f);
+                            return f;
+                        } catch (Throwable t) {
+                            return 0;
+                        }
+                    });
+                    if (filter > 0) {
+                        AL10.alSourcei(sourceId, EXTEfx.AL_DIRECT_FILTER, filter);
+                    }
+                } else {
+                    Integer filter = RETRO_FILTERS.remove(sourceId);
+                    if (filter != null && filter > 0) {
+                        try {
+                            if (!SOURCE_EFFECTS.containsKey(sourceId)) {
+                                AL10.alSourcei(sourceId, EXTEfx.AL_DIRECT_FILTER, EXTEfx.AL_FILTER_NULL);
+                            }
+                            EXTEfx.alDeleteFilters(filter);
+                        } catch (Throwable ignored) {}
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+    }
+
     public static void release(MediaPlayer player) {
         if (player == null) return;
         int[] sourceIds = getSourceIds(player);
         for (int sourceId : sourceIds) {
-            if (sourceId > 0) detachSource(sourceId);
+            if (sourceId > 0) {
+                detachSource(sourceId);
+                Integer filter = RETRO_FILTERS.remove(sourceId);
+                if (filter != null && filter > 0) {
+                    try {
+                        AL10.alSourcei(sourceId, EXTEfx.AL_DIRECT_FILTER, EXTEfx.AL_FILTER_NULL);
+                        EXTEfx.alDeleteFilters(filter);
+                    } catch (Throwable ignored) {}
+                }
+            }
         }
     }
 
@@ -188,5 +238,15 @@ public class OpenALPitchFixer {
             } catch (Throwable ignored) {}
         }
         SOURCE_EFFECTS.clear();
+
+        for (var entry : RETRO_FILTERS.entrySet()) {
+            int sourceId = entry.getKey();
+            int filter = entry.getValue();
+            try {
+                AL10.alSourcei(sourceId, EXTEfx.AL_DIRECT_FILTER, EXTEfx.AL_FILTER_NULL);
+                EXTEfx.alDeleteFilters(filter);
+            } catch (Throwable ignored) {}
+        }
+        RETRO_FILTERS.clear();
     }
 }

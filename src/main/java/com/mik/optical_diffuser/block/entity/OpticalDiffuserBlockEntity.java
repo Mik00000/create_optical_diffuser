@@ -371,6 +371,19 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         return DiffuserModule.NONE;
     }
 
+    public float getRedstoneVolumeFactor() {
+        if (this.redstonePower == 0) {
+            return 1.0f; // Unpowered: 100% standard playback
+        }
+        if (this.redstonePower >= 15) {
+            return 0.0f; // Signal 15: Mute
+        }
+        if (this.redstonePower <= 11) {
+            return 0.10f + (this.redstonePower - 1) * (0.90f / 10.0f); // 1 -> 10% up to 11 -> 100%
+        }
+        return 1.0f + (this.redstonePower - 11) * 0.15f; // 12 -> 115%, 13 -> 130%, 14 -> 145%
+    }
+
     public void onRedstonePowerChanged(int power) {
         this.redstonePower = power;
         this.isPowered = power > 0;
@@ -1619,9 +1632,26 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                     .append(Component.literal(disp).withStyle(ChatFormatting.GOLD)));
         }
 
-        tooltip.add(Component.literal("  ")
-                .append(Component.translatable("gui.create_optical_diffuser.goggles.redstone").withStyle(ChatFormatting.GRAY))
-                .append(Component.literal(" " + this.redstonePower + "/15").withStyle(this.redstonePower == 15 ? ChatFormatting.RED : ChatFormatting.YELLOW)));
+        if (getActiveModule() == DiffuserModule.PROJECTOR_SOUND) {
+            if (this.redstonePower >= 15) {
+                tooltip.add(Component.literal("  ")
+                        .append(Component.translatable("gui.create_optical_diffuser.goggles.redstone").withStyle(ChatFormatting.GRAY))
+                        .append(Component.literal(" 15/15 (Mute)").withStyle(ChatFormatting.RED)));
+            } else if (this.redstonePower == 0) {
+                tooltip.add(Component.literal("  ")
+                        .append(Component.translatable("gui.create_optical_diffuser.goggles.redstone").withStyle(ChatFormatting.GRAY))
+                        .append(Component.literal(" 0/15 (Volume: 100%)").withStyle(ChatFormatting.YELLOW)));
+            } else {
+                int vol = Math.round(getRedstoneVolumeFactor() * 100);
+                tooltip.add(Component.literal("  ")
+                        .append(Component.translatable("gui.create_optical_diffuser.goggles.redstone").withStyle(ChatFormatting.GRAY))
+                        .append(Component.literal(String.format(" %d/15 (Volume: %d%%)", this.redstonePower, vol)).withStyle(ChatFormatting.YELLOW)));
+            }
+        } else {
+            tooltip.add(Component.literal("  ")
+                    .append(Component.translatable("gui.create_optical_diffuser.goggles.redstone").withStyle(ChatFormatting.GRAY))
+                    .append(Component.literal(" " + this.redstonePower + "/15").withStyle(this.redstonePower == 15 ? ChatFormatting.RED : ChatFormatting.YELLOW)));
+        }
 
         if (this.hasBeam) {
             tooltip.add(Component.literal("  ")

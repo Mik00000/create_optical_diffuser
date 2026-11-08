@@ -73,6 +73,8 @@ public class SpeakerBlock extends Block implements IBE<SpeakerBlockEntity> {
             if (linkedPos != null) {
                 speaker.setLinkedDiffuserPos(linkedPos);
             }
+            int vol = SpeakerBlockItem.getVolume(stack);
+            speaker.setVolume(vol);
         }
     }
 
@@ -80,8 +82,11 @@ public class SpeakerBlock extends Block implements IBE<SpeakerBlockEntity> {
     public ItemStack getCloneItemStack(LevelReader level, BlockPos pos, BlockState state) {
         ItemStack stack = new ItemStack(this);
         BlockEntity be = level.getBlockEntity(pos);
-        if (be instanceof SpeakerBlockEntity speaker && speaker.isLinked()) {
-            SpeakerBlockItem.setLinkedDiffuserPos(stack, speaker.getLinkedDiffuserPos());
+        if (be instanceof SpeakerBlockEntity speaker) {
+            if (speaker.isLinked()) {
+                SpeakerBlockItem.setLinkedDiffuserPos(stack, speaker.getLinkedDiffuserPos());
+            }
+            SpeakerBlockItem.setVolume(stack, speaker.getVolume());
         }
         return stack;
     }
@@ -90,8 +95,11 @@ public class SpeakerBlock extends Block implements IBE<SpeakerBlockEntity> {
     protected List<ItemStack> getDrops(BlockState state, LootParams.Builder params) {
         ItemStack stack = new ItemStack(this);
         BlockEntity be = params.getOptionalParameter(LootContextParams.BLOCK_ENTITY);
-        if (be instanceof SpeakerBlockEntity speaker && speaker.isLinked()) {
-            SpeakerBlockItem.setLinkedDiffuserPos(stack, speaker.getLinkedDiffuserPos());
+        if (be instanceof SpeakerBlockEntity speaker) {
+            if (speaker.isLinked()) {
+                SpeakerBlockItem.setLinkedDiffuserPos(stack, speaker.getLinkedDiffuserPos());
+            }
+            SpeakerBlockItem.setVolume(stack, speaker.getVolume());
         }
         return List.of(stack);
     }
@@ -109,6 +117,10 @@ public class SpeakerBlock extends Block implements IBE<SpeakerBlockEntity> {
     @Override
     protected ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
         if (stack.is(ModRegistry.SPEAKER_ITEM.get())) {
+            return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+        }
+        String id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+        if (id.contains("wrench") || com.simibubi.create.AllItems.WRENCH.isIn(stack)) {
             return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
         if (level.isClientSide) {
@@ -149,7 +161,7 @@ public class SpeakerBlock extends Block implements IBE<SpeakerBlockEntity> {
             BlockPos linked = speaker.getLinkedDiffuserPos();
             player.displayClientMessage(
                     Component.translatable("chat.create_optical_diffuser.speaker_status_linked",
-                            linked.getX(), linked.getY(), linked.getZ())
+                            linked.getX(), linked.getY(), linked.getZ(), speaker.getVolume())
                             .withStyle(ChatFormatting.GREEN),
                     true
             );

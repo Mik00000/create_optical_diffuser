@@ -251,37 +251,60 @@ public class DiffuserMediaManager {
             // Direct Audio Zone Check with Smooth Volume Ramping & High-Speed Ducking
             if (sound) {
                 Minecraft mc = Minecraft.getInstance();
-                boolean inZone = false;
+                float maxLoudspeakerGain = 0.0f;
+                float builtInGain = 0.0f;
 
                 if (mc.player != null) {
                     net.minecraft.world.phys.Vec3 playerPos = mc.player.position();
                     net.minecraft.world.phys.Vec3 diffuserCenter = com.mik.optical_diffuser.compat.SableCompat.getWorldPos(diffuser.getLevel(), diffuser.getBlockPos());
+                    double distToDiffuser = playerPos.distanceTo(diffuserCenter);
 
-                    // 1. Direct audio within 12 blocks of projector
-                    if (playerPos.distanceTo(diffuserCenter) <= 12.0) {
-                        inZone = true;
-                    } else {
-                        // 2. Check all linked speakers
-                        java.util.List<com.mik.optical_diffuser.block.entity.SpeakerBlockEntity> speakers =
-                                ClientSpeakerRegistry.getSpeakersForDiffuser(diffuser.getBlockPos());
-                        for (com.mik.optical_diffuser.block.entity.SpeakerBlockEntity s : speakers) {
-                            if (com.mik.optical_diffuser.compat.SableCompat.isInsideSpeakerZone(
-                                     s.getLevel(),
-                                     s.getBlockPos(),
-                                     s.getBlockState().getValue(com.mik.optical_diffuser.block.SpeakerBlock.FACING),
-                                     playerPos)) {
-                                inZone = true;
-                                break;
+                    // 1. Built-in projector soundhead: up to 10 blocks radius (0..6 full 0.60, 6..10 smooth falloff)
+                    if (distToDiffuser <= 10.0) {
+                        if (distToDiffuser <= 6.0) {
+                            builtInGain = 0.60f;
+                        } else {
+                            double t = (10.0 - distToDiffuser) / 4.0;
+                            builtInGain = (float) (0.60 * (t * t));
+                        }
+                    }
+
+                    // 2. Check all linked speakers
+                    java.util.List<com.mik.optical_diffuser.block.entity.SpeakerBlockEntity> speakers =
+                            ClientSpeakerRegistry.getSpeakersForDiffuser(diffuser.getBlockPos());
+                    for (com.mik.optical_diffuser.block.entity.SpeakerBlockEntity s : speakers) {
+                        float zoneGain = com.mik.optical_diffuser.compat.SableCompat.getSpeakerZoneGain(
+                                s.getLevel(),
+                                s.getBlockPos(),
+                                s.getBlockState().getValue(com.mik.optical_diffuser.block.SpeakerBlock.FACING),
+                                playerPos);
+                        if (zoneGain > 0.01f) {
+                            float speakerConfigVol = (s.getVolume() / 100.0f);
+                            float effectiveGain = zoneGain * speakerConfigVol;
+                            if (effectiveGain > maxLoudspeakerGain) {
+                                maxLoudspeakerGain = effectiveGain;
                             }
                         }
                     }
                 }
 
+                boolean hasLoudspeaker = maxLoudspeakerGain > 0.01f;
+                boolean hasBuiltIn = builtInGain > 0.01f;
+
+                float effectiveAcousticGain = hasLoudspeaker ? maxLoudspeakerGain : (hasBuiltIn ? builtInGain : 0.0f);
+
+                // Apply vintage retro sound filter if using built-in speaker only (without active loudspeaker):
+                com.mik.optical_diffuser.client.media.OpenALPitchFixer.applyRetroSoundFilter(player, hasBuiltIn && !hasLoudspeaker);
+
+                // Redstone volume control from Optical Diffuser (0..15, with 15 = Mute)
+                float redstoneFactor = diffuser.getRedstoneVolumeFactor();
+
                 // Video audio track volume:
                 // - During rewind: video audio is completely silenced (mechanical clicks play instead)
                 // - At 0 RPM (pause): 0.0f
+                // - If redstone factor == 0 (signal 15 Mute): 0.0f
                 // - In Zone 3 (high-speed shuttle > 36 RPM): smoothly duck from 1.0 down to 0.35
-                if (isRewinding) {
+                if (isRewinding || redstoneFactor <= 0.001f) {
                     this.currentMasterVolume = 0.0f;
                     if (!this.isMuted) {
                         player.mute(true);
@@ -296,11 +319,11 @@ public class DiffuserMediaManager {
                         speedVolumeFactor = Math.max(0.35f, 1.0f - (absRpm - 36.0f) / 45.0f);
                     }
 
-                    float forwardTargetVolume = inZone ? speedVolumeFactor : 0.0f;
+                    float forwardTargetVolume = effectiveAcousticGain * speedVolumeFactor * redstoneFactor;
 
                     // Smooth exponential volume ramping (3-4 ticks ramp) to eliminate popping/clicking:
                     this.currentMasterVolume += (forwardTargetVolume - this.currentMasterVolume) * 0.30f;
-                    if (this.currentMasterVolume < 0.02f) {
+                    if (this.currentMasterVolume < 0.015f) {
                         this.currentMasterVolume = 0.0f;
                     }
 

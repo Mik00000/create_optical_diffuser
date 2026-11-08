@@ -1,24 +1,26 @@
 package com.mik.optical_diffuser.block.entity;
 
 import com.mik.optical_diffuser.ModRegistry;
+import com.mik.optical_diffuser.block.SpeakerBlock;
 import com.simibubi.create.api.equipment.goggles.IHaveGoggleInformation;
+import com.simibubi.create.foundation.blockEntity.SmartBlockEntity;
+import com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour;
+import com.simibubi.create.foundation.blockEntity.behaviour.CenteredSideValueBoxTransform;
+import com.simibubi.create.foundation.blockEntity.behaviour.scrollValue.ScrollValueBehaviour;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
-import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.List;
 
-public class SpeakerBlockEntity extends BlockEntity implements IHaveGoggleInformation {
+public class SpeakerBlockEntity extends SmartBlockEntity implements IHaveGoggleInformation {
 
     private BlockPos linkedDiffuserPos = null;
+    public ScrollValueBehaviour volumeSettings;
 
     public SpeakerBlockEntity(BlockPos pos, BlockState state) {
         super(ModRegistry.SPEAKER_BE.get(), pos, state);
@@ -32,12 +34,47 @@ public class SpeakerBlockEntity extends BlockEntity implements IHaveGoggleInform
         this.linkedDiffuserPos = pos;
         setChanged();
         if (level != null && !level.isClientSide) {
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            sendData();
         }
     }
 
     public boolean isLinked() {
         return this.linkedDiffuserPos != null;
+    }
+
+    public int getVolume() {
+        return volumeSettings != null ? volumeSettings.getValue() : 100;
+    }
+
+    public void setVolume(int vol) {
+        if (volumeSettings != null) {
+            volumeSettings.setValue(Math.max(0, Math.min(150, vol)));
+            setChanged();
+            if (level != null && !level.isClientSide) {
+                sendData();
+            }
+        }
+    }
+
+    @Override
+    public void addBehaviours(List<BlockEntityBehaviour> behaviours) {
+        volumeSettings = new ScrollValueBehaviour(
+                Component.translatable("gui.create_optical_diffuser.speaker.volume"),
+                this,
+                new CenteredSideValueBoxTransform((state, face) -> {
+                    Direction facing = state.getValue(SpeakerBlock.FACING);
+                    return face != facing && face != facing.getOpposite();
+                })
+        );
+        volumeSettings.between(0, 150);
+        volumeSettings.value = 100;
+        volumeSettings.requiresWrench();
+        volumeSettings.withFormatter(v -> v + "%");
+        volumeSettings.withCallback(v -> {
+            this.setChanged();
+            this.sendData();
+        });
+        behaviours.add(volumeSettings);
     }
 
     @Override
@@ -49,16 +86,32 @@ public class SpeakerBlockEntity extends BlockEntity implements IHaveGoggleInform
     }
 
     @Override
-    public void setRemoved() {
-        super.setRemoved();
+    public void destroy() {
+        super.destroy();
         if (level != null && level.isClientSide) {
             com.mik.optical_diffuser.client.media.ClientSpeakerRegistry.unregister(this);
         }
     }
 
     @Override
-    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
-        super.saveAdditional(tag, registries);
+    public void invalidate() {
+        super.invalidate();
+        if (level != null && level.isClientSide) {
+            com.mik.optical_diffuser.client.media.ClientSpeakerRegistry.unregister(this);
+        }
+    }
+
+    @Override
+    public void onChunkUnloaded() {
+        super.onChunkUnloaded();
+        if (level != null && level.isClientSide) {
+            com.mik.optical_diffuser.client.media.ClientSpeakerRegistry.unregister(this);
+        }
+    }
+
+    @Override
+    protected void write(CompoundTag tag, HolderLookup.Provider registries, boolean clientPacket) {
+        super.write(tag, registries, clientPacket);
         if (this.linkedDiffuserPos != null) {
             tag.putInt("DiffuserX", this.linkedDiffuserPos.getX());
             tag.putInt("DiffuserY", this.linkedDiffuserPos.getY());
@@ -67,25 +120,13 @@ public class SpeakerBlockEntity extends BlockEntity implements IHaveGoggleInform
     }
 
     @Override
-    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
-        super.loadAdditional(tag, registries);
+    protected void read(CompoundTag tag, HolderLookup.Provider registries, boolean clientPacket) {
+        super.read(tag, registries, clientPacket);
         if (tag.contains("DiffuserX") && tag.contains("DiffuserY") && tag.contains("DiffuserZ")) {
             this.linkedDiffuserPos = new BlockPos(tag.getInt("DiffuserX"), tag.getInt("DiffuserY"), tag.getInt("DiffuserZ"));
         } else {
             this.linkedDiffuserPos = null;
         }
-    }
-
-    @Override
-    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
-        CompoundTag tag = super.getUpdateTag(registries);
-        saveAdditional(tag, registries);
-        return tag;
-    }
-
-    @Override
-    public Packet<ClientGamePacketListener> getUpdatePacket() {
-        return ClientboundBlockEntityDataPacket.create(this);
     }
 
     @Override
@@ -106,9 +147,13 @@ public class SpeakerBlockEntity extends BlockEntity implements IHaveGoggleInform
                     .append(Component.literal("Unlinked (Right-Click to connect)").withStyle(ChatFormatting.RED)));
         }
 
+        int vol = getVolume();
+        tooltip.add(Component.literal("  Volume: ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(vol + "%").withStyle(vol > 100 ? ChatFormatting.LIGHT_PURPLE : (vol == 0 ? ChatFormatting.RED : ChatFormatting.YELLOW)))
+                .append(Component.literal(" (Wrench to tune)").withStyle(ChatFormatting.DARK_GRAY)));
+
         tooltip.add(Component.literal("  Coverage: ").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal("9x9 Zone Ahead").withStyle(ChatFormatting.YELLOW)));
         return true;
     }
 }
-

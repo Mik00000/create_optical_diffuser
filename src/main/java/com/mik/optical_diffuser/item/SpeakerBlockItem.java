@@ -60,11 +60,26 @@ public class SpeakerBlockItem extends BlockItem {
             tag.remove("DiffuserY");
             tag.remove("DiffuserZ");
             tag.remove("DiffuserDim");
+            tag.remove("Volume");
         });
         CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
         if (customData != null && customData.copyTag().isEmpty()) {
             stack.remove(DataComponents.CUSTOM_DATA);
         }
+    }
+
+    public static int getVolume(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return 100;
+        CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
+        if (customData != null && customData.copyTag().contains("Volume")) {
+            return customData.copyTag().getInt("Volume");
+        }
+        return 100;
+    }
+
+    public static void setVolume(ItemStack stack, int volume) {
+        if (stack == null || stack.isEmpty()) return;
+        CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> tag.putInt("Volume", Math.max(0, Math.min(150, volume))));
     }
 
     @Override
@@ -79,6 +94,11 @@ public class SpeakerBlockItem extends BlockItem {
         if (linkedPos != null) {
             tooltip.add(Component.translatable("tooltip.create_optical_diffuser.speaker.linked",
                     linkedPos.getX(), linkedPos.getY(), linkedPos.getZ()).withStyle(ChatFormatting.AQUA));
+            int vol = getVolume(stack);
+            if (vol != 100) {
+                tooltip.add(Component.translatable("tooltip.create_optical_diffuser.speaker.volume_fmt", vol)
+                        .withStyle(ChatFormatting.GOLD));
+            }
             tooltip.add(Component.translatable("tooltip.create_optical_diffuser.speaker.coverage")
                     .withStyle(ChatFormatting.YELLOW));
         } else {
