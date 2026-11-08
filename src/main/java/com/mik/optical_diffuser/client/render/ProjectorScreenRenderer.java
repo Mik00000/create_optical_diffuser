@@ -131,62 +131,172 @@ public class ProjectorScreenRenderer {
 
         Matrix4f mat = poseStack.last().pose();
 
-        vertexConsumer.addVertex(mat, (float) v0.x, (float) v0.y, (float) v0.z)
+        // Video aspect ratio calculation & Letterboxing / Pillarboxing:
+        float videoAspect = 16.0f / 9.0f; // Default standard aspect ratio
+        if (media != null && media.getPlayer() != null) {
+            org.watermedia.api.player.MediaPlayer mp = media.getPlayer();
+            int vw = mp.width();
+            int vh = mp.height();
+            if (vw > 0 && vh > 0) {
+                videoAspect = (float) vw / (float) vh;
+            }
+        }
+
+        Vec3 horizVec = v1.subtract(v0);
+        Vec3 vertVec = v3.subtract(v0);
+        double fullW = horizVec.length();
+        double fullH = vertVec.length();
+        double screenAspect = fullW / Math.max(0.001, fullH);
+
+        double renderW = fullW;
+        double renderH = fullH;
+        double marginW = 0.0;
+        double marginH = 0.0;
+
+        if (screenAspect > videoAspect) {
+            // Screen is wider than video -> Pillarbox (bars on left & right)
+            renderW = fullH * videoAspect;
+            marginW = (fullW - renderW) / 2.0;
+        } else if (screenAspect < videoAspect) {
+            // Screen is taller than video -> Letterbox (bars on top & bottom)
+            renderH = fullW / videoAspect;
+            marginH = (fullH - renderH) / 2.0;
+        }
+
+        Vec3 uH = horizVec.normalize();
+        Vec3 uV = vertVec.normalize();
+        Vec3 norm = uH.cross(uV).normalize();
+
+        // Render black cinema matte on the full background quad if letterboxed/pillarboxed:
+        if (marginW > 0.02 || marginH > 0.02) {
+            // Front matte:
+            vertexConsumer.addVertex(mat, (float) v0.x, (float) v0.y, (float) v0.z)
+                    .setColor(0.04f, 0.04f, 0.04f, 0.95f)
+                    .setUv(0.0f, 0.0f)
+                    .setOverlay(OverlayTexture.NO_OVERLAY)
+                    .setLight(15728880)
+                    .setNormal((float) norm.x, (float) norm.y, (float) norm.z);
+
+            vertexConsumer.addVertex(mat, (float) v1.x, (float) v1.y, (float) v1.z)
+                    .setColor(0.04f, 0.04f, 0.04f, 0.95f)
+                    .setUv(0.0f, 0.0f)
+                    .setOverlay(OverlayTexture.NO_OVERLAY)
+                    .setLight(15728880)
+                    .setNormal((float) norm.x, (float) norm.y, (float) norm.z);
+
+            vertexConsumer.addVertex(mat, (float) v2.x, (float) v2.y, (float) v2.z)
+                    .setColor(0.04f, 0.04f, 0.04f, 0.95f)
+                    .setUv(0.0f, 0.0f)
+                    .setOverlay(OverlayTexture.NO_OVERLAY)
+                    .setLight(15728880)
+                    .setNormal((float) norm.x, (float) norm.y, (float) norm.z);
+
+            vertexConsumer.addVertex(mat, (float) v3.x, (float) v3.y, (float) v3.z)
+                    .setColor(0.04f, 0.04f, 0.04f, 0.95f)
+                    .setUv(0.0f, 0.0f)
+                    .setOverlay(OverlayTexture.NO_OVERLAY)
+                    .setLight(15728880)
+                    .setNormal((float) norm.x, (float) norm.y, (float) norm.z);
+
+            // Back matte:
+            vertexConsumer.addVertex(mat, (float) v3.x, (float) v3.y, (float) v3.z)
+                    .setColor(0.04f, 0.04f, 0.04f, 0.95f)
+                    .setUv(0.0f, 0.0f)
+                    .setOverlay(OverlayTexture.NO_OVERLAY)
+                    .setLight(15728880)
+                    .setNormal((float) -norm.x, (float) -norm.y, (float) -norm.z);
+
+            vertexConsumer.addVertex(mat, (float) v2.x, (float) v2.y, (float) v2.z)
+                    .setColor(0.04f, 0.04f, 0.04f, 0.95f)
+                    .setUv(0.0f, 0.0f)
+                    .setOverlay(OverlayTexture.NO_OVERLAY)
+                    .setLight(15728880)
+                    .setNormal((float) -norm.x, (float) -norm.y, (float) -norm.z);
+
+            vertexConsumer.addVertex(mat, (float) v1.x, (float) v1.y, (float) v1.z)
+                    .setColor(0.04f, 0.04f, 0.04f, 0.95f)
+                    .setUv(0.0f, 0.0f)
+                    .setOverlay(OverlayTexture.NO_OVERLAY)
+                    .setLight(15728880)
+                    .setNormal((float) -norm.x, (float) -norm.y, (float) -norm.z);
+
+            vertexConsumer.addVertex(mat, (float) v0.x, (float) v0.y, (float) v0.z)
+                    .setColor(0.04f, 0.04f, 0.04f, 0.95f)
+                    .setUv(0.0f, 0.0f)
+                    .setOverlay(OverlayTexture.NO_OVERLAY)
+                    .setLight(15728880)
+                    .setNormal((float) -norm.x, (float) -norm.y, (float) -norm.z);
+        }
+
+        // Active video quad, centered with preserved aspect ratio
+        Vec3 fwdOffset = norm.scale(0.001);
+        Vec3 vidV0 = v0.add(uH.scale(marginW)).add(uV.scale(marginH)).add(fwdOffset);
+        Vec3 vidV1 = vidV0.add(uH.scale(renderW));
+        Vec3 vidV2 = vidV1.add(uV.scale(renderH));
+        Vec3 vidV3 = vidV0.add(uV.scale(renderH));
+
+        vertexConsumer.addVertex(mat, (float) vidV0.x, (float) vidV0.y, (float) vidV0.z)
                 .setColor(r, g, b, a)
                 .setUv(0.0f, 1.0f)
                 .setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(15728880) // full bright
-                .setNormal(0.0f, 1.0f, 0.0f);
+                .setNormal((float) norm.x, (float) norm.y, (float) norm.z);
 
-        vertexConsumer.addVertex(mat, (float) v1.x, (float) v1.y, (float) v1.z)
+        vertexConsumer.addVertex(mat, (float) vidV1.x, (float) vidV1.y, (float) vidV1.z)
                 .setColor(r, g, b, a)
                 .setUv(1.0f, 1.0f)
                 .setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(15728880)
-                .setNormal(0.0f, 1.0f, 0.0f);
+                .setNormal((float) norm.x, (float) norm.y, (float) norm.z);
 
-        vertexConsumer.addVertex(mat, (float) v2.x, (float) v2.y, (float) v2.z)
+        vertexConsumer.addVertex(mat, (float) vidV2.x, (float) vidV2.y, (float) vidV2.z)
                 .setColor(r, g, b, a)
                 .setUv(1.0f, 0.0f)
                 .setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(15728880)
-                .setNormal(0.0f, 1.0f, 0.0f);
+                .setNormal((float) norm.x, (float) norm.y, (float) norm.z);
 
-        vertexConsumer.addVertex(mat, (float) v3.x, (float) v3.y, (float) v3.z)
+        vertexConsumer.addVertex(mat, (float) vidV3.x, (float) vidV3.y, (float) vidV3.z)
                 .setColor(r, g, b, a)
                 .setUv(0.0f, 0.0f)
                 .setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(15728880)
-                .setNormal(0.0f, 1.0f, 0.0f);
+                .setNormal((float) norm.x, (float) norm.y, (float) norm.z);
 
         // Also render reverse face so screen is visible from both sides
-        vertexConsumer.addVertex(mat, (float) v3.x, (float) v3.y, (float) v3.z)
+        Vec3 revOffset = norm.scale(-0.002);
+        Vec3 rVidV0 = vidV0.add(revOffset);
+        Vec3 rVidV1 = vidV1.add(revOffset);
+        Vec3 rVidV2 = vidV2.add(revOffset);
+        Vec3 rVidV3 = vidV3.add(revOffset);
+
+        vertexConsumer.addVertex(mat, (float) rVidV3.x, (float) rVidV3.y, (float) rVidV3.z)
                 .setColor(r, g, b, a)
                 .setUv(0.0f, 0.0f)
                 .setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(15728880)
-                .setNormal(0.0f, -1.0f, 0.0f);
+                .setNormal((float) -norm.x, (float) -norm.y, (float) -norm.z);
 
-        vertexConsumer.addVertex(mat, (float) v2.x, (float) v2.y, (float) v2.z)
+        vertexConsumer.addVertex(mat, (float) rVidV2.x, (float) rVidV2.y, (float) rVidV2.z)
                 .setColor(r, g, b, a)
                 .setUv(1.0f, 0.0f)
                 .setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(15728880)
-                .setNormal(0.0f, -1.0f, 0.0f);
+                .setNormal((float) -norm.x, (float) -norm.y, (float) -norm.z);
 
-        vertexConsumer.addVertex(mat, (float) v1.x, (float) v1.y, (float) v1.z)
+        vertexConsumer.addVertex(mat, (float) rVidV1.x, (float) rVidV1.y, (float) rVidV1.z)
                 .setColor(r, g, b, a)
                 .setUv(1.0f, 1.0f)
                 .setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(15728880)
-                .setNormal(0.0f, -1.0f, 0.0f);
+                .setNormal((float) -norm.x, (float) -norm.y, (float) -norm.z);
 
-        vertexConsumer.addVertex(mat, (float) v0.x, (float) v0.y, (float) v0.z)
+        vertexConsumer.addVertex(mat, (float) rVidV0.x, (float) rVidV0.y, (float) rVidV0.z)
                 .setColor(r, g, b, a)
                 .setUv(0.0f, 1.0f)
                 .setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(15728880)
-                .setNormal(0.0f, -1.0f, 0.0f);
+                .setNormal((float) -norm.x, (float) -norm.y, (float) -norm.z);
     }
 
     public static boolean isShaderPackActive() {

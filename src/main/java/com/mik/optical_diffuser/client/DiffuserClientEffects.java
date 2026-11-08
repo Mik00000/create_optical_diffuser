@@ -37,6 +37,72 @@ public class DiffuserClientEffects {
         }
     }
 
+    @SubscribeEvent
+    public void onClientTick(net.neoforged.neoforge.client.event.ClientTickEvent.Post event) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null || mc.player == null) return;
+
+        Level level = mc.level;
+        net.minecraft.util.RandomSource rnd = level.random;
+
+        for (OpticalDiffuserBlockEntity be : OpticalDiffuserBlockEntity.CLIENT_INSTANCES) {
+            if (be == null || be.isRemoved() || !be.isActive() || be.getLevel() != level) continue;
+
+            OpticalDiffuserBlockEntity.DiffuserModule mod = be.getActiveModule();
+            if (mod != OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SILENT && mod != OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SOUND) {
+                continue;
+            }
+
+            com.mik.optical_diffuser.item.ProjectorLensItem.ScreenCoords coords =
+                    com.mik.optical_diffuser.item.ProjectorLensItem.getScreenCoords(be.getActiveLens());
+            if (!coords.isComplete()) continue;
+
+            Direction facing = be.getBlockState().getValue(OpticalDiffuserBlock.FACING);
+            SableCompat.RayContext rayCtx = SableCompat.getRayContext(level, be.getBlockPos(), facing);
+            Vec3 start = rayCtx.start();
+
+            Vec3 screenCenter = new Vec3(
+                    (coords.pos1.getX() + coords.pos2.getX()) * 0.5 + 0.5,
+                    (coords.pos1.getY() + coords.pos2.getY()) * 0.5 + 0.5,
+                    (coords.pos1.getZ() + coords.pos2.getZ()) * 0.5 + 0.5
+            );
+            Vec3 worldScreenCenter = SableCompat.getWorldPos(level, BlockPos.containing(screenCenter));
+
+            Vec3 beamVec = worldScreenCenter.subtract(start);
+            double beamDist = beamVec.length();
+            if (beamDist < 1.0) continue;
+
+            Vec3 right = rayCtx.right();
+            Vec3 up = rayCtx.up();
+
+            // Spawn 2-3 atmospheric cinema dust particles along the beam path
+            int count = 2 + rnd.nextInt(2);
+            for (int i = 0; i < count; i++) {
+                double t = rnd.nextDouble();
+                Vec3 pCenter = start.add(beamVec.scale(t));
+
+                double maxRadius = 0.15 + t * 0.65;
+                double angle = rnd.nextDouble() * Math.PI * 2.0;
+                double r = rnd.nextDouble() * maxRadius;
+
+                double offsetX = Math.cos(angle) * r;
+                double offsetY = Math.sin(angle) * r;
+
+                Vec3 particlePos = pCenter.add(right.scale(offsetX)).add(up.scale(offsetY));
+
+                double vx = (rnd.nextDouble() - 0.5) * 0.006;
+                double vy = 0.003 + rnd.nextDouble() * 0.006;
+                double vz = (rnd.nextDouble() - 0.5) * 0.006;
+
+                level.addParticle(
+                        net.minecraft.core.particles.ParticleTypes.WHITE_ASH,
+                        particlePos.x, particlePos.y, particlePos.z,
+                        vx, vy, vz
+                );
+            }
+        }
+    }
+
     private static float currentTintR = 1.0f;
     private static float currentTintG = 1.0f;
     private static float currentTintB = 1.0f;

@@ -1376,6 +1376,10 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
     }
 
     public boolean isRedstoneActive() {
+        DiffuserModule mod = getActiveModule();
+        if (mod == DiffuserModule.PROJECTOR_SOUND || mod == DiffuserModule.PROJECTOR_SILENT) {
+            return true; // Cinema projector lamp & screen stay active on signal 15; signal 15 is audio mute!
+        }
         return this.redstonePower < 15;
     }
 

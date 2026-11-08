@@ -193,11 +193,40 @@ public class DiffuserMediaManager {
 
                 if (this.pendingSeekMs < 0) {
                     long curTime = player.time();
-                    if (curTime > 0) {
+                    long duration = player.duration();
+
+                    // Automatic seamless looping:
+                    boolean reachedEnd = player.ended() || (duration > 0 && curTime >= duration - 80);
+                    boolean wrapped = (duration > 1000 && this.lastRecordedTimeMs > duration - 2000 && curTime < 2000);
+
+                    if (reachedEnd || wrapped) {
+                        if (reachedEnd) {
+                            if (player.canSeek()) {
+                                player.seek(0);
+                            }
+                            if (player.paused()) {
+                                player.resume();
+                            }
+                        }
+                        curTime = 0;
+                        this.lastRecordedTimeMs = 0;
+                        syncTimeToReel(filmReel, 0);
+                        if (filmReel != null) {
+                            net.neoforged.neoforge.network.PacketDistributor.sendToServer(
+                                    new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), 0)
+                            );
+                        }
+                    } else if (curTime > 0) {
                         this.lastRecordedTimeMs = curTime;
                         syncTimeToReel(filmReel, curTime);
-                        // Resync local player if it drifts significantly (> 3.5s) from server authoritative reel time
-                        if (filmReel != null && filmReel.getCurrentTimeMs() > 0
+
+                        // If server drifted past end of video, reset server reel time to 0
+                        if (filmReel != null && duration > 0 && filmReel.getCurrentTimeMs() >= duration) {
+                            filmReel.setCurrentTimeMs(0);
+                            net.neoforged.neoforge.network.PacketDistributor.sendToServer(
+                                    new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), 0)
+                            );
+                        } else if (filmReel != null && filmReel.getCurrentTimeMs() > 0
                                 && Math.abs(curTime - filmReel.getCurrentTimeMs()) > 3500
                                 && player.canSeek() && player.status() != MediaPlayer.Status.BUFFERING) {
                             player.seek(filmReel.getCurrentTimeMs());
