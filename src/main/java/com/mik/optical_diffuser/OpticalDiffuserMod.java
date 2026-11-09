@@ -80,6 +80,7 @@ public class OpticalDiffuserMod {
             event.accept(ModRegistry.SPEAKER_ITEM.get());
             event.accept(ModRegistry.SILENT_PROJECTOR_LENS.get());
             event.accept(ModRegistry.SOUND_PROJECTOR_LENS.get());
+            event.accept(ModRegistry.HOLOGRAM_LENS.get());
         }
     }
 

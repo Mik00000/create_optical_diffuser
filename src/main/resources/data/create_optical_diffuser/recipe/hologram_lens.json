@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "L": {
+      "item": "create_optical_diffuser:focusing_lens"
+    },
+    "A": {
+      "item": "minecraft:amethyst_shard"
+    },
+    "E": {
+      "item": "minecraft:ender_pearl"
+    }
+  },
+  "pattern": [
+    " A ",
+    "ELE",
+    " A "
+  ],
+  "result": {
+    "count": 1,
+    "id": "create_optical_diffuser:hologram_lens"
+  }
+}

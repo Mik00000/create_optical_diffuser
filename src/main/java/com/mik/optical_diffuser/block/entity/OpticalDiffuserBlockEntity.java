@@ -70,7 +70,8 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         FOCUSER,
         CONDENSER,
         PROJECTOR_SILENT,
-        PROJECTOR_SOUND
+        PROJECTOR_SOUND,
+        HOLOGRAM
     }
 
     private final ItemStack[] carouselLenses = new ItemStack[]{ItemStack.EMPTY, ItemStack.EMPTY, ItemStack.EMPTY, ItemStack.EMPTY};
@@ -357,6 +358,7 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
             if (id.equals("create_optical_diffuser:dispersing_lens") || id.equals("create_optical:beam_condenser")) return DiffuserModule.CONDENSER;
             if (id.equals("create_optical_diffuser:silent_projector_lens")) return DiffuserModule.PROJECTOR_SILENT;
             if (id.equals("create_optical_diffuser:sound_projector_lens")) return DiffuserModule.PROJECTOR_SOUND;
+            if (id.equals("create_optical_diffuser:hologram_lens") || active.getItem() instanceof com.mik.optical_diffuser.item.HologramLensItem) return DiffuserModule.HOLOGRAM;
         }
         if (this.level != null) {
             Direction facing = getBlockState().getValue(OpticalDiffuserBlock.FACING);
@@ -1380,8 +1382,8 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
 
     public boolean isRedstoneActive() {
         DiffuserModule mod = getActiveModule();
-        if (mod == DiffuserModule.PROJECTOR_SOUND || mod == DiffuserModule.PROJECTOR_SILENT) {
-            return true; // Cinema projector lamp & screen stay active on signal 15; signal 15 is audio mute!
+        if (mod == DiffuserModule.PROJECTOR_SOUND || mod == DiffuserModule.PROJECTOR_SILENT || mod == DiffuserModule.HOLOGRAM) {
+            return true; // Cinema projector & Hologram stay active on signal 15
         }
         return this.redstonePower < 15;
     }
@@ -1586,6 +1588,7 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                 case CONDENSER -> ChatFormatting.AQUA;
                 case PROJECTOR_SILENT -> ChatFormatting.WHITE;
                 case PROJECTOR_SOUND -> ChatFormatting.LIGHT_PURPLE;
+                case HOLOGRAM -> ChatFormatting.DARK_AQUA;
                 default -> ChatFormatting.YELLOW;
             };
             tooltip.add(Component.literal("    ")
@@ -1664,6 +1667,26 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                     .append(Component.translatable("gui.create_optical_diffuser.goggles.alignment").withStyle(ChatFormatting.GRAY))
                     .append(Component.literal(" "))
                     .append(check.status().getDisplayMessage()));
+        }
+
+        if (mod == DiffuserModule.HOLOGRAM && !activeLens.isEmpty()) {
+            int dist = com.mik.optical_diffuser.item.HologramLensItem.getFocalDistance(activeLens);
+            float scale = com.mik.optical_diffuser.item.HologramLensItem.getHoloScale(activeLens);
+            ItemStack target = level != null ? com.mik.optical_diffuser.item.HologramLensItem.getHoloTarget(activeLens, level.registryAccess()) : ItemStack.EMPTY;
+            String targetName = !target.isEmpty() ? target.getHoverName().getString() : "Navigational Gyroscope";
+
+            tooltip.add(Component.literal("  ")
+                    .append(Component.literal("Hologram Mode: ").withStyle(ChatFormatting.GRAY))
+                    .append(Component.literal(targetName).withStyle(ChatFormatting.AQUA)));
+            tooltip.add(Component.literal("  ")
+                    .append(Component.literal("Throw Distance: ").withStyle(ChatFormatting.GRAY))
+                    .append(Component.literal(dist + "m").withStyle(ChatFormatting.GOLD)));
+            tooltip.add(Component.literal("  ")
+                    .append(Component.literal("Scale: ").withStyle(ChatFormatting.GRAY))
+                    .append(Component.literal(String.format("%.1fx", scale)).withStyle(ChatFormatting.YELLOW)));
+            tooltip.add(Component.literal("  ")
+                    .append(Component.literal("Rotation: ").withStyle(ChatFormatting.GRAY))
+                    .append(Component.literal(String.format("%.0f RPM", this.cachedSpeed)).withStyle(ChatFormatting.GREEN)));
         }
 
         if (getActiveModule() == DiffuserModule.PROJECTOR_SOUND) {

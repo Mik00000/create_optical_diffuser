@@ -49,6 +49,44 @@ public class DiffuserClientEffects {
             if (be == null || be.isRemoved() || !be.isActive() || be.getLevel() != level) continue;
 
             OpticalDiffuserBlockEntity.DiffuserModule mod = be.getActiveModule();
+
+            if (mod == OpticalDiffuserBlockEntity.DiffuserModule.HOLOGRAM) {
+                if (!be.isLightEnabled()) continue;
+                Direction facing = be.getBlockState().getValue(OpticalDiffuserBlock.FACING);
+                SableCompat.RayContext rayCtx = SableCompat.getRayContext(level, be.getBlockPos(), facing);
+                int distance = com.mik.optical_diffuser.item.HologramLensItem.getFocalDistance(be.getActiveLens());
+                Vec3 holoPos = rayCtx.start().add(rayCtx.direction().normalize().scale(distance));
+
+                // Spawn cyan/amethyst holographic particles around the hologram focus
+                if (rnd.nextInt(2) == 0) {
+                    double theta = rnd.nextDouble() * Math.PI * 2.0;
+                    double radius = 0.4 + rnd.nextDouble() * 0.6;
+                    double px = holoPos.x + Math.cos(theta) * radius;
+                    double py = holoPos.y + (rnd.nextDouble() - 0.5) * 0.8;
+                    double pz = holoPos.z + Math.sin(theta) * radius;
+
+                    double vx = -Math.sin(theta) * 0.03;
+                    double vy = 0.01 + rnd.nextDouble() * 0.02;
+                    double vz = Math.cos(theta) * 0.03;
+
+                    level.addParticle(
+                            net.minecraft.core.particles.ParticleTypes.PORTAL,
+                            px, py, pz,
+                            vx, vy, vz
+                    );
+                }
+                if (rnd.nextInt(5) == 0) {
+                    level.addParticle(
+                            net.minecraft.core.particles.ParticleTypes.END_ROD,
+                            holoPos.x + (rnd.nextDouble() - 0.5) * 0.5,
+                            holoPos.y + (rnd.nextDouble() - 0.5) * 0.5,
+                            holoPos.z + (rnd.nextDouble() - 0.5) * 0.5,
+                            0, 0.01, 0
+                    );
+                }
+                continue;
+            }
+
             if (mod != OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SILENT && mod != OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SOUND) {
                 continue;
             }

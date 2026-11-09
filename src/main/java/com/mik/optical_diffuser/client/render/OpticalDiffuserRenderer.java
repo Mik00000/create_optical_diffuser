@@ -102,6 +102,7 @@ public class OpticalDiffuserRenderer implements BlockEntityRenderer<OpticalDiffu
         OpticalDiffuserBlockEntity.DiffuserModule mod = be.getActiveModule();
         boolean isProjector = (mod == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SILENT
                 || mod == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SOUND);
+        boolean isHologram = (mod == OpticalDiffuserBlockEntity.DiffuserModule.HOLOGRAM);
 
         Direction facing = be.getBlockState().getValue(OpticalDiffuserBlock.FACING);
 
@@ -123,7 +124,9 @@ public class OpticalDiffuserRenderer implements BlockEntityRenderer<OpticalDiffu
         // Offset slightly forward from the lens surface
         poseStack.translate(0.0, 0.0, 0.51);
 
-        if (!isProjector) {
+        if (isHologram) {
+            // Hologram mode has its own dedicated focal beam pyramids and floating 3D model
+        } else if (!isProjector) {
             // Standard volumetric spotlight cone (focusing / dispersing lenses)
             float coneAngle = be.getConeAngle();
             int range = be.getConeRange();
@@ -186,6 +189,9 @@ public class OpticalDiffuserRenderer implements BlockEntityRenderer<OpticalDiffu
 
         // 4. Render Projector video screen if equipped with projector lens
         ProjectorScreenRenderer.renderScreen(be, partialTicks, poseStack, bufferSource);
+
+        // 5. Render Volumetric Hologram if equipped with hologram lens
+        HologramRenderer.renderHologram(be, partialTicks, poseStack, bufferSource);
     }
 
     /**

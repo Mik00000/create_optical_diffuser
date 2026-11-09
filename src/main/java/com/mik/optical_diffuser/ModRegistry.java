@@ -96,6 +96,10 @@ public class ModRegistry {
             () -> new com.mik.optical_diffuser.item.ProjectorLensItem(new Item.Properties().stacksTo(1), true)
     );
 
+    public static final DeferredItem<com.mik.optical_diffuser.item.HologramLensItem> HOLOGRAM_LENS = ITEMS.register("hologram_lens",
+            () -> new com.mik.optical_diffuser.item.HologramLensItem(new Item.Properties().stacksTo(1))
+    );
+
     public static final Supplier<BlockEntityType<OpticalDiffuserBlockEntity>> OPTICAL_DIFFUSER_BE = BLOCK_ENTITY_TYPES.register("optical_diffuser",
             () -> BlockEntityType.Builder.of(OpticalDiffuserBlockEntity::new, OPTICAL_DIFFUSER.get()).build(null)
     );
