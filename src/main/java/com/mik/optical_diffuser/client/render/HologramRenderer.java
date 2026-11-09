@@ -14,6 +14,7 @@ import com.simibubi.create.content.schematics.SchematicItem;
 import com.simibubi.create.content.schematics.client.SchematicRenderer;
 import com.simibubi.create.foundation.blockEntity.IMultiBlockEntityContainer;
 import com.simibubi.create.foundation.blockEntity.SmartBlockEntity;
+import net.createmod.catnip.animation.AnimationTickHolder;
 import net.createmod.catnip.levelWrappers.SchematicLevel;
 import net.createmod.catnip.render.DefaultSuperRenderTypeBuffer;
 import net.minecraft.client.Minecraft;
@@ -80,13 +81,14 @@ public class HologramRenderer {
         Vec3 normal = Vec3.atLowerCornerOf(facing.getNormal());
         Vec3 localHolo = new Vec3(0.5, 0.5, 0.5).add(normal.scale(distance + 0.52));
 
-        long gameTime = be.getLevel().getGameTime();
-        float time = gameTime + partialTicks;
-        float bob = (float) Math.sin(time * 0.08f) * 0.06f;
+        float renderTime = AnimationTickHolder.getRenderTime(be.getLevel());
+        float bob = (float) Math.sin((renderTime % 78.53982f) * 0.08f) * 0.06f;
 
-        float rpm = be.getCachedSpeed();
-        float rotSpeed = (rpm != 0 ? rpm : 16.0f) * 0.25f;
-        float angle = time * rotSpeed;
+        float shaftSpeed = be.getSpeed();
+        float speed = (shaftSpeed != 0.0f) ? shaftSpeed : (be.getCachedSpeed() != 0.0f ? be.getCachedSpeed() : 16.0f);
+        // 1 RPM = 6 deg/sec = 0.3 deg/tick in Minecraft (speed * 3.0f / 10.0f).
+        // Modulo 360 preserves float mantissa precision for buttery-smooth rotation.
+        float angle = ((renderTime * speed * 0.3f) % 360.0f + 360.0f) % 360.0f;
 
         float lr = be.getRed() / 255.0f;
         float lg = be.getGreen() / 255.0f;
@@ -103,11 +105,11 @@ public class HologramRenderer {
         } else if (!target.isEmpty()) {
             renderItem(target, localHolo, bob, angle, scale, poseStack, bufferSource, be.getLevel());
         } else {
-            renderNavigationalGyro(poseStack, bufferSource, localHolo, bob, angle, scale, time, lr, lg, lb);
+            renderNavigationalGyro(poseStack, bufferSource, localHolo, bob, angle, scale, renderTime, lr, lg, lb);
         }
 
         // 3. Render Holographic Scanline Disk
-        renderScanlineRing(poseStack, bufferSource, localHolo, bob, scale, time, lr, lg, lb);
+        renderScanlineRing(poseStack, bufferSource, localHolo, bob, scale, renderTime, lr, lg, lb);
     }
 
     private static boolean isCreateSchematic(ItemStack stack) {
@@ -437,7 +439,7 @@ public class HologramRenderer {
 
         // Inner cardinal compass needle (points toward North with slow bob)
         poseStack.pushPose();
-        poseStack.mulPose(Axis.YP.rotationDegrees((float) Math.sin(time * 0.05f) * 8.0f));
+        poseStack.mulPose(Axis.YP.rotationDegrees((float) Math.sin((time % 125.6637f) * 0.05f) * 8.0f));
         renderCompassNeedle(poseStack.last().pose(), vc, r, g, b);
         poseStack.popPose();
 
@@ -549,7 +551,7 @@ public class HologramRenderer {
         VertexConsumer vc = bufferSource.getBuffer(OpticalDiffuserRenderer.SPOTLIGHT_BEAM);
         Matrix4f mat = poseStack.last().pose();
 
-        float scanY = ((time * 0.04f) % 2.0f - 1.0f) * scale * 0.8f;
+        float scanY = (((time % 50.0f) * 0.04f) % 2.0f - 1.0f) * scale * 0.8f;
         float ringRadius = 0.85f * scale;
         int segments = 20;
 
