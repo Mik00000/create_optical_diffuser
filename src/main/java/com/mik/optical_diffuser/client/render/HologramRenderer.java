@@ -7,15 +7,36 @@ import com.mik.optical_diffuser.item.HologramLensItem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
+import com.simibubi.create.content.contraptions.Contraption;
+import com.simibubi.create.content.contraptions.StructureTransform;
+import com.simibubi.create.content.decoration.copycat.CopycatBlockEntity;
+import com.simibubi.create.content.schematics.SchematicItem;
+import com.simibubi.create.content.schematics.client.SchematicRenderer;
+import com.simibubi.create.foundation.blockEntity.IMultiBlockEntityContainer;
+import com.simibubi.create.foundation.blockEntity.SmartBlockEntity;
+import net.createmod.catnip.levelWrappers.SchematicLevel;
+import net.createmod.catnip.render.DefaultSuperRenderTypeBuffer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.Vec3i;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtUtils;
+import net.minecraft.nbt.Tag;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.model.data.ModelData;
 import org.joml.Matrix4f;
@@ -25,7 +46,17 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class HologramRenderer {
 
-    private static final Map<Integer, Object> SCHEMATIC_RENDERERS = new ConcurrentHashMap<>();
+    private record CachedSchematic(
+            String key,
+            SchematicRenderer renderer,
+            double cx,
+            double cy,
+            double cz,
+            double maxDim,
+            long lastAccess
+    ) {}
+
+    private static final Map<BlockPos, CachedSchematic> SCHEMATIC_CACHE = new ConcurrentHashMap<>();
 
     public static void renderHologram(OpticalDiffuserBlockEntity be, float partialTicks, PoseStack poseStack, MultiBufferSource bufferSource) {
         if (be == null || be.getLevel() == null || !be.isActive()) return;
@@ -80,11 +111,187 @@ public class HologramRenderer {
     }
 
     private static boolean isCreateSchematic(ItemStack stack) {
-        if (stack.getItem() instanceof com.simibubi.create.content.schematics.SchematicItem) {
+        if (stack.getItem() instanceof SchematicItem) {
             return true;
         }
         String name = stack.getItem().toString().toLowerCase();
         return name.contains("schematic");
+    }
+
+    private static String getSchematicKey(ItemStack stack) {
+        if (stack.isEmpty()) return "";
+        return stack.getHoverName().getString() + "_" + stack.getComponentsPatch().hashCode();
+    }
+
+    private static BlockPos parseBlockPos(CompoundTag entry) {
+        if (entry.contains("blockPos", Tag.TAG_LIST)) {
+            ListTag list = entry.getList("blockPos", Tag.TAG_INT);
+            if (list.size() >= 3) {
+                return new BlockPos(list.getInt(0), list.getInt(1), list.getInt(2));
+            }
+        }
+        if (entry.contains("blockPos", Tag.TAG_INT_ARRAY)) {
+            int[] arr = entry.getIntArray("blockPos");
+            if (arr.length >= 3) {
+                return new BlockPos(arr[0], arr[1], arr[2]);
+            }
+        }
+        if (entry.contains("pos", Tag.TAG_LIST)) {
+            ListTag list = entry.getList("pos", Tag.TAG_INT);
+            if (list.size() >= 3) {
+                return new BlockPos(list.getInt(0), list.getInt(1), list.getInt(2));
+            }
+            ListTag listD = entry.getList("pos", Tag.TAG_DOUBLE);
+            if (listD.size() >= 3) {
+                return BlockPos.containing(listD.getDouble(0), listD.getDouble(1), listD.getDouble(2));
+            }
+        }
+        if (entry.contains("pos", Tag.TAG_INT_ARRAY)) {
+            int[] arr = entry.getIntArray("pos");
+            if (arr.length >= 3) {
+                return new BlockPos(arr[0], arr[1], arr[2]);
+            }
+        }
+        return BlockPos.ZERO;
+    }
+
+    private static void fixControllerBlockEntities(SchematicLevel schematicLevel) {
+        for (BlockEntity be : schematicLevel.getBlockEntities()) {
+            if (be instanceof IMultiBlockEntityContainer container) {
+                BlockPos lastKnown = container.getLastKnownPos();
+                BlockPos current = be.getBlockPos();
+                if (lastKnown != null && current != null && !container.isController() && !lastKnown.equals(current)) {
+                    BlockPos newController = container.getController().offset(current.subtract(lastKnown));
+                    if (container instanceof SmartBlockEntity smart) {
+                        smart.markVirtual();
+                    }
+                    container.setController(newController);
+                }
+            }
+        }
+    }
+
+    private static CachedSchematic buildSchematic(
+            OpticalDiffuserBlockEntity be,
+            ItemStack schematicStack,
+            String key,
+            long now
+    ) {
+        Level level = be.getLevel();
+        if (level == null) return null;
+
+        try {
+            StructureTemplate template = SchematicItem.loadSchematic(level, schematicStack);
+            if (template == null || template.getSize().equals(Vec3i.ZERO)) return null;
+
+            // Anchor at BlockPos.ZERO ensures relative coordinates in SchematicRenderer match blockEntities!
+            SchematicLevel schematicLevel = new SchematicLevel(BlockPos.ZERO, level);
+            StructurePlaceSettings settings = SchematicItem.getSettings(schematicStack);
+
+            // 1. Place static blocks from template
+            template.placeInWorld(schematicLevel, BlockPos.ZERO, BlockPos.ZERO, settings, level.getRandom(), 2);
+
+            // 2. Extract and place contraptions (e.g. Mechanical Bearing Turrets, CBC Cannons)
+            CompoundTag templateTag = template.save(new CompoundTag());
+            ListTag entitiesTag = templateTag.getList("entities", Tag.TAG_COMPOUND);
+
+            StructureTransform transform = new StructureTransform(
+                    settings.getRotationPivot(),
+                    Direction.Axis.Y,
+                    settings.getRotation(),
+                    settings.getMirror()
+            );
+
+            for (int i = 0; i < entitiesTag.size(); i++) {
+                CompoundTag entityEntry = entitiesTag.getCompound(i);
+                CompoundTag nbt = entityEntry.getCompound("nbt");
+                String id = nbt.getString("id");
+                if (id.contains("contraption")) {
+                    CompoundTag contraptionTag = nbt.getCompound("Contraption");
+                    if (!contraptionTag.isEmpty()) {
+                        try {
+                            Contraption contraption = Contraption.fromNBT(level, contraptionTag, false);
+                            if (contraption != null) {
+                                BlockPos basePos = parseBlockPos(entityEntry);
+
+                                // 2a. Add contraption blocks (e.g. turret blocks, deployers, barrels)
+                                for (Map.Entry<BlockPos, StructureTemplate.StructureBlockInfo> entry : contraption.getBlocks().entrySet()) {
+                                    BlockPos relPos = entry.getKey();
+                                    StructureTemplate.StructureBlockInfo info = entry.getValue();
+                                    BlockPos placedPos = transform.apply(basePos.offset(relPos));
+                                    BlockState placedState = transform.apply(info.state());
+                                    schematicLevel.setBlock(placedPos, placedState, 2);
+                                    if (info.nbt() != null) {
+                                        BlockEntity cbe = schematicLevel.getBlockEntity(placedPos);
+                                        if (cbe != null) {
+                                            cbe.loadWithComponents(info.nbt(), level.registryAccess());
+                                        }
+                                    }
+                                }
+
+                                // 2b. Add contraption actors (e.g. CBC cannon barrels, mounts, drills)
+                                for (var actorPair : contraption.getActors()) {
+                                    if (actorPair != null && actorPair.left != null) {
+                                        StructureTemplate.StructureBlockInfo info = actorPair.left;
+                                        BlockPos placedPos = transform.apply(basePos.offset(info.pos()));
+                                        BlockState placedState = transform.apply(info.state());
+                                        schematicLevel.setBlock(placedPos, placedState, 2);
+                                        if (info.nbt() != null) {
+                                            BlockEntity abe = schematicLevel.getBlockEntity(placedPos);
+                                            if (abe != null) {
+                                                abe.loadWithComponents(info.nbt(), level.registryAccess());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (Throwable ignored) {}
+                    }
+                }
+            }
+
+            // 3. Ensure all Copycat blocks have their materials initialized for ModelData
+            ListTag blocksTag = templateTag.getList("blocks", Tag.TAG_COMPOUND);
+            for (int i = 0; i < blocksTag.size(); i++) {
+                CompoundTag bEntry = blocksTag.getCompound(i);
+                if (bEntry.contains("nbt")) {
+                    CompoundTag bNbt = bEntry.getCompound("nbt");
+                    if (bNbt.contains("Material")) {
+                        BlockPos rawPos = parseBlockPos(bEntry);
+                        BlockPos placedPos = transform.apply(rawPos);
+                        BlockEntity beAt = schematicLevel.getBlockEntity(placedPos);
+                        if (beAt instanceof CopycatBlockEntity copycat) {
+                            if (!copycat.hasCustomMaterial()) {
+                                BlockState mat = NbtUtils.readBlockState(level.holderLookup(Registries.BLOCK), bNbt.getCompound("Material"));
+                                if (mat != null && !mat.isAir()) {
+                                    copycat.setMaterial(mat);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. Apply structure transforms and multi-block fixes to all rendered block entities
+            for (BlockEntity renderedBE : schematicLevel.getRenderedBlockEntities()) {
+                transform.apply(renderedBE);
+            }
+            fixControllerBlockEntities(schematicLevel);
+
+            BoundingBox bounds = schematicLevel.getBounds();
+            if (bounds == null) return null;
+
+            double cx = (bounds.minX() + bounds.maxX() + 1) * 0.5;
+            double cy = (bounds.minY() + bounds.maxY() + 1) * 0.5;
+            double cz = (bounds.minZ() + bounds.maxZ() + 1) * 0.5;
+            double maxDim = Math.max(bounds.getXSpan(), Math.max(bounds.getYSpan(), bounds.getZSpan()));
+
+            SchematicRenderer renderer = new SchematicRenderer(schematicLevel);
+
+            return new CachedSchematic(key, renderer, cx, cy, cz, maxDim, now);
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     private static void renderSchematic(
@@ -96,38 +303,39 @@ public class HologramRenderer {
             float scale,
             PoseStack poseStack
     ) {
-        try {
-            net.createmod.catnip.levelWrappers.SchematicLevel schematicLevel =
-                    com.simibubi.create.content.schematics.SchematicInstances.get(be.getLevel(), schematicStack);
-            if (schematicLevel == null) return;
+        if (be == null || be.getLevel() == null) return;
+        BlockPos bePos = be.getBlockPos();
+        String key = getSchematicKey(schematicStack);
 
-            net.minecraft.world.level.levelgen.structure.BoundingBox bounds = schematicLevel.getBounds();
-            if (bounds == null) return;
+        CachedSchematic cached = SCHEMATIC_CACHE.get(bePos);
+        long now = System.currentTimeMillis();
 
-            double cx = (bounds.minX() + bounds.maxX() + 1) * 0.5;
-            double cy = (bounds.minY() + bounds.maxY() + 1) * 0.5;
-            double cz = (bounds.minZ() + bounds.maxZ() + 1) * 0.5;
-            double maxDim = Math.max(bounds.getXSpan(), Math.max(bounds.getYSpan(), bounds.getZSpan()));
-            float autoScale = (float) (maxDim > 3.0 ? (3.0 / maxDim) * scale : scale);
+        if (cached == null || !cached.key.equals(key)) {
+            cached = buildSchematic(be, schematicStack, key, now);
+            if (cached != null) {
+                SCHEMATIC_CACHE.put(bePos, cached);
+            }
+        }
 
-            int hash = schematicStack.hashCode();
-            com.simibubi.create.content.schematics.client.SchematicRenderer renderer =
-                    (com.simibubi.create.content.schematics.client.SchematicRenderer) SCHEMATIC_RENDERERS.computeIfAbsent(
-                            hash,
-                            h -> new com.simibubi.create.content.schematics.client.SchematicRenderer(schematicLevel)
-                    );
+        if (cached == null) return;
 
-            poseStack.pushPose();
-            poseStack.translate(localHolo.x, localHolo.y + bob, localHolo.z);
-            poseStack.scale(autoScale, autoScale, autoScale);
-            poseStack.mulPose(Axis.YP.rotationDegrees(angle));
-            poseStack.translate(-cx, -cy, -cz);
+        // Auto-cleanup stale entries periodically
+        if (SCHEMATIC_CACHE.size() > 16 && (now & 0xFF) == 0) {
+            SCHEMATIC_CACHE.entrySet().removeIf(entry -> now - entry.getValue().lastAccess > 30000L);
+        }
 
-            renderer.render(poseStack, net.createmod.catnip.render.DefaultSuperRenderTypeBuffer.getInstance());
-            net.createmod.catnip.render.DefaultSuperRenderTypeBuffer.getInstance().draw();
+        float autoScale = (float) (cached.maxDim > 3.0 ? (3.0 / cached.maxDim) * scale : scale);
 
-            poseStack.popPose();
-        } catch (Throwable ignored) {}
+        poseStack.pushPose();
+        poseStack.translate(localHolo.x, localHolo.y + bob, localHolo.z);
+        poseStack.scale(autoScale, autoScale, autoScale);
+        poseStack.mulPose(Axis.YP.rotationDegrees(angle));
+        poseStack.translate(-cached.cx, -cached.cy, -cached.cz);
+
+        cached.renderer.render(poseStack, DefaultSuperRenderTypeBuffer.getInstance());
+        DefaultSuperRenderTypeBuffer.getInstance().draw();
+
+        poseStack.popPose();
     }
 
     private static void renderBlock(
