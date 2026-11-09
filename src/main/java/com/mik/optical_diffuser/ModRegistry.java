@@ -3,6 +3,7 @@ package com.mik.optical_diffuser;
 import com.mik.optical_diffuser.block.OpticalDiffuserBlock;
 import com.mik.optical_diffuser.block.entity.OpticalDiffuserBlockEntity;
 import com.mik.optical_diffuser.menu.OpticalDiffuserMenu;
+import com.simibubi.create.content.processing.sequenced.SequencedAssemblyItem;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.inventory.MenuType;
@@ -98,6 +99,22 @@ public class ModRegistry {
 
     public static final DeferredItem<com.mik.optical_diffuser.item.HologramLensItem> HOLOGRAM_LENS = ITEMS.register("hologram_lens",
             () -> new com.mik.optical_diffuser.item.HologramLensItem(new Item.Properties().stacksTo(1))
+    );
+
+    public static final DeferredItem<SequencedAssemblyItem> INCOMPLETE_FOCUSING_LENS = ITEMS.register("incomplete_focusing_lens",
+            () -> new SequencedAssemblyItem(new Item.Properties().stacksTo(16))
+    );
+
+    public static final DeferredItem<SequencedAssemblyItem> INCOMPLETE_DISPERSING_LENS = ITEMS.register("incomplete_dispersing_lens",
+            () -> new SequencedAssemblyItem(new Item.Properties().stacksTo(16))
+    );
+
+    public static final DeferredItem<SequencedAssemblyItem> INCOMPLETE_FILM_REEL = ITEMS.register("incomplete_film_reel",
+            () -> new SequencedAssemblyItem(new Item.Properties().stacksTo(1))
+    );
+
+    public static final DeferredItem<SequencedAssemblyItem> INCOMPLETE_HOLOGRAM_LENS = ITEMS.register("incomplete_hologram_lens",
+            () -> new SequencedAssemblyItem(new Item.Properties().stacksTo(1))
     );
 
     public static final Supplier<BlockEntityType<OpticalDiffuserBlockEntity>> OPTICAL_DIFFUSER_BE = BLOCK_ENTITY_TYPES.register("optical_diffuser",

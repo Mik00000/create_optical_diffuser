@@ -1,0 +1,62 @@
+{
+  "type": "create:sequenced_assembly",
+  "ingredient": {
+    "item": "create_optical_diffuser:focusing_lens"
+  },
+  "loops": 1,
+  "results": [
+    {
+      "id": "create_optical_diffuser:hologram_lens"
+    }
+  ],
+  "sequence": [
+    {
+      "type": "create:deploying",
+      "ingredients": [
+        {
+          "item": "create_optical_diffuser:incomplete_hologram_lens"
+        },
+        {
+          "item": "minecraft:ender_pearl"
+        }
+      ],
+      "results": [
+        {
+          "id": "create_optical_diffuser:incomplete_hologram_lens"
+        }
+      ]
+    },
+    {
+      "type": "create:deploying",
+      "ingredients": [
+        {
+          "item": "create_optical_diffuser:incomplete_hologram_lens"
+        },
+        {
+          "item": "minecraft:amethyst_shard"
+        }
+      ],
+      "results": [
+        {
+          "id": "create_optical_diffuser:incomplete_hologram_lens"
+        }
+      ]
+    },
+    {
+      "type": "create:pressing",
+      "ingredients": [
+        {
+          "item": "create_optical_diffuser:incomplete_hologram_lens"
+        }
+      ],
+      "results": [
+        {
+          "id": "create_optical_diffuser:incomplete_hologram_lens"
+        }
+      ]
+    }
+  ],
+  "transitional_item": {
+    "id": "create_optical_diffuser:incomplete_hologram_lens"
+  }
+}

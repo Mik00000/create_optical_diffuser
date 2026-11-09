@@ -1,0 +1,13 @@
+{
+  "type": "create:splashing",
+  "ingredients": [
+    {
+      "item": "create_optical_diffuser:hologram_lens"
+    }
+  ],
+  "results": [
+    {
+      "id": "create_optical_diffuser:hologram_lens"
+    }
+  ]
+}

@@ -43,6 +43,15 @@
   "tooltip.create_optical_diffuser.speaker.linked": "Підключений дифузор: [%d, %d, %d]",
   "tooltip.create_optical_diffuser.speaker.unlinked": "Не прив'язано (ПКМ по оптичному дифузору для прив'язки)",
   "tooltip.create_optical_diffuser.speaker.coverage": "Зона покриття: 28x24 попереду (Кінозал)",
+  "block.create_optical_diffuser.film_reel": "Кінострічка",
+  "item.create_optical_diffuser.film_reel": "Кінострічка",
+  "item.create_optical_diffuser.silent_projector_lens": "Німа кінолінза",
+  "item.create_optical_diffuser.sound_projector_lens": "Звукова кінолінза",
+  "item.create_optical_diffuser.hologram_lens": "Голографічна лінза",
+  "item.create_optical_diffuser.incomplete_focusing_lens": "Недороблені фокусуючі лінзи",
+  "item.create_optical_diffuser.incomplete_dispersing_lens": "Недороблені розсіювальні лінзи",
+  "item.create_optical_diffuser.incomplete_film_reel": "Недороблена кінострічка",
+  "item.create_optical_diffuser.incomplete_hologram_lens": "Недороблені голографічні лінзи",
   "display_source.create_optical_diffuser.film_reel_time": "Час відтворення плівки",
   "display_source.create_optical_diffuser.film_reel_info": "Назва та статус фільму"
 }

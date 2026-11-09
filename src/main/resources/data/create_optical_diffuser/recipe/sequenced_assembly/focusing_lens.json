@@ -1,0 +1,62 @@
+{
+  "type": "create:sequenced_assembly",
+  "ingredient": {
+    "item": "create:brass_sheet"
+  },
+  "loops": 1,
+  "results": [
+    {
+      "id": "create_optical_diffuser:focusing_lens"
+    }
+  ],
+  "sequence": [
+    {
+      "type": "create:deploying",
+      "ingredients": [
+        {
+          "item": "create_optical_diffuser:incomplete_focusing_lens"
+        },
+        {
+          "item": "minecraft:quartz"
+        }
+      ],
+      "results": [
+        {
+          "id": "create_optical_diffuser:incomplete_focusing_lens"
+        }
+      ]
+    },
+    {
+      "type": "create:deploying",
+      "ingredients": [
+        {
+          "item": "create_optical_diffuser:incomplete_focusing_lens"
+        },
+        {
+          "item": "minecraft:glass_pane"
+        }
+      ],
+      "results": [
+        {
+          "id": "create_optical_diffuser:incomplete_focusing_lens"
+        }
+      ]
+    },
+    {
+      "type": "create:pressing",
+      "ingredients": [
+        {
+          "item": "create_optical_diffuser:incomplete_focusing_lens"
+        }
+      ],
+      "results": [
+        {
+          "id": "create_optical_diffuser:incomplete_focusing_lens"
+        }
+      ]
+    }
+  ],
+  "transitional_item": {
+    "id": "create_optical_diffuser:incomplete_focusing_lens"
+  }
+}

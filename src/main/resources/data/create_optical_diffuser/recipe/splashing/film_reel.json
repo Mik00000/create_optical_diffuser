@@ -1,0 +1,13 @@
+{
+  "type": "create:splashing",
+  "ingredients": [
+    {
+      "item": "create_optical_diffuser:film_reel"
+    }
+  ],
+  "results": [
+    {
+      "id": "create_optical_diffuser:film_reel"
+    }
+  ]
+}
