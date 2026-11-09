@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": {
+      "item": "create:brass_sheet"
+    },
+    "F": {
+      "item": "create_optical_diffuser:focusing_lens"
+    },
+    "D": {
+      "item": "minecraft:diamond"
+    }
+  },
+  "pattern": [
+    " B ",
+    "DFD",
+    " B "
+  ],
+  "result": {
+    "count": 1,
+    "id": "create_optical_diffuser:collimator_lens"
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "type": "create:sequenced_assembly",
+  "ingredient": {
+    "item": "create_optical_diffuser:focusing_lens"
+  },
+  "loops": 1,
+  "results": [
+    {
+      "id": "create_optical_diffuser:thermal_ignition_lens"
+    }
+  ],
+  "sequence": [
+    {
+      "type": "create:deploying",
+      "ingredients": [
+        {
+          "item": "create_optical_diffuser:incomplete_thermal_ignition_lens"
+        },
+        {
+          "item": "minecraft:blaze_rod"
+        }
+      ],
+      "results": [
+        {
+          "id": "create_optical_diffuser:incomplete_thermal_ignition_lens"
+        }
+      ]
+    },
+    {
+      "type": "create:deploying",
+      "ingredients": [
+        {
+          "item": "create_optical_diffuser:incomplete_thermal_ignition_lens"
+        },
+        {
+          "item": "create:brass_sheet"
+        }
+      ],
+      "results": [
+        {
+          "id": "create_optical_diffuser:incomplete_thermal_ignition_lens"
+        }
+      ]
+    },
+    {
+      "type": "create:pressing",
+      "ingredients": [
+        {
+          "item": "create_optical_diffuser:incomplete_thermal_ignition_lens"
+        }
+      ],
+      "results": [
+        {
+          "id": "create_optical_diffuser:incomplete_thermal_ignition_lens"
+        }
+      ]
+    }
+  ],
+  "transitional_item": {
+    "id": "create_optical_diffuser:incomplete_thermal_ignition_lens"
+  }
+}

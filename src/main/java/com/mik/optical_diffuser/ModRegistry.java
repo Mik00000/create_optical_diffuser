@@ -117,6 +117,22 @@ public class ModRegistry {
             () -> new SequencedAssemblyItem(new Item.Properties().stacksTo(1))
     );
 
+    public static final DeferredItem<Item> THERMAL_IGNITION_LENS = ITEMS.register("thermal_ignition_lens",
+            () -> new Item(new Item.Properties().stacksTo(16))
+    );
+
+    public static final DeferredItem<SequencedAssemblyItem> INCOMPLETE_THERMAL_IGNITION_LENS = ITEMS.register("incomplete_thermal_ignition_lens",
+            () -> new SequencedAssemblyItem(new Item.Properties().stacksTo(16))
+    );
+
+    public static final DeferredItem<Item> COLLIMATOR_LENS = ITEMS.register("collimator_lens",
+            () -> new Item(new Item.Properties().stacksTo(16))
+    );
+
+    public static final DeferredItem<SequencedAssemblyItem> INCOMPLETE_COLLIMATOR_LENS = ITEMS.register("incomplete_collimator_lens",
+            () -> new SequencedAssemblyItem(new Item.Properties().stacksTo(16))
+    );
+
     public static final Supplier<BlockEntityType<OpticalDiffuserBlockEntity>> OPTICAL_DIFFUSER_BE = BLOCK_ENTITY_TYPES.register("optical_diffuser",
             () -> BlockEntityType.Builder.of(OpticalDiffuserBlockEntity::new, OPTICAL_DIFFUSER.get()).build(null)
     );

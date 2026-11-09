@@ -52,6 +52,10 @@
   "item.create_optical_diffuser.incomplete_dispersing_lens": "Недороблені розсіювальні лінзи",
   "item.create_optical_diffuser.incomplete_film_reel": "Недороблена кінострічка",
   "item.create_optical_diffuser.incomplete_hologram_lens": "Недороблені голографічні лінзи",
+  "item.create_optical_diffuser.thermal_ignition_lens": "Термічна пропалююча лінза",
+  "item.create_optical_diffuser.incomplete_thermal_ignition_lens": "Недороблена термічна лінза",
+  "item.create_optical_diffuser.collimator_lens": "Коліматорна голчаста лінза",
+  "item.create_optical_diffuser.incomplete_collimator_lens": "Недороблена коліматорна лінза",
   "display_source.create_optical_diffuser.film_reel_time": "Час відтворення плівки",
   "display_source.create_optical_diffuser.film_reel_info": "Назва та статус фільму"
 }

@@ -1,0 +1,62 @@
+{
+  "type": "create:sequenced_assembly",
+  "ingredient": {
+    "item": "create_optical_diffuser:focusing_lens"
+  },
+  "loops": 1,
+  "results": [
+    {
+      "id": "create_optical_diffuser:collimator_lens"
+    }
+  ],
+  "sequence": [
+    {
+      "type": "create:deploying",
+      "ingredients": [
+        {
+          "item": "create_optical_diffuser:incomplete_collimator_lens"
+        },
+        {
+          "item": "minecraft:diamond"
+        }
+      ],
+      "results": [
+        {
+          "id": "create_optical_diffuser:incomplete_collimator_lens"
+        }
+      ]
+    },
+    {
+      "type": "create:deploying",
+      "ingredients": [
+        {
+          "item": "create_optical_diffuser:incomplete_collimator_lens"
+        },
+        {
+          "item": "create:brass_sheet"
+        }
+      ],
+      "results": [
+        {
+          "id": "create_optical_diffuser:incomplete_collimator_lens"
+        }
+      ]
+    },
+    {
+      "type": "create:pressing",
+      "ingredients": [
+        {
+          "item": "create_optical_diffuser:incomplete_collimator_lens"
+        }
+      ],
+      "results": [
+        {
+          "id": "create_optical_diffuser:incomplete_collimator_lens"
+        }
+      ]
+    }
+  ],
+  "transitional_item": {
+    "id": "create_optical_diffuser:incomplete_collimator_lens"
+  }
+}

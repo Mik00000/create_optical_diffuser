@@ -24,9 +24,15 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.level.block.BeaconBeamBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.item.ItemStack;
@@ -71,7 +77,9 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         CONDENSER,
         PROJECTOR_SILENT,
         PROJECTOR_SOUND,
-        HOLOGRAM
+        HOLOGRAM,
+        THERMAL_IGNITER,
+        COLLIMATOR
     }
 
     private final ItemStack[] carouselLenses = new ItemStack[]{ItemStack.EMPTY, ItemStack.EMPTY, ItemStack.EMPTY, ItemStack.EMPTY};
@@ -359,6 +367,8 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
             if (id.equals("create_optical_diffuser:silent_projector_lens")) return DiffuserModule.PROJECTOR_SILENT;
             if (id.equals("create_optical_diffuser:sound_projector_lens")) return DiffuserModule.PROJECTOR_SOUND;
             if (id.equals("create_optical_diffuser:hologram_lens") || active.getItem() instanceof com.mik.optical_diffuser.item.HologramLensItem) return DiffuserModule.HOLOGRAM;
+            if (id.equals("create_optical_diffuser:thermal_ignition_lens")) return DiffuserModule.THERMAL_IGNITER;
+            if (id.equals("create_optical_diffuser:collimator_lens")) return DiffuserModule.COLLIMATOR;
         }
         if (this.level != null) {
             Direction facing = getBlockState().getValue(OpticalDiffuserBlock.FACING);
@@ -422,6 +432,14 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
             // Signal 0..14 disperses the beam
             float t = Math.min(14, this.redstonePower) / 14.0f;
             this.coneAngle = 20.0f + t * (70.0f - 20.0f); // 20° at 0 up to 70° at 14
+        } else if (module == DiffuserModule.THERMAL_IGNITER) {
+            // Thermal Ignition Lens: moderately focused cone 28° down to 12° with redstone
+            float t = Math.min(14, this.redstonePower) / 14.0f;
+            this.coneAngle = 28.0f - t * 16.0f;
+        } else if (module == DiffuserModule.COLLIMATOR) {
+            // Collimator: razor-sharp needle beam 2.0° down to 1.0° with redstone
+            float t = Math.min(14, this.redstonePower) / 14.0f;
+            this.coneAngle = 2.0f - t * 1.0f;
         } else {
             // Default without module: fixed standard angle
             this.coneAngle = 35.0f;
@@ -442,6 +460,11 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
             } else if (module == DiffuserModule.CONDENSER) {
                 float t = Math.min(14, this.redstonePower) / 14.0f;
                 this.coneRange = Math.max(12, (int) (baseRange * (1.0f - t * 0.4f)));
+            } else if (module == DiffuserModule.THERMAL_IGNITER) {
+                float t = Math.min(14, this.redstonePower) / 14.0f;
+                this.coneRange = (int) (baseRange * (1.2f + t * 0.4f));
+            } else if (module == DiffuserModule.COLLIMATOR) {
+                this.coneRange = Math.min(96, (int) (baseRange * 1.8f));
             } else {
                 this.coneRange = baseRange;
             }
@@ -836,6 +859,7 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
     private void updateIllumination(Level level, BlockPos pos, BlockState state) {
         try {
             Direction facing = state.getValue(OpticalDiffuserBlock.FACING);
+            DiffuserModule module = getActiveModule();
 
             // If a solid block is placed directly in front of the diffuser, beam is blocked right away
             BlockPos localFront = pos.relative(facing);
@@ -879,7 +903,7 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                 scaleV = 0.45;
             }
 
-            boolean doThermalMelt = (this.beamType == BeamHelper.BeamType.MICROWAVE);
+            boolean doThermalMelt = (this.beamType == BeamHelper.BeamType.MICROWAVE || module == DiffuserModule.THERMAL_IGNITER);
 
             // 1. Dense surface raycast across the entire cone to light up all ground, cliff, and wall surfaces (Level 15)
             java.util.List<double[]> rayOffsets = getIlluminationRayOffsets(this.polarization);
@@ -900,7 +924,11 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                     addSurfaceLightCandidate(targetLevel, hitBlock, hitFace, newPositions, 15);
 
                     if (doThermalMelt) {
-                        meltAt(targetLevel, hitBlock);
+                        if (module == DiffuserModule.THERMAL_IGNITER) {
+                            thermalIgniteAt(targetLevel, hitBlock);
+                        } else {
+                            meltAt(targetLevel, hitBlock);
+                        }
                     }
 
                     // Multi-layer pass: if hit was an obstacle before the end, also illuminate ground behind it
@@ -910,7 +938,11 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                         if (hit2.getType() == HitResult.Type.BLOCK) {
                             addSurfaceLightCandidate(targetLevel, hit2.getBlockPos(), hit2.getDirection(), newPositions, 15);
                             if (doThermalMelt) {
-                                meltAt(targetLevel, hit2.getBlockPos());
+                                if (module == DiffuserModule.THERMAL_IGNITER) {
+                                    thermalIgniteAt(targetLevel, hit2.getBlockPos());
+                                } else {
+                                    meltAt(targetLevel, hit2.getBlockPos());
+                                }
                             }
                         }
                     }
@@ -967,11 +999,19 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                     Vec3 sideEnd = start.add(sideDir.scale(this.coneRange));
                     BlockHitResult sideHit = raycastBeam(targetLevel, start, sideEnd);
                     if (sideHit.getType() == HitResult.Type.BLOCK) {
-                        meltAt(targetLevel, sideHit.getBlockPos());
+                        if (module == DiffuserModule.THERMAL_IGNITER) {
+                            thermalIgniteAt(targetLevel, sideHit.getBlockPos());
+                        } else {
+                            meltAt(targetLevel, sideHit.getBlockPos());
+                        }
                     }
                 }
                 if (level != targetLevel) {
-                    meltAt(level, pos.relative(facing));
+                    if (module == DiffuserModule.THERMAL_IGNITER) {
+                        thermalIgniteAt(level, pos.relative(facing));
+                    } else {
+                        meltAt(level, pos.relative(facing));
+                    }
                 }
             }
 
@@ -990,6 +1030,36 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                     Vec3 localStart = Vec3.atCenterOf(pos).add(Vec3.atLowerCornerOf(facing.getNormal()).scale(0.50));
                     Vec3 localDir = Vec3.atLowerCornerOf(facing.getNormal());
                     applyGammaConeEffects(level, localStart, localDir);
+                }
+            }
+
+            // Stage 3 Microwave effect: Thermal burning & dropped food cooking
+            if (this.beamType == BeamHelper.BeamType.MICROWAVE) {
+                applyMicrowaveConeEffects(targetLevel, start, centerDir);
+                if (level != targetLevel) {
+                    Vec3 localStart = Vec3.atCenterOf(pos).add(Vec3.atLowerCornerOf(facing.getNormal()).scale(0.50));
+                    Vec3 localDir = Vec3.atLowerCornerOf(facing.getNormal());
+                    applyMicrowaveConeEffects(level, localStart, localDir);
+                }
+            }
+
+            // Stage 4 Thermal Igniter module effect: Superheated Archimedes Death Ray
+            if (module == DiffuserModule.THERMAL_IGNITER) {
+                applyThermalIgniterConeEffects(targetLevel, start, centerDir);
+                if (level != targetLevel) {
+                    Vec3 localStart = Vec3.atCenterOf(pos).add(Vec3.atLowerCornerOf(facing.getNormal()).scale(0.50));
+                    Vec3 localDir = Vec3.atLowerCornerOf(facing.getNormal());
+                    applyThermalIgniterConeEffects(level, localStart, localDir);
+                }
+            }
+
+            // Stage 5 Collimator module effect: Needle-sharp piercing laser
+            if (module == DiffuserModule.COLLIMATOR) {
+                applyCollimatorBeamEffects(targetLevel, start, centerDir);
+                if (level != targetLevel) {
+                    Vec3 localStart = Vec3.atCenterOf(pos).add(Vec3.atLowerCornerOf(facing.getNormal()).scale(0.50));
+                    Vec3 localDir = Vec3.atLowerCornerOf(facing.getNormal());
+                    applyCollimatorBeamEffects(level, localStart, localDir);
                 }
             }
 
@@ -1133,44 +1203,122 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         return false;
     }
 
+    private boolean isEntityInCone(LivingEntity entity, Vec3 rayStart, Vec3 centerDir, double tanHalf, Level targetLevel) {
+        double entityRadius = entity.getBbWidth() * 0.5;
+        Vec3[] testPoints = new Vec3[]{
+                entity.getEyePosition(),
+                entity.position().add(0, entity.getBbHeight() * 0.5, 0),
+                entity.position().add(0, 0.2, 0)
+        };
+
+        for (Vec3 pt : testPoints) {
+            Vec3 toPt = pt.subtract(rayStart);
+            double distAlongCenter = toPt.dot(centerDir);
+            if (distAlongCenter >= 0.0 && distAlongCenter <= this.coneRange) {
+                Vec3 proj = centerDir.scale(distAlongCenter);
+                double radialDist = toPt.subtract(proj).length();
+                double allowedRadius = Math.max(0.30, distAlongCenter * tanHalf) + entityRadius;
+                if (radialDist <= allowedRadius) {
+                    BlockHitResult los = raycastBeam(targetLevel, rayStart, pt);
+                    if (los.getType() == HitResult.Type.MISS || los.getLocation().distanceTo(rayStart) >= pt.distanceTo(rayStart) - 0.6) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     private void applyGammaConeEffects(Level targetLevel, Vec3 start, Vec3 centerDir) {
         if (targetLevel == null) return;
         double tanHalf = Math.tan(Math.toRadians(this.coneAngle * 0.5));
         double maxRadius = Math.max(1.0, this.coneRange * tanHalf);
         AABB coneAABB = new AABB(start, start.add(centerDir.scale(this.coneRange))).inflate(maxRadius + 3.0);
         List<LivingEntity> entities = targetLevel.getEntitiesOfClass(LivingEntity.class, coneAABB, e -> e.isAlive() && !e.isSpectator());
-
-        // Offset rayStart forward by 0.12m so raycasts never clip the diffuser itself
         Vec3 rayStart = start.add(centerDir.scale(0.12));
 
         for (LivingEntity entity : entities) {
-            double entityRadius = entity.getBbWidth() * 0.5;
-            Vec3[] testPoints = new Vec3[]{
-                    entity.getEyePosition(),
-                    entity.position().add(0, entity.getBbHeight() * 0.5, 0),
-                    entity.position().add(0, 0.2, 0)
-            };
+            if (isEntityInCone(entity, rayStart, centerDir, tanHalf, targetLevel)) {
+                applyGammaRadiation(targetLevel, entity);
+            }
+        }
+    }
 
-            boolean inCone = false;
-            for (Vec3 pt : testPoints) {
-                Vec3 toPt = pt.subtract(rayStart);
-                double distAlongCenter = toPt.dot(centerDir);
-                if (distAlongCenter >= 0.0 && distAlongCenter <= this.coneRange) {
-                    Vec3 proj = centerDir.scale(distAlongCenter);
-                    double radialDist = toPt.subtract(proj).length();
-                    double allowedRadius = Math.max(0.30, distAlongCenter * tanHalf) + entityRadius;
-                    if (radialDist <= allowedRadius) {
-                        BlockHitResult los = raycastBeam(targetLevel, rayStart, pt);
-                        if (los.getType() == HitResult.Type.MISS || los.getLocation().distanceTo(rayStart) >= pt.distanceTo(rayStart) - 0.6) {
-                            inCone = true;
-                            break;
+    private void applyMicrowaveConeEffects(Level targetLevel, Vec3 start, Vec3 centerDir) {
+        if (targetLevel == null) return;
+        double tanHalf = Math.tan(Math.toRadians(this.coneAngle * 0.5));
+        double maxRadius = Math.max(1.0, this.coneRange * tanHalf);
+        AABB coneAABB = new AABB(start, start.add(centerDir.scale(this.coneRange))).inflate(maxRadius + 3.0);
+        List<LivingEntity> entities = targetLevel.getEntitiesOfClass(LivingEntity.class, coneAABB, e -> e.isAlive() && !e.isSpectator());
+        Vec3 rayStart = start.add(centerDir.scale(0.12));
+
+        float rpmRatio = Math.min(1.0f, Math.max(0.0f, this.cachedSpeed / 256.0f));
+        float damage = 1.0f + rpmRatio * 2.5f;
+
+        for (LivingEntity entity : entities) {
+            if (isEntityInCone(entity, rayStart, centerDir, tanHalf, targetLevel)) {
+                if (entity.invulnerableTime <= 10) {
+                    entity.hurt(targetLevel.damageSources().inFire(), damage);
+                    entity.igniteForSeconds((int) (3 + rpmRatio * 4));
+                }
+            }
+        }
+
+        cookItemsInAABB(targetLevel, coneAABB, rayStart, centerDir, tanHalf);
+    }
+
+    private void applyThermalIgniterConeEffects(Level targetLevel, Vec3 start, Vec3 centerDir) {
+        if (targetLevel == null) return;
+        double tanHalf = Math.tan(Math.toRadians(this.coneAngle * 0.5));
+        double maxRadius = Math.max(1.0, this.coneRange * tanHalf);
+        AABB coneAABB = new AABB(start, start.add(centerDir.scale(this.coneRange))).inflate(maxRadius + 3.0);
+        List<LivingEntity> entities = targetLevel.getEntitiesOfClass(LivingEntity.class, coneAABB, e -> e.isAlive() && !e.isSpectator());
+        Vec3 rayStart = start.add(centerDir.scale(0.12));
+
+        float rpmRatio = Math.min(1.0f, Math.max(0.0f, this.cachedSpeed / 256.0f));
+        float damage = 2.0f + rpmRatio * 5.0f;
+
+        for (LivingEntity entity : entities) {
+            if (isEntityInCone(entity, rayStart, centerDir, tanHalf, targetLevel)) {
+                if (entity.invulnerableTime <= 10) {
+                    entity.hurt(targetLevel.damageSources().inFire(), damage);
+                    entity.igniteForSeconds((int) (4 + rpmRatio * 6));
+                }
+            }
+        }
+
+        cookItemsInAABB(targetLevel, coneAABB, rayStart, centerDir, tanHalf);
+    }
+
+    private void applyCollimatorBeamEffects(Level targetLevel, Vec3 start, Vec3 centerDir) {
+        if (targetLevel == null) return;
+        Vec3 beamEnd = start.add(centerDir.scale(this.coneRange));
+        AABB beamAABB = new AABB(start, beamEnd).inflate(1.2);
+        List<LivingEntity> entities = targetLevel.getEntitiesOfClass(LivingEntity.class, beamAABB, e -> e.isAlive() && !e.isSpectator());
+        Vec3 rayStart = start.add(centerDir.scale(0.12));
+
+        float rpmRatio = Math.min(1.0f, Math.max(0.0f, this.cachedSpeed / 256.0f));
+        float piercingDamage = 3.5f + rpmRatio * 7.5f;
+
+        for (LivingEntity entity : entities) {
+            Vec3 toEntity = entity.position().add(0, entity.getBbHeight() * 0.5, 0).subtract(rayStart);
+            double distAlong = toEntity.dot(centerDir);
+            if (distAlong >= 0 && distAlong <= this.coneRange) {
+                Vec3 closestOnLine = centerDir.scale(distAlong);
+                double distToLine = toEntity.subtract(closestOnLine).length();
+                if (distToLine <= entity.getBbWidth() * 0.5 + 0.35) {
+                    BlockHitResult hit = raycastBeam(targetLevel, rayStart, entity.getEyePosition());
+                    if (hit.getType() == HitResult.Type.MISS || hit.getLocation().distanceTo(rayStart) >= entity.position().distanceTo(rayStart) - 0.5) {
+                        if (entity.invulnerableTime <= 10) {
+                            if (this.beamType == BeamHelper.BeamType.GAMMA) {
+                                entity.hurt(CODamageSources.gammaRay(targetLevel), piercingDamage * 1.5f);
+                            } else {
+                                entity.hurt(targetLevel.damageSources().magic(), piercingDamage);
+                            }
+                            entity.igniteForSeconds(2 + (int) (rpmRatio * 4));
                         }
                     }
                 }
-            }
-
-            if (inCone) {
-                applyGammaRadiation(targetLevel, entity);
             }
         }
     }
@@ -1267,6 +1415,52 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         return samples;
     }
 
+    private static final Map<Item, Item> COOKING_MAP = Map.ofEntries(
+            Map.entry(Items.BEEF, Items.COOKED_BEEF),
+            Map.entry(Items.PORKCHOP, Items.COOKED_PORKCHOP),
+            Map.entry(Items.CHICKEN, Items.COOKED_CHICKEN),
+            Map.entry(Items.MUTTON, Items.COOKED_MUTTON),
+            Map.entry(Items.RABBIT, Items.COOKED_RABBIT),
+            Map.entry(Items.COD, Items.COOKED_COD),
+            Map.entry(Items.SALMON, Items.COOKED_SALMON),
+            Map.entry(Items.POTATO, Items.BAKED_POTATO),
+            Map.entry(Items.KELP, Items.DRIED_KELP)
+    );
+
+    private void cookItemsInAABB(Level targetLevel, AABB aabb, Vec3 rayStart, Vec3 centerDir, double tanHalf) {
+        List<ItemEntity> items = targetLevel.getEntitiesOfClass(ItemEntity.class, aabb, e -> e.isAlive());
+        for (ItemEntity itemEntity : items) {
+            Vec3 pos = itemEntity.position();
+            Vec3 toPt = pos.subtract(rayStart);
+            double distAlong = toPt.dot(centerDir);
+            if (distAlong >= 0 && distAlong <= this.coneRange) {
+                Vec3 proj = centerDir.scale(distAlong);
+                double allowedR = Math.max(0.5, distAlong * tanHalf) + 0.5;
+                if (toPt.subtract(proj).length() <= allowedR) {
+                    ItemStack stack = itemEntity.getItem();
+                    ItemStack cooked = getCookedResult(stack, targetLevel);
+                    if (!cooked.isEmpty()) {
+                        cooked.setCount(stack.getCount());
+                        itemEntity.setItem(cooked);
+                        targetLevel.playSound(null, itemEntity.blockPosition(), SoundEvents.FIRE_EXTINGUISH, SoundSource.BLOCKS, 0.4f, 1.2f);
+                        if (targetLevel instanceof ServerLevel sl) {
+                            sl.sendParticles(ParticleTypes.SMOKE, pos.x, pos.y + 0.15, pos.z, 5, 0.1, 0.1, 0.1, 0.02);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private ItemStack getCookedResult(ItemStack stack, Level level) {
+        if (stack.isEmpty()) return ItemStack.EMPTY;
+        Item cooked = COOKING_MAP.get(stack.getItem());
+        if (cooked != null) {
+            return new ItemStack(cooked);
+        }
+        return ItemStack.EMPTY;
+    }
+
     private void meltAt(Level lvl, BlockPos p) {
         try {
             BlockState st = lvl.getBlockState(p);
@@ -1276,6 +1470,32 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
             } else if (st.is(BlockTags.ICE)) {
                 lvl.levelEvent(2009, p, 0);
                 lvl.setBlock(p, Blocks.WATER.defaultBlockState(), 3);
+            } else if (st.is(Blocks.WATER)) {
+                lvl.levelEvent(2009, p, 0);
+                lvl.setBlock(p, Blocks.AIR.defaultBlockState(), 3);
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private void thermalIgniteAt(Level lvl, BlockPos p) {
+        try {
+            BlockState st = lvl.getBlockState(p);
+            if (st.is(BlockTags.SNOW) || st.is(BlockTags.ICE) || st.is(Blocks.WATER)) {
+                meltAt(lvl, p);
+                return;
+            }
+            if (this.cachedSpeed >= 128.0f) {
+                if (st.is(Blocks.SAND) || st.is(Blocks.RED_SAND)) {
+                    lvl.levelEvent(2001, p, net.minecraft.world.level.block.Block.getId(st));
+                    lvl.setBlock(p, Blocks.GLASS.defaultBlockState(), 3);
+                } else if (st.is(Blocks.COBBLESTONE)) {
+                    lvl.setBlock(p, Blocks.MAGMA_BLOCK.defaultBlockState(), 3);
+                } else if (st.is(BlockTags.PLANKS) || st.is(BlockTags.LOGS) || st.is(BlockTags.LEAVES) || st.is(BlockTags.WOOL)) {
+                    BlockPos above = p.above();
+                    if (lvl.getBlockState(above).isAir()) {
+                        lvl.setBlock(above, Blocks.FIRE.defaultBlockState(), 3);
+                    }
+                }
             }
         } catch (Exception ignored) {}
     }
@@ -1589,6 +1809,8 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                 case PROJECTOR_SILENT -> ChatFormatting.WHITE;
                 case PROJECTOR_SOUND -> ChatFormatting.LIGHT_PURPLE;
                 case HOLOGRAM -> ChatFormatting.DARK_AQUA;
+                case THERMAL_IGNITER -> ChatFormatting.RED;
+                case COLLIMATOR -> ChatFormatting.DARK_RED;
                 default -> ChatFormatting.YELLOW;
             };
             tooltip.add(Component.literal("    ")
