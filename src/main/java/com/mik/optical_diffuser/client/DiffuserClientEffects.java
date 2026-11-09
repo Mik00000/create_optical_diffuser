@@ -61,6 +61,28 @@ public class DiffuserClientEffects {
             coords = com.mik.optical_diffuser.item.ProjectorLensItem.getScreenCoords(be.getActiveLens());
 
             Direction facing = be.getBlockState().getValue(OpticalDiffuserBlock.FACING);
+            com.mik.optical_diffuser.item.ProjectorLensItem.PlacementCheck placement =
+                    com.mik.optical_diffuser.item.ProjectorLensItem.checkPlacement(level, be.getBlockPos(), facing, be.getActiveLens());
+
+            if (!placement.isValid()) {
+                if (be.isLightEnabled() && rnd.nextInt(3) == 0) {
+                    SableCompat.RayContext rayCtx = SableCompat.getRayContext(level, be.getBlockPos(), facing);
+                    Vec3 start = rayCtx.start();
+                    level.addParticle(net.minecraft.core.particles.ParticleTypes.SMOKE,
+                            start.x + (rnd.nextDouble() - 0.5) * 0.2,
+                            start.y + (rnd.nextDouble() - 0.5) * 0.2,
+                            start.z + (rnd.nextDouble() - 0.5) * 0.2,
+                            0, 0.02, 0);
+                }
+                if (be.isLightEnabled() && level.getGameTime() % 40 == 0) {
+                    level.playLocalSound(be.getBlockPos(),
+                            net.minecraft.sounds.SoundEvents.DISPENSER_FAIL,
+                            net.minecraft.sounds.SoundSource.BLOCKS,
+                            0.30f, 1.4f, false);
+                }
+                continue;
+            }
+
             SableCompat.RayContext rayCtx = SableCompat.getRayContext(level, be.getBlockPos(), facing);
             Vec3 start = rayCtx.start();
 

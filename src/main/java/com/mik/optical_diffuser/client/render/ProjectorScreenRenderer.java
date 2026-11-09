@@ -36,6 +36,13 @@ public class ProjectorScreenRenderer {
             return;
         }
 
+        ItemStack activeLens = be.getActiveLens();
+        net.minecraft.core.Direction facing = be.getBlockState().getValue(com.mik.optical_diffuser.block.OpticalDiffuserBlock.FACING);
+        ProjectorLensItem.PlacementCheck placement = ProjectorLensItem.checkPlacement(be.getLevel(), be.getBlockPos(), facing, activeLens);
+        if (!placement.isValid()) {
+            return;
+        }
+
         DiffuserMediaManager media = DiffuserMediaManager.get(be);
         net.minecraft.resources.ResourceLocation texLoc = media.getTextureLocation();
         if (texLoc == null) {
@@ -55,8 +62,6 @@ public class ProjectorScreenRenderer {
         // Determine orientation plane in screen's local grid
         boolean isXPlane = (maxX - minX == 1);
         boolean isZPlane = (maxZ - minZ == 1);
-
-        ItemStack activeLens = be.getActiveLens();
 
         // 4 corner vertices in local screen plane
         Vec3 corner0, corner1, corner2, corner3;

@@ -60,5 +60,16 @@
   "tooltip.create_optical_diffuser.speaker.unlinked": "Unlinked (Right-click an Optical Diffuser to pair)",
   "tooltip.create_optical_diffuser.speaker.coverage": "Coverage: 28x24 Cinema Zone Ahead",
   "display_source.create_optical_diffuser.film_reel_time": "Film Playback Time",
-  "display_source.create_optical_diffuser.film_reel_info": "Film Title & Status"
+  "display_source.create_optical_diffuser.film_reel_info": "Film Title & Status",
+  "status.create_optical_diffuser.placement.valid": "Optimal",
+  "status.create_optical_diffuser.placement.incomplete": "Screen Not Configured",
+  "status.create_optical_diffuser.placement.too_close": "Screen Too Close (<3m)",
+  "status.create_optical_diffuser.placement.too_far": "Screen Too Far (>48m)",
+  "status.create_optical_diffuser.placement.out_of_cone": "Out of Projection Cone (>45°)",
+  "status.create_optical_diffuser.placement.tilt_too_steep": "Screen Angle Too Steep (>60°)",
+  "tooltip.create_optical_diffuser.projector_lens.limits": "Throw: 3-48m | Max Cone: 45° | Max Tilt: 60°",
+  "gui.create_optical_diffuser.goggles.projection_distance": "Throw Distance:",
+  "gui.create_optical_diffuser.goggles.beam_angle": "Beam Deviation:",
+  "gui.create_optical_diffuser.goggles.screen_tilt": "Screen Tilt:",
+  "gui.create_optical_diffuser.goggles.alignment": "Alignment:"
 }

@@ -1639,6 +1639,33 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                     .append(Component.literal(disp).withStyle(ChatFormatting.GOLD)));
         }
 
+        boolean isProjectorModule = (mod == DiffuserModule.PROJECTOR_SILENT || mod == DiffuserModule.PROJECTOR_SOUND);
+        if (isProjectorModule && !activeLens.isEmpty()) {
+            Direction facing = getBlockState().getValue(OpticalDiffuserBlock.FACING);
+            com.mik.optical_diffuser.item.ProjectorLensItem.PlacementCheck check =
+                    com.mik.optical_diffuser.item.ProjectorLensItem.checkPlacement(level, getBlockPos(), facing, activeLens);
+
+            tooltip.add(Component.literal("  ")
+                    .append(Component.translatable("gui.create_optical_diffuser.goggles.projection_distance").withStyle(ChatFormatting.GRAY))
+                    .append(Component.literal(String.format(" %.1fm / 48m", check.distance()))
+                            .withStyle(check.distance() >= 3.0 && check.distance() <= 48.0 ? ChatFormatting.AQUA : ChatFormatting.RED)));
+
+            tooltip.add(Component.literal("  ")
+                    .append(Component.translatable("gui.create_optical_diffuser.goggles.beam_angle").withStyle(ChatFormatting.GRAY))
+                    .append(Component.literal(String.format(" %.1f° / 45°", check.coneAngleDeg()))
+                            .withStyle(check.coneAngleDeg() <= 45.0 ? ChatFormatting.AQUA : ChatFormatting.RED)));
+
+            tooltip.add(Component.literal("  ")
+                    .append(Component.translatable("gui.create_optical_diffuser.goggles.screen_tilt").withStyle(ChatFormatting.GRAY))
+                    .append(Component.literal(String.format(" %.1f° / 60°", check.tiltAngleDeg()))
+                            .withStyle(check.tiltAngleDeg() <= 60.0 ? ChatFormatting.AQUA : ChatFormatting.RED)));
+
+            tooltip.add(Component.literal("  ")
+                    .append(Component.translatable("gui.create_optical_diffuser.goggles.alignment").withStyle(ChatFormatting.GRAY))
+                    .append(Component.literal(" "))
+                    .append(check.status().getDisplayMessage()));
+        }
+
         if (getActiveModule() == DiffuserModule.PROJECTOR_SOUND) {
             if (this.redstonePower >= 15) {
                 tooltip.add(Component.literal("  ")

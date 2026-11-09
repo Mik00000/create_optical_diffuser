@@ -1,7 +1,9 @@
 package com.mik.optical_diffuser.item;
 
+import com.mik.optical_diffuser.compat.SableCompat;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -12,6 +14,7 @@ import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
 
@@ -146,6 +149,127 @@ public class ProjectorLensItem extends Item {
         return null;
     }
 
+    public enum ScreenPlacementStatus {
+        VALID,
+        INCOMPLETE,
+        TOO_CLOSE,
+        TOO_FAR,
+        OUT_OF_CONE,
+        TILT_TOO_STEEP;
+
+        public boolean isValid() {
+            return this == VALID;
+        }
+
+        public Component getDisplayMessage() {
+            return switch (this) {
+                case VALID -> Component.translatable("status.create_optical_diffuser.placement.valid").withStyle(ChatFormatting.GREEN);
+                case INCOMPLETE -> Component.translatable("status.create_optical_diffuser.placement.incomplete").withStyle(ChatFormatting.RED);
+                case TOO_CLOSE -> Component.translatable("status.create_optical_diffuser.placement.too_close").withStyle(ChatFormatting.RED);
+                case TOO_FAR -> Component.translatable("status.create_optical_diffuser.placement.too_far").withStyle(ChatFormatting.RED);
+                case OUT_OF_CONE -> Component.translatable("status.create_optical_diffuser.placement.out_of_cone").withStyle(ChatFormatting.RED);
+                case TILT_TOO_STEEP -> Component.translatable("status.create_optical_diffuser.placement.tilt_too_steep").withStyle(ChatFormatting.RED);
+            };
+        }
+    }
+
+    public record PlacementCheck(
+            ScreenPlacementStatus status,
+            double distance,
+            double coneAngleDeg,
+            double tiltAngleDeg
+    ) {
+        public boolean isValid() {
+            return status.isValid();
+        }
+    }
+
+    public static PlacementCheck checkPlacement(Level level, BlockPos diffuserPos, Direction facing, ItemStack lens) {
+        if (level == null || diffuserPos == null || facing == null || lens == null || lens.isEmpty()) {
+            return new PlacementCheck(ScreenPlacementStatus.INCOMPLETE, 0, 0, 0);
+        }
+
+        ScreenCoords coords = getScreenCoords(lens);
+        if (!coords.isComplete()) {
+            return new PlacementCheck(ScreenPlacementStatus.INCOMPLETE, 0, 0, 0);
+        }
+
+        BlockPos p1 = coords.pos1;
+        BlockPos p2 = coords.pos2;
+
+        int minX = Math.min(p1.getX(), p2.getX());
+        int maxX = Math.max(p1.getX(), p2.getX()) + 1;
+        int minY = Math.min(p1.getY(), p2.getY());
+        int maxY = Math.max(p1.getY(), p2.getY()) + 1;
+        int minZ = Math.min(p1.getZ(), p2.getZ());
+        int maxZ = Math.max(p1.getZ(), p2.getZ()) + 1;
+
+        boolean isXPlane = (maxX - minX == 1);
+        boolean isZPlane = (maxZ - minZ == 1);
+
+        Vec3 corner0, corner1, corner2, corner3;
+        if (isXPlane) {
+            corner0 = new Vec3(minX, minY, maxZ);
+            corner1 = new Vec3(minX, minY, minZ);
+            corner2 = new Vec3(minX, maxY, minZ);
+            corner3 = new Vec3(minX, maxY, maxZ);
+        } else if (isZPlane) {
+            corner0 = new Vec3(minX, minY, minZ);
+            corner1 = new Vec3(maxX, minY, minZ);
+            corner2 = new Vec3(maxX, maxY, minZ);
+            corner3 = new Vec3(minX, maxY, minZ);
+        } else {
+            corner0 = new Vec3(minX, minY, minZ);
+            corner1 = new Vec3(maxX, minY, minZ);
+            corner2 = new Vec3(maxX, minY, maxZ);
+            corner3 = new Vec3(minX, minY, maxZ);
+        }
+
+        SableCompat.RayContext rayCtx = SableCompat.getRayContext(level, diffuserPos, facing);
+        Vec3 projStart = rayCtx.start();
+        Vec3 projDir = rayCtx.direction().normalize();
+
+        Vec3 w0 = SableCompat.resolveScreenWorldPos(level, lens, corner0);
+        Vec3 w1 = SableCompat.resolveScreenWorldPos(level, lens, corner1);
+        Vec3 w2 = SableCompat.resolveScreenWorldPos(level, lens, corner2);
+        Vec3 w3 = SableCompat.resolveScreenWorldPos(level, lens, corner3);
+
+        Vec3 screenCenter = w0.add(w1).add(w2).add(w3).scale(0.25);
+        Vec3 toScreen = screenCenter.subtract(projStart);
+        double dist = toScreen.length();
+
+        if (dist < 0.001) {
+            return new PlacementCheck(ScreenPlacementStatus.TOO_CLOSE, 0, 0, 0);
+        }
+
+        Vec3 beamDir = toScreen.normalize();
+        double coneDot = Math.max(-1.0, Math.min(1.0, beamDir.dot(projDir)));
+        double coneAngleDeg = Math.toDegrees(Math.acos(coneDot));
+
+        Vec3 rawH = w1.subtract(w0);
+        Vec3 rawV = w3.subtract(w0);
+        Vec3 norm = rawH.normalize().cross(rawV.normalize()).normalize();
+        Vec3 dirToDiffuser = projStart.subtract(screenCenter).normalize();
+        if (norm.dot(dirToDiffuser) < 0) {
+            norm = norm.scale(-1.0);
+        }
+        double tiltDot = Math.max(-1.0, Math.min(1.0, norm.dot(dirToDiffuser)));
+        double tiltAngleDeg = Math.toDegrees(Math.acos(tiltDot));
+
+        ScreenPlacementStatus status = ScreenPlacementStatus.VALID;
+        if (dist < 3.0) {
+            status = ScreenPlacementStatus.TOO_CLOSE;
+        } else if (dist > 48.0) {
+            status = ScreenPlacementStatus.TOO_FAR;
+        } else if (coneAngleDeg > 45.0) {
+            status = ScreenPlacementStatus.OUT_OF_CONE;
+        } else if (tiltAngleDeg > 60.0) {
+            status = ScreenPlacementStatus.TILT_TOO_STEEP;
+        }
+
+        return new PlacementCheck(status, dist, coneAngleDeg, tiltAngleDeg);
+    }
+
     @Override
     public boolean isFoil(ItemStack stack) {
         // Enchantment glint appears when both coordinates are selected
@@ -245,6 +369,8 @@ public class ProjectorLensItem extends Item {
                 tooltip.add(Component.literal("Anchor: ").withStyle(ChatFormatting.DARK_PURPLE)
                         .append(Component.literal("Sable Contraption").withStyle(ChatFormatting.LIGHT_PURPLE)));
             }
+
+            tooltip.add(Component.translatable("tooltip.create_optical_diffuser.projector_lens.limits").withStyle(ChatFormatting.DARK_GRAY));
         } else {
             tooltip.add(Component.translatable("tooltip.create_optical_diffuser.projector_lens.screen_not_configured").withStyle(ChatFormatting.RED));
         }
