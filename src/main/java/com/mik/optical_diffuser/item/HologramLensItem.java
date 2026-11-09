@@ -1,6 +1,8 @@
 package com.mik.optical_diffuser.item;
 
+import com.mik.optical_diffuser.block.OpticalDiffuserBlock;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
@@ -102,9 +104,29 @@ public class HologramLensItem extends Item {
     @Override
     public InteractionResult useOn(UseOnContext context) {
         Level level = context.getLevel();
+        BlockPos clickedPos = context.getClickedPos();
         Player player = context.getPlayer();
         ItemStack stack = context.getItemInHand();
-        BlockState state = level.getBlockState(context.getClickedPos());
+        BlockState state = level.getBlockState(clickedPos);
+
+        // Do not intercept if clicking an optical diffuser block (let block handle lens insertion)
+        if (state.getBlock() instanceof OpticalDiffuserBlock) {
+            return InteractionResult.PASS;
+        }
+
+        if (player != null && player.isShiftKeyDown()) {
+            ItemStack offhand = player.getOffhandItem();
+            if (!offhand.isEmpty()) {
+                // Sneaking with offhand item / schematic imprints offhand even if clicking a block
+                if (!level.isClientSide) {
+                    setHoloTarget(stack, offhand.copy(), level.registryAccess());
+                    level.playSound(null, clickedPos, SoundEvents.NOTE_BLOCK_CHIME.value(), SoundSource.PLAYERS, 1.0f, 1.4f);
+                    player.displayClientMessage(Component.translatable("chat.create_optical_diffuser.hologram_imprinted",
+                            offhand.getHoverName().getString()).withStyle(ChatFormatting.AQUA), true);
+                }
+                return InteractionResult.sidedSuccess(level.isClientSide);
+            }
+        }
 
         if (player != null && !state.isAir()) {
             if (!level.isClientSide) {
@@ -114,7 +136,7 @@ public class HologramLensItem extends Item {
                 }
                 setHoloTarget(stack, target, level.registryAccess());
 
-                level.playSound(null, context.getClickedPos(), SoundEvents.NOTE_BLOCK_CHIME.value(), SoundSource.PLAYERS, 1.0f, 1.2f);
+                level.playSound(null, clickedPos, SoundEvents.NOTE_BLOCK_CHIME.value(), SoundSource.PLAYERS, 1.0f, 1.2f);
                 player.displayClientMessage(Component.translatable("chat.create_optical_diffuser.hologram_imprinted",
                         state.getBlock().getName().getString()).withStyle(ChatFormatting.AQUA), true);
             }

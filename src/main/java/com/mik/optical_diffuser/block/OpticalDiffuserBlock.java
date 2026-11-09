@@ -118,6 +118,8 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
                 || id.equals("create_optical_diffuser:dispersing_lens")
                 || id.equals("create_optical_diffuser:silent_projector_lens")
                 || id.equals("create_optical_diffuser:sound_projector_lens")
+                || id.equals("create_optical_diffuser:hologram_lens")
+                || stack.getItem() instanceof com.mik.optical_diffuser.item.HologramLensItem
                 || id.equals("create_optical:beam_focuser")
                 || id.equals("create_optical:beam_condenser");
     }
@@ -236,15 +238,17 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
             return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
 
-        // 2. Lens installation and swapping strictly on carousel sockets
+        // 2. Lens installation and swapping strictly on carousel sockets (or active slot on other faces)
         if (isLensItem(stack)) {
-            if (hitFace != leftFace) {
-                return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
-            }
-
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof OpticalDiffuserBlockEntity diffuser) {
-                int targetSlot = getTargetCarouselSlot(state, pos, leftFace, hit.getLocation(), diffuser.getCarouselAngle());
+                int targetSlot;
+                if (hitFace == leftFace) {
+                    targetSlot = getTargetCarouselSlot(state, pos, leftFace, hit.getLocation(), diffuser.getCarouselAngle());
+                } else {
+                    targetSlot = diffuser.getActiveCarouselSlot();
+                }
+
                 if (targetSlot >= 0 && targetSlot < 4) {
                     if (!level.isClientSide) {
                         ItemStack newLens = stack.copyWithCount(1);
@@ -283,11 +287,17 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
         Direction hitFace = hit.getDirection();
         Direction leftFace = getLeftDirection(state.getValue(FACING));
 
-        // 3. Remove lens from specific slot when clicking with empty hand
-        if (hitFace == leftFace && player.getItemInHand(InteractionHand.MAIN_HAND).isEmpty()) {
+        // 3. Remove lens from specific slot on carousel or active slot on front aperture
+        if (player.getItemInHand(InteractionHand.MAIN_HAND).isEmpty()) {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof OpticalDiffuserBlockEntity diffuser) {
-                int targetSlot = getTargetCarouselSlot(state, pos, leftFace, hit.getLocation(), diffuser.getCarouselAngle());
+                int targetSlot = -1;
+                if (hitFace == leftFace) {
+                    targetSlot = getTargetCarouselSlot(state, pos, leftFace, hit.getLocation(), diffuser.getCarouselAngle());
+                } else if (hitFace == state.getValue(FACING)) {
+                    targetSlot = diffuser.getActiveCarouselSlot();
+                }
+
                 if (targetSlot >= 0 && targetSlot < 4) {
                     ItemStack existing = diffuser.getCarouselLens(targetSlot);
                     if (!existing.isEmpty()) {
