@@ -55,7 +55,7 @@ public class SableCompat {
             try {
                 dev.ryanhcode.sable.sublevel.SubLevel subLevel = dev.ryanhcode.sable.Sable.HELPER.getContaining(level, pos);
                 if (subLevel != null) {
-                    return dev.ryanhcode.sable.Sable.HELPER.projectOutOfSubLevel(level, localCenter);
+                    return subLevel.logicalPose().transformPosition(localCenter);
                 }
             } catch (Throwable ignored) {
             }
@@ -105,7 +105,8 @@ public class SableCompat {
         return forwardGain * lateralGain * verticalGain;
     }
 
-    private static final java.util.Map<java.util.UUID, dev.ryanhcode.sable.companion.math.Pose3d> SUBLEVEL_INITIAL_POSES = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.Map<java.util.UUID, dev.ryanhcode.sable.companion.math.Pose3dc> SUBLEVEL_INITIAL_POSES = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.Map<java.util.UUID, dev.ryanhcode.sable.companion.math.Pose3dc> SUBLEVEL_LAST_KNOWN_POSES = new java.util.concurrent.ConcurrentHashMap<>();
 
     public static void init() {
         if (ModList.get().isLoaded("sable")) {
@@ -126,6 +127,9 @@ public class SableCompat {
 
                     @Override
                     public void onSubLevelRemoved(dev.ryanhcode.sable.sublevel.SubLevel sub, dev.ryanhcode.sable.sublevel.storage.SubLevelRemovalReason reason) {
+                        if (sub != null && sub.getUniqueId() != null && sub.logicalPose() != null) {
+                            SUBLEVEL_LAST_KNOWN_POSES.put(sub.getUniqueId(), new dev.ryanhcode.sable.companion.math.Pose3d(sub.logicalPose()));
+                        }
                     }
                 });
             } catch (Throwable ignored) {}
@@ -134,7 +138,9 @@ public class SableCompat {
 
     public static void recordSubLevelAssembly(dev.ryanhcode.sable.sublevel.SubLevel sub) {
         if (sub != null && sub.getUniqueId() != null && sub.logicalPose() != null) {
-            SUBLEVEL_INITIAL_POSES.put(sub.getUniqueId(), new dev.ryanhcode.sable.companion.math.Pose3d(sub.logicalPose()));
+            dev.ryanhcode.sable.companion.math.Pose3d copy = new dev.ryanhcode.sable.companion.math.Pose3d(sub.logicalPose());
+            SUBLEVEL_INITIAL_POSES.put(sub.getUniqueId(), copy);
+            SUBLEVEL_LAST_KNOWN_POSES.put(sub.getUniqueId(), copy);
         }
     }
 
@@ -162,29 +168,75 @@ public class SableCompat {
                 dev.ryanhcode.sable.sublevel.SubLevel sub = container.getSubLevel(screenSubId);
                 // If the SubLevel was removed / disassembled:
                 if (sub == null || sub.isRemoved()) {
-                    dev.ryanhcode.sable.companion.math.Pose3dc lastPose = (sub != null) ? sub.logicalPose() : null;
+                    dev.ryanhcode.sable.companion.math.Pose3dc lastPose = SUBLEVEL_LAST_KNOWN_POSES.get(screenSubId);
+                    if (lastPose == null && sub != null && sub.logicalPose() != null) {
+                        lastPose = sub.logicalPose();
+                    }
+                    if (lastPose == null) {
+                        double[] saved = com.mik.optical_diffuser.item.ProjectorLensItem.getSavedSubLevelPose(lens);
+                        if (saved != null) {
+                            lastPose = new dev.ryanhcode.sable.companion.math.Pose3d(
+                                    new org.joml.Vector3d(saved[0], saved[1], saved[2]),
+                                    new org.joml.Quaterniond(saved[3], saved[4], saved[5], saved[6]),
+                                    new org.joml.Vector3d(0, 0, 0),
+                                    new org.joml.Vector3d(1, 1, 1)
+                            );
+                        }
+                    }
+
                     if (lastPose != null) {
                         Vec3 w1 = lastPose.transformPosition(Vec3.atCenterOf(coords.pos1));
                         Vec3 w2 = lastPose.transformPosition(Vec3.atCenterOf(coords.pos2));
                         com.mik.optical_diffuser.item.ProjectorLensItem.setPos1(lens, BlockPos.containing(w1));
                         com.mik.optical_diffuser.item.ProjectorLensItem.setPos2(lens, BlockPos.containing(w2));
+                    } else {
+                        // Fallback: relative offset if diffuser & screen shared the same contraption
+                        int[] rel = com.mik.optical_diffuser.item.ProjectorLensItem.getSavedRelativeOffset(lens);
+                        if (rel != null) {
+                            com.mik.optical_diffuser.item.ProjectorLensItem.setPos1(lens, diffuser.getBlockPos().offset(rel[0], rel[1], rel[2]));
+                            com.mik.optical_diffuser.item.ProjectorLensItem.setPos2(lens, diffuser.getBlockPos().offset(rel[3], rel[4], rel[5]));
+                        }
                     }
                     com.mik.optical_diffuser.item.ProjectorLensItem.setScreenSubLevelId(lens, null);
                     diffuser.setChanged();
+                    diffuser.syncToClient();
                     return true;
+                }
+
+                // SubLevel is currently active: track pose & relative offsets
+                if (sub.logicalPose() != null) {
+                    dev.ryanhcode.sable.companion.math.Pose3d poseCopy = new dev.ryanhcode.sable.companion.math.Pose3d(sub.logicalPose());
+                    SUBLEVEL_LAST_KNOWN_POSES.put(screenSubId, poseCopy);
+                    org.joml.Vector3dc pos = poseCopy.position();
+                    org.joml.Quaterniondc rot = poseCopy.orientation();
+                    com.mik.optical_diffuser.item.ProjectorLensItem.saveSubLevelPose(lens,
+                            pos.x(), pos.y(), pos.z(),
+                            rot.x(), rot.y(), rot.z(), rot.w()
+                    );
+                }
+
+                dev.ryanhcode.sable.sublevel.SubLevel diffuserSub = dev.ryanhcode.sable.Sable.HELPER.getContaining(level, diffuser.getBlockPos());
+                if (diffuserSub != null && diffuserSub.getUniqueId().equals(screenSubId)) {
+                    BlockPos dbp = diffuser.getBlockPos();
+                    com.mik.optical_diffuser.item.ProjectorLensItem.saveRelativeOffset(lens,
+                            coords.pos1.getX() - dbp.getX(),
+                            coords.pos1.getY() - dbp.getY(),
+                            coords.pos1.getZ() - dbp.getZ(),
+                            coords.pos2.getX() - dbp.getX(),
+                            coords.pos2.getY() - dbp.getY(),
+                            coords.pos2.getZ() - dbp.getZ()
+                    );
                 }
                 return false;
             }
 
             // Scenario 2: Lens has NO SubLevel UUID (configured on world blocks before assembly)
-            // Check if pos1 / pos2 blocks were assembled into any active SubLevel!
             Vec3 p1Center = Vec3.atCenterOf(coords.pos1);
             Vec3 p2Center = Vec3.atCenterOf(coords.pos2);
 
             for (dev.ryanhcode.sable.sublevel.SubLevel sub : container.getAllSubLevels()) {
                 if (sub == null || sub.isRemoved()) continue;
 
-                // Check with initial assembly pose if known, otherwise current logical pose
                 dev.ryanhcode.sable.companion.math.Pose3dc testPose = SUBLEVEL_INITIAL_POSES.get(sub.getUniqueId());
                 if (testPose == null) testPose = sub.logicalPose();
                 if (testPose == null) continue;
@@ -194,17 +246,26 @@ public class SableCompat {
 
                 if (sub.getPlot() != null && sub.getPlot().getBoundingBox() != null) {
                     dev.ryanhcode.sable.companion.math.BoundingBox3ic box = sub.getPlot().getBoundingBox();
-                    // Match if plot position falls within or directly bordering the contraption's plot bounds
                     boolean contains = (plotPos1.x >= box.minX() - 2.5 && plotPos1.x <= box.maxX() + 3.5 &&
                                         plotPos1.y >= box.minY() - 2.5 && plotPos1.y <= box.maxY() + 3.5 &&
                                         plotPos1.z >= box.minZ() - 2.5 && plotPos1.z <= box.maxZ() + 3.5);
 
                     if (contains) {
-                        // Match confirmed! Screen was assembled into this SubLevel
                         com.mik.optical_diffuser.item.ProjectorLensItem.setPos1(lens, BlockPos.containing(plotPos1));
                         com.mik.optical_diffuser.item.ProjectorLensItem.setPos2(lens, BlockPos.containing(plotPos2));
                         com.mik.optical_diffuser.item.ProjectorLensItem.setScreenSubLevelId(lens, sub.getUniqueId());
+                        if (sub.logicalPose() != null) {
+                            dev.ryanhcode.sable.companion.math.Pose3d poseCopy = new dev.ryanhcode.sable.companion.math.Pose3d(sub.logicalPose());
+                            SUBLEVEL_LAST_KNOWN_POSES.put(sub.getUniqueId(), poseCopy);
+                            org.joml.Vector3dc pos = poseCopy.position();
+                            org.joml.Quaterniondc rot = poseCopy.orientation();
+                            com.mik.optical_diffuser.item.ProjectorLensItem.saveSubLevelPose(lens,
+                                    pos.x(), pos.y(), pos.z(),
+                                    rot.x(), rot.y(), rot.z(), rot.w()
+                            );
+                        }
                         diffuser.setChanged();
+                        diffuser.syncToClient();
                         return true;
                     }
                 }
@@ -236,6 +297,10 @@ public class SableCompat {
             dev.ryanhcode.sable.api.sublevel.SubLevelContainer container = dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(level);
             dev.ryanhcode.sable.sublevel.SubLevel screenSub = (container != null && screenSubId != null) ? container.getSubLevel(screenSubId) : null;
             if (screenSub != null && screenSub.isRemoved()) screenSub = null;
+
+            if (screenSub != null && screenSub.logicalPose() != null) {
+                SUBLEVEL_LAST_KNOWN_POSES.put(screenSub.getUniqueId(), new dev.ryanhcode.sable.companion.math.Pose3d(screenSub.logicalPose()));
+            }
 
             // CASE 1: BOTH on the SAME SubLevel (Same ship contraption!)
             if (diffuserSub != null && screenSub != null && diffuserSub.getUniqueId().equals(screenSub.getUniqueId())) {
@@ -290,7 +355,7 @@ public class SableCompat {
                 return containing.logicalPose().transformPosition(localScreenPoint);
             }
 
-            return dev.ryanhcode.sable.Sable.HELPER.projectOutOfSubLevel(level, localScreenPoint);
+            return localScreenPoint;
         } catch (Throwable t) {
             return localScreenPoint;
         }
@@ -304,10 +369,10 @@ public class SableCompat {
         dev.ryanhcode.sable.sublevel.SubLevel subLevel = dev.ryanhcode.sable.Sable.HELPER.getContaining(level, pos);
         if (subLevel != null) {
             Level parentLevel = subLevel.getLevel();
-            Vec3 worldStart = dev.ryanhcode.sable.Sable.HELPER.projectOutOfSubLevel(level, localStart);
-            Vec3 worldAhead = dev.ryanhcode.sable.Sable.HELPER.projectOutOfSubLevel(level, localStart.add(localDir));
-            Vec3 worldUpAhead = dev.ryanhcode.sable.Sable.HELPER.projectOutOfSubLevel(level, localStart.add(localUp));
-            
+            Vec3 worldStart = subLevel.logicalPose().transformPosition(localStart);
+            Vec3 worldAhead = subLevel.logicalPose().transformPosition(localStart.add(localDir));
+            Vec3 worldUpAhead = subLevel.logicalPose().transformPosition(localStart.add(localUp));
+
             Vec3 worldDir = worldAhead.subtract(worldStart).normalize();
             Vec3 rawUp = worldUpAhead.subtract(worldStart).normalize();
             Vec3 worldRight = rawUp.cross(worldDir).normalize();

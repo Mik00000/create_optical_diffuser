@@ -93,9 +93,12 @@ public class ProjectorScreenRenderer {
         Vec3 dirToDiffuser = new Vec3(0.5, 0.5, 0.5).subtract(screenCenterLocal);
         if (norm.dot(dirToDiffuser) < 0) {
             norm = norm.scale(-1.0);
-            Vec3 tmpV1 = v1;
-            v1 = v3;
-            v3 = tmpV1;
+            Vec3 tmp0 = v0;
+            v0 = v1;
+            v1 = tmp0;
+            Vec3 tmp3 = v3;
+            v3 = v2;
+            v2 = tmp3;
         }
 
         // Offset 0.02 blocks along normal towards the projector to prevent z-fighting:

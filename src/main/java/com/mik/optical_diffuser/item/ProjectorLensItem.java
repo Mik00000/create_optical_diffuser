@@ -90,6 +90,62 @@ public class ProjectorLensItem extends Item {
         });
     }
 
+    public static void saveSubLevelPose(ItemStack stack, double px, double py, double pz, double ox, double oy, double oz, double ow) {
+        CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
+            tag.putDouble("SubLevelPosX", px);
+            tag.putDouble("SubLevelPosY", py);
+            tag.putDouble("SubLevelPosZ", pz);
+            tag.putDouble("SubLevelRotX", ox);
+            tag.putDouble("SubLevelRotY", oy);
+            tag.putDouble("SubLevelRotZ", oz);
+            tag.putDouble("SubLevelRotW", ow);
+        });
+    }
+
+    public static double[] getSavedSubLevelPose(ItemStack stack) {
+        CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
+        if (customData != null) {
+            CompoundTag tag = customData.copyTag();
+            if (tag.contains("SubLevelPosX")) {
+                return new double[] {
+                        tag.getDouble("SubLevelPosX"),
+                        tag.getDouble("SubLevelPosY"),
+                        tag.getDouble("SubLevelPosZ"),
+                        tag.getDouble("SubLevelRotX"),
+                        tag.getDouble("SubLevelRotY"),
+                        tag.getDouble("SubLevelRotZ"),
+                        tag.getDouble("SubLevelRotW")
+                };
+            }
+        }
+        return null;
+    }
+
+    public static void saveRelativeOffset(ItemStack stack, int rx1, int ry1, int rz1, int rx2, int ry2, int rz2) {
+        CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
+            tag.putInt("RelX1", rx1);
+            tag.putInt("RelY1", ry1);
+            tag.putInt("RelZ1", rz1);
+            tag.putInt("RelX2", rx2);
+            tag.putInt("RelY2", ry2);
+            tag.putInt("RelZ2", rz2);
+        });
+    }
+
+    public static int[] getSavedRelativeOffset(ItemStack stack) {
+        CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
+        if (customData != null) {
+            CompoundTag tag = customData.copyTag();
+            if (tag.contains("RelX1")) {
+                return new int[] {
+                        tag.getInt("RelX1"), tag.getInt("RelY1"), tag.getInt("RelZ1"),
+                        tag.getInt("RelX2"), tag.getInt("RelY2"), tag.getInt("RelZ2")
+                };
+            }
+        }
+        return null;
+    }
+
     @Override
     public boolean isFoil(ItemStack stack) {
         // Enchantment glint appears when both coordinates are selected

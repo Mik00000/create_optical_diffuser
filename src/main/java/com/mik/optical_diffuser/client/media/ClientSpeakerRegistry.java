@@ -31,11 +31,12 @@ public class ClientSpeakerRegistry {
         List<SpeakerBlockEntity> matches = new ArrayList<>();
 
         java.util.UUID diffuserSubId = null;
+        dev.ryanhcode.sable.sublevel.SubLevel diffuserSub = null;
         if (net.neoforged.fml.ModList.get().isLoaded("sable")) {
             try {
-                dev.ryanhcode.sable.sublevel.SubLevel sub = dev.ryanhcode.sable.Sable.HELPER.getContaining(level, diffuserPos);
-                if (sub != null && !sub.isRemoved()) {
-                    diffuserSubId = sub.getUniqueId();
+                diffuserSub = dev.ryanhcode.sable.Sable.HELPER.getContaining(level, diffuserPos);
+                if (diffuserSub != null && !diffuserSub.isRemoved()) {
+                    diffuserSubId = diffuserSub.getUniqueId();
                 }
             } catch (Throwable ignored) {}
         }
@@ -52,15 +53,12 @@ public class ClientSpeakerRegistry {
             }
 
             // 2. Sable assembly match:
-            if (diffuserSubId != null) {
+            if (diffuserSubId != null && diffuserSub != null) {
                 try {
-                    dev.ryanhcode.sable.sublevel.SubLevel sub = dev.ryanhcode.sable.Sable.HELPER.getContaining(level, diffuserPos);
-                    if (sub != null) {
-                        Vec3 plotPos = sub.logicalPose().transformPositionInverse(Vec3.atCenterOf(linked));
-                        if (diffuserPos.closerThan(BlockPos.containing(plotPos), 2.5)) {
-                            matches.add(s);
-                            continue;
-                        }
+                    Vec3 plotPos = diffuserSub.logicalPose().transformPositionInverse(Vec3.atCenterOf(linked));
+                    if (diffuserPos.closerThan(BlockPos.containing(plotPos), 2.5)) {
+                        matches.add(s);
+                        continue;
                     }
                 } catch (Throwable ignored) {}
             }
