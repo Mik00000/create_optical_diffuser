@@ -5,6 +5,8 @@ import com.mik.optical_diffuser.block.OpticalDiffuserBlock;
 import com.mik.optical_diffuser.compat.SableCompat;
 import com.mik.optical_diffuser.menu.OpticalDiffuserMenu;
 import com.simibubi.create.content.kinetics.base.KineticBlockEntity;
+import com.simibubi.create.content.kinetics.fan.processing.FanProcessing;
+import com.simibubi.create.content.kinetics.fan.processing.AllFanProcessingTypes;
 import com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour;
 import net.lpcamors.optical.COUtils;
 import net.lpcamors.optical.blocks.optical_source.BeamHelper;
@@ -1264,7 +1266,7 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
             }
         }
 
-        cookItemsInAABB(targetLevel, coneAABB, rayStart, centerDir, tanHalf);
+        processItemsInCone(targetLevel, coneAABB, rayStart, centerDir, tanHalf, false);
     }
 
     private void applyThermalIgniterConeEffects(Level targetLevel, Vec3 start, Vec3 centerDir) {
@@ -1287,7 +1289,7 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
             }
         }
 
-        cookItemsInAABB(targetLevel, coneAABB, rayStart, centerDir, tanHalf);
+        processItemsInCone(targetLevel, coneAABB, rayStart, centerDir, tanHalf, true);
     }
 
     private void applyCollimatorBeamEffects(Level targetLevel, Vec3 start, Vec3 centerDir) {
@@ -1415,19 +1417,7 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         return samples;
     }
 
-    private static final Map<Item, Item> COOKING_MAP = Map.ofEntries(
-            Map.entry(Items.BEEF, Items.COOKED_BEEF),
-            Map.entry(Items.PORKCHOP, Items.COOKED_PORKCHOP),
-            Map.entry(Items.CHICKEN, Items.COOKED_CHICKEN),
-            Map.entry(Items.MUTTON, Items.COOKED_MUTTON),
-            Map.entry(Items.RABBIT, Items.COOKED_RABBIT),
-            Map.entry(Items.COD, Items.COOKED_COD),
-            Map.entry(Items.SALMON, Items.COOKED_SALMON),
-            Map.entry(Items.POTATO, Items.BAKED_POTATO),
-            Map.entry(Items.KELP, Items.DRIED_KELP)
-    );
-
-    private void cookItemsInAABB(Level targetLevel, AABB aabb, Vec3 rayStart, Vec3 centerDir, double tanHalf) {
+    private void processItemsInCone(Level targetLevel, AABB aabb, Vec3 rayStart, Vec3 centerDir, double tanHalf, boolean isBlasting) {
         List<ItemEntity> items = targetLevel.getEntitiesOfClass(ItemEntity.class, aabb, e -> e.isAlive());
         for (ItemEntity itemEntity : items) {
             Vec3 pos = itemEntity.position();
@@ -1437,14 +1427,16 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                 Vec3 proj = centerDir.scale(distAlong);
                 double allowedR = Math.max(0.5, distAlong * tanHalf) + 0.5;
                 if (toPt.subtract(proj).length() <= allowedR) {
-                    ItemStack stack = itemEntity.getItem();
-                    ItemStack cooked = getCookedResult(stack, targetLevel);
-                    if (!cooked.isEmpty()) {
-                        cooked.setCount(stack.getCount());
-                        itemEntity.setItem(cooked);
-                        targetLevel.playSound(null, itemEntity.blockPosition(), SoundEvents.FIRE_EXTINGUISH, SoundSource.BLOCKS, 0.4f, 1.2f);
-                        if (targetLevel instanceof ServerLevel sl) {
-                            sl.sendParticles(ParticleTypes.SMOKE, pos.x, pos.y + 0.15, pos.z, 5, 0.1, 0.1, 0.1, 0.02);
+                    if (isBlasting) {
+                        if (FanProcessing.canProcess(itemEntity, AllFanProcessingTypes.BLASTING)) {
+                            FanProcessing.applyProcessing(itemEntity, AllFanProcessingTypes.BLASTING);
+                        } else if (FanProcessing.canProcess(itemEntity, AllFanProcessingTypes.SMOKING)) {
+                            FanProcessing.applyProcessing(itemEntity, AllFanProcessingTypes.SMOKING);
+                        }
+                    } else {
+                        // Microwave: smoking / food cooking over time using Create FanProcessing
+                        if (FanProcessing.canProcess(itemEntity, AllFanProcessingTypes.SMOKING)) {
+                            FanProcessing.applyProcessing(itemEntity, AllFanProcessingTypes.SMOKING);
                         }
                     }
                 }
@@ -1452,27 +1444,36 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         }
     }
 
-    private ItemStack getCookedResult(ItemStack stack, Level level) {
-        if (stack.isEmpty()) return ItemStack.EMPTY;
-        Item cooked = COOKING_MAP.get(stack.getItem());
-        if (cooked != null) {
-            return new ItemStack(cooked);
-        }
-        return ItemStack.EMPTY;
-    }
-
     private void meltAt(Level lvl, BlockPos p) {
         try {
             BlockState st = lvl.getBlockState(p);
-            if (st.is(BlockTags.SNOW)) {
+            if (st.is(BlockTags.SNOW) || st.is(Blocks.SNOW)) {
                 lvl.levelEvent(2009, p, 0);
                 lvl.removeBlock(p, false);
-            } else if (st.is(BlockTags.ICE)) {
+            } else if (st.is(Blocks.SNOW_BLOCK) || st.is(Blocks.POWDER_SNOW)) {
+                lvl.levelEvent(2009, p, 0);
+                lvl.setBlock(p, Blocks.WATER.defaultBlockState(), 3);
+            } else if (st.is(Blocks.PACKED_ICE)) {
+                lvl.levelEvent(2009, p, 0);
+                lvl.setBlock(p, Blocks.ICE.defaultBlockState(), 3);
+            } else if (st.is(Blocks.BLUE_ICE)) {
+                lvl.levelEvent(2009, p, 0);
+                lvl.setBlock(p, Blocks.PACKED_ICE.defaultBlockState(), 3);
+            } else if (st.is(BlockTags.ICE) || st.is(Blocks.ICE) || st.is(Blocks.FROSTED_ICE)) {
                 lvl.levelEvent(2009, p, 0);
                 lvl.setBlock(p, Blocks.WATER.defaultBlockState(), 3);
             } else if (st.is(Blocks.WATER)) {
                 lvl.levelEvent(2009, p, 0);
                 lvl.setBlock(p, Blocks.AIR.defaultBlockState(), 3);
+            } else {
+                String id = BuiltInRegistries.BLOCK.getKey(st.getBlock()).getPath();
+                if (id.contains("snow")) {
+                    lvl.levelEvent(2009, p, 0);
+                    lvl.setBlock(p, Blocks.WATER.defaultBlockState(), 3);
+                } else if (id.contains("ice")) {
+                    lvl.levelEvent(2009, p, 0);
+                    lvl.setBlock(p, Blocks.WATER.defaultBlockState(), 3);
+                }
             }
         } catch (Exception ignored) {}
     }

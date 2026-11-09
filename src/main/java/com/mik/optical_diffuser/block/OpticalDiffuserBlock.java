@@ -114,11 +114,14 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
     private boolean isLensItem(ItemStack stack) {
         if (stack.isEmpty()) return false;
         String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-        return id.equals("create_optical_diffuser:focusing_lens")
+        return id.endsWith("_lens")
+                || id.equals("create_optical_diffuser:focusing_lens")
                 || id.equals("create_optical_diffuser:dispersing_lens")
                 || id.equals("create_optical_diffuser:silent_projector_lens")
                 || id.equals("create_optical_diffuser:sound_projector_lens")
                 || id.equals("create_optical_diffuser:hologram_lens")
+                || id.equals("create_optical_diffuser:thermal_ignition_lens")
+                || id.equals("create_optical_diffuser:collimator_lens")
                 || stack.getItem() instanceof com.mik.optical_diffuser.item.HologramLensItem
                 || id.equals("create_optical:beam_focuser")
                 || id.equals("create_optical:beam_condenser");
