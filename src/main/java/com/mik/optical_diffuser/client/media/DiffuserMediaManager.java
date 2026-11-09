@@ -174,20 +174,38 @@ public class DiffuserMediaManager {
                 // Apply OpenAL hardware EFX pitch shifter and de-esser
                 OpenALPitchFixer.applyPitchCompensation(player, targetSpeed);
 
-                // Slow-Mo Geneva drive tick for Zone 4:
-                if (rpm < 14.0f && diffuser.getLevel() != null) {
+                // Authentic mechanical projector clatter & sprocket ticks during forward playback:
+                if (diffuser.getLevel() != null && absRpm > 0.1f) {
                     accumulatedReelAngle += (absRpm * 6.0f) / 20.0f;
-                    if (accumulatedReelAngle >= 90.0f) {
-                        accumulatedReelAngle -= 90.0f;
+                    float threshold = (rpm < 14.0f) ? 90.0f : 30.0f;
+                    if (accumulatedReelAngle >= threshold) {
+                        accumulatedReelAngle -= threshold;
                         var pos = diffuser.getBlockPos();
-                        diffuser.getLevel().playLocalSound(
-                                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
-                                net.minecraft.sounds.SoundEvents.ITEM_FRAME_ROTATE_ITEM,
-                                net.minecraft.sounds.SoundSource.BLOCKS,
-                                0.20f,
-                                0.85f,
-                                false
-                        );
+                        if (rpm < 14.0f) {
+                            // Heavy intermittent Geneva drive tick for slow-mo
+                            diffuser.getLevel().playLocalSound(
+                                    pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                                    net.minecraft.sounds.SoundEvents.ITEM_FRAME_ROTATE_ITEM,
+                                    net.minecraft.sounds.SoundSource.BLOCKS,
+                                    0.20f,
+                                    0.85f,
+                                    false
+                            );
+                        } else {
+                            // Gentle, authentic rhythmic 35mm projector claw/shutter clatter (~3.2 clicks/sec at 16 RPM)
+                            float basePitch = Math.min(1.8f, 1.15f + (speedFactor - 1.0f) * 0.25f);
+                            long t = (player != null) ? player.time() : System.currentTimeMillis();
+                            boolean alt = ((t / 250) % 2 == 0);
+                            float pitch = basePitch + (alt ? 0.10f : 0.0f) + (float) (Math.random() * 0.04 - 0.02);
+                            diffuser.getLevel().playLocalSound(
+                                    pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                                    net.minecraft.sounds.SoundEvents.ITEM_FRAME_ROTATE_ITEM,
+                                    net.minecraft.sounds.SoundSource.BLOCKS,
+                                    0.12f, // Gentle, unobtrusive background clatter
+                                    pitch,
+                                    false
+                            );
+                        }
                     }
                 }
 

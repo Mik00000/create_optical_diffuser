@@ -31,6 +31,8 @@ public class OpticalDiffuserMod {
 
         modEventBus.addListener(this::registerPayloads);
         modEventBus.addListener(this::addCreative);
+        modEventBus.addListener(com.mik.optical_diffuser.compat.create.display.ModDisplaySources::register);
+        modEventBus.addListener(this::commonSetup);
 
         if (FMLEnvironment.dist == Dist.CLIENT) {
             try {
@@ -58,6 +60,12 @@ public class OpticalDiffuserMod {
 
     private void onServerStopping(net.neoforged.neoforge.event.server.ServerStoppingEvent event) {
         com.mik.optical_diffuser.server.media.MediaHttpServer.stop();
+    }
+
+    private void commonSetup(net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent event) {
+        event.enqueueWork(() -> {
+            com.mik.optical_diffuser.compat.create.display.ModDisplaySources.registerAssociations();
+        });
     }
 
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
