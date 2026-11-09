@@ -49,6 +49,8 @@ public class OpticalDiffuserMod {
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(this::onServerStarting);
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(this::onServerStopping);
 
+        com.mik.optical_diffuser.compat.SableCompat.init();
+
         LOGGER.info("Create Optical Diffuser initialized!");
     }
 

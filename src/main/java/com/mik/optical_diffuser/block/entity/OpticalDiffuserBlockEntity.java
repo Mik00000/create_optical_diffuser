@@ -691,6 +691,9 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
 
         if (level != null && !level.isClientSide) {
             ACTIVE_SERVER_DIFFUSERS.add(this);
+            if (level.getGameTime() % 20 == 0) {
+                com.mik.optical_diffuser.compat.SableCompat.checkAndMigrateScreenCoords(this);
+            }
             if (this.isLightEnabled()) {
                 if (level.getGameTime() % 20 == 0 || this.currentLightPositions.isEmpty()) {
                     updateModuleAndRedstone();

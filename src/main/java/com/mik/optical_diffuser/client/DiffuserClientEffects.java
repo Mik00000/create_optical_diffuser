@@ -57,6 +57,9 @@ public class DiffuserClientEffects {
                     com.mik.optical_diffuser.item.ProjectorLensItem.getScreenCoords(be.getActiveLens());
             if (!coords.isComplete()) continue;
 
+            SableCompat.checkAndMigrateScreenCoords(be);
+            coords = com.mik.optical_diffuser.item.ProjectorLensItem.getScreenCoords(be.getActiveLens());
+
             Direction facing = be.getBlockState().getValue(OpticalDiffuserBlock.FACING);
             SableCompat.RayContext rayCtx = SableCompat.getRayContext(level, be.getBlockPos(), facing);
             Vec3 start = rayCtx.start();

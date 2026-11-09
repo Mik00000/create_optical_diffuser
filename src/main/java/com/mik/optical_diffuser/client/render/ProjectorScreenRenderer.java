@@ -29,6 +29,8 @@ public class ProjectorScreenRenderer {
             return;
         }
 
+        SableCompat.checkAndMigrateScreenCoords(be);
+
         ProjectorLensItem.ScreenCoords coords = ProjectorLensItem.getScreenCoords(be.getActiveLens());
         if (!coords.isComplete()) {
             return;
@@ -50,10 +52,9 @@ public class ProjectorScreenRenderer {
         int minZ = Math.min(p1.getZ(), p2.getZ());
         int maxZ = Math.max(p1.getZ(), p2.getZ()) + 1;
 
-        // Determine orientation plane
+        // Determine orientation plane in screen's local grid
         boolean isXPlane = (maxX - minX == 1);
         boolean isZPlane = (maxZ - minZ == 1);
-        boolean isYPlane = (maxY - minY == 1);
 
         ItemStack activeLens = be.getActiveLens();
 
@@ -61,64 +62,20 @@ public class ProjectorScreenRenderer {
         Vec3 corner0, corner1, corner2, corner3;
 
         if (isXPlane) {
-            // Facing along X axis
-            double planeX = minX;
-            double midY = (minY + maxY) * 0.5;
-            double midZ = (minZ + maxZ) * 0.5;
-            Vec3 testP = SableCompat.transformScreenPointToDiffuserLocal(be, activeLens, new Vec3(planeX, midY, midZ));
-            if (testP.x < 0) {
-                // Diffuser is in front of the screen facing +X
-                planeX = maxX + 0.02;
-                corner0 = new Vec3(planeX, minY, maxZ);
-                corner1 = new Vec3(planeX, minY, minZ);
-                corner2 = new Vec3(planeX, maxY, minZ);
-                corner3 = new Vec3(planeX, maxY, maxZ);
-            } else {
-                // Diffuser is in front of the screen facing -X
-                planeX = minX - 0.02;
-                corner0 = new Vec3(planeX, minY, minZ);
-                corner1 = new Vec3(planeX, minY, maxZ);
-                corner2 = new Vec3(planeX, maxY, maxZ);
-                corner3 = new Vec3(planeX, maxY, minZ);
-            }
+            corner0 = new Vec3(minX, minY, maxZ);
+            corner1 = new Vec3(minX, minY, minZ);
+            corner2 = new Vec3(minX, maxY, minZ);
+            corner3 = new Vec3(minX, maxY, maxZ);
         } else if (isZPlane) {
-            // Facing along Z axis
-            double planeZ = minZ;
-            double midX = (minX + maxX) * 0.5;
-            double midY = (minY + maxY) * 0.5;
-            Vec3 testP = SableCompat.transformScreenPointToDiffuserLocal(be, activeLens, new Vec3(midX, midY, planeZ));
-            if (testP.z < 0) {
-                planeZ = maxZ + 0.02; // screen facing +Z
-                corner0 = new Vec3(minX, minY, planeZ);
-                corner1 = new Vec3(maxX, minY, planeZ);
-                corner2 = new Vec3(maxX, maxY, planeZ);
-                corner3 = new Vec3(minX, maxY, planeZ);
-            } else {
-                planeZ = minZ - 0.02; // screen facing -Z
-                corner0 = new Vec3(maxX, minY, planeZ);
-                corner1 = new Vec3(minX, minY, planeZ);
-                corner2 = new Vec3(minX, maxY, planeZ);
-                corner3 = new Vec3(maxX, maxY, planeZ);
-            }
+            corner0 = new Vec3(minX, minY, minZ);
+            corner1 = new Vec3(maxX, minY, minZ);
+            corner2 = new Vec3(maxX, maxY, minZ);
+            corner3 = new Vec3(minX, maxY, minZ);
         } else {
-            // Horizontal floor/ceiling screen
-            double planeY = minY;
-            double midX = (minX + maxX) * 0.5;
-            double midZ = (minZ + maxZ) * 0.5;
-            Vec3 testP = SableCompat.transformScreenPointToDiffuserLocal(be, activeLens, new Vec3(midX, planeY, midZ));
-            if (testP.y < 0) {
-                planeY = maxY + 0.02;
-                corner0 = new Vec3(minX, planeY, minZ);
-                corner1 = new Vec3(maxX, planeY, minZ);
-                corner2 = new Vec3(maxX, planeY, maxZ);
-                corner3 = new Vec3(minX, planeY, maxZ);
-            } else {
-                planeY = minY - 0.02;
-                corner0 = new Vec3(minX, planeY, maxZ);
-                corner1 = new Vec3(maxX, planeY, maxZ);
-                corner2 = new Vec3(maxX, planeY, minZ);
-                corner3 = new Vec3(minX, planeY, minZ);
-            }
+            corner0 = new Vec3(minX, minY, minZ);
+            corner1 = new Vec3(maxX, minY, minZ);
+            corner2 = new Vec3(maxX, minY, maxZ);
+            corner3 = new Vec3(minX, minY, maxZ);
         }
 
         // Project every corner vertex through Sable 3D space into the local pose of the diffuser renderer:
@@ -126,6 +83,27 @@ public class ProjectorScreenRenderer {
         Vec3 v1 = SableCompat.transformScreenPointToDiffuserLocal(be, activeLens, corner1);
         Vec3 v2 = SableCompat.transformScreenPointToDiffuserLocal(be, activeLens, corner2);
         Vec3 v3 = SableCompat.transformScreenPointToDiffuserLocal(be, activeLens, corner3);
+
+        Vec3 rawHoriz = v1.subtract(v0);
+        Vec3 rawVert = v3.subtract(v0);
+        Vec3 norm = rawHoriz.normalize().cross(rawVert.normalize()).normalize();
+
+        // Orient normal towards diffuser so the projection quad faces the projector:
+        Vec3 screenCenterLocal = v0.add(v1).add(v2).add(v3).scale(0.25);
+        Vec3 dirToDiffuser = new Vec3(0.5, 0.5, 0.5).subtract(screenCenterLocal);
+        if (norm.dot(dirToDiffuser) < 0) {
+            norm = norm.scale(-1.0);
+            Vec3 tmpV1 = v1;
+            v1 = v3;
+            v3 = tmpV1;
+        }
+
+        // Offset 0.02 blocks along normal towards the projector to prevent z-fighting:
+        Vec3 surfaceOffset = norm.scale(0.02);
+        v0 = v0.add(surfaceOffset);
+        v1 = v1.add(surfaceOffset);
+        v2 = v2.add(surfaceOffset);
+        v3 = v3.add(surfaceOffset);
 
         boolean isSilent = (mod == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SILENT);
 
@@ -184,7 +162,7 @@ public class ProjectorScreenRenderer {
 
         Vec3 uH = horizVec.normalize();
         Vec3 uV = vertVec.normalize();
-        Vec3 norm = uH.cross(uV).normalize();
+        norm = uH.cross(uV).normalize();
 
         // Render black cinema matte on the full background quad if letterboxed/pillarboxed:
         if (marginW > 0.02 || marginH > 0.02) {

@@ -325,7 +325,7 @@ public class DiffuserMediaManager {
 
                     // 2. Check all linked speakers
                     java.util.List<com.mik.optical_diffuser.block.entity.SpeakerBlockEntity> speakers =
-                            ClientSpeakerRegistry.getSpeakersForDiffuser(diffuser.getBlockPos());
+                            ClientSpeakerRegistry.getSpeakersForDiffuser(diffuser);
                     for (com.mik.optical_diffuser.block.entity.SpeakerBlockEntity s : speakers) {
                         float zoneGain = com.mik.optical_diffuser.compat.SableCompat.getSpeakerZoneGain(
                                 s.getLevel(),

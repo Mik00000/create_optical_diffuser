@@ -181,8 +181,8 @@ public class OpenALPitchFixer {
                         try {
                             int f = EXTEfx.alGenFilters();
                             EXTEfx.alFilteri(f, EXTEfx.AL_FILTER_TYPE, EXTEfx.AL_FILTER_LOWPASS);
-                            EXTEfx.alFilterf(f, EXTEfx.AL_LOWPASS_GAIN, 0.92f);
-                            EXTEfx.alFilterf(f, EXTEfx.AL_LOWPASS_GAINHF, 0.44f);
+                            EXTEfx.alFilterf(f, EXTEfx.AL_LOWPASS_GAIN, 0.98f);
+                            EXTEfx.alFilterf(f, EXTEfx.AL_LOWPASS_GAINHF, 0.70f);
                             return f;
                         } catch (Throwable t) {
                             return 0;
