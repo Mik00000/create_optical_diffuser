@@ -278,13 +278,17 @@ public class HologramRenderer {
             }
             fixControllerBlockEntities(schematicLevel);
 
+            // 5. Populate Sable sub-levels (e.g. ship hulls, tank chassis, tracks, diesel engines)
+            SableCompat.populateSchematicSubLevels(schematicStack, template, schematicLevel, level);
+
             BoundingBox bounds = schematicLevel.getBounds();
             if (bounds == null) return null;
 
-            double cx = (bounds.minX() + bounds.maxX() + 1) * 0.5;
-            double cy = (bounds.minY() + bounds.maxY() + 1) * 0.5;
-            double cz = (bounds.minZ() + bounds.maxZ() + 1) * 0.5;
-            double maxDim = Math.max(bounds.getXSpan(), Math.max(bounds.getYSpan(), bounds.getZSpan()));
+            double[] boundData = SableCompat.computeSchematicBounds(schematicLevel, bounds);
+            double cx = boundData != null ? boundData[0] : (bounds.minX() + bounds.maxX() + 1) * 0.5;
+            double cy = boundData != null ? boundData[1] : (bounds.minY() + bounds.maxY() + 1) * 0.5;
+            double cz = boundData != null ? boundData[2] : (bounds.minZ() + bounds.maxZ() + 1) * 0.5;
+            double maxDim = boundData != null ? boundData[3] : Math.max(bounds.getXSpan(), Math.max(bounds.getYSpan(), bounds.getZSpan()));
 
             SchematicRenderer renderer = new SchematicRenderer(schematicLevel);
 

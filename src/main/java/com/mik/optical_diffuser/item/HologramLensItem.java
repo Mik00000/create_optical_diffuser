@@ -114,10 +114,10 @@ public class HologramLensItem extends Item {
             return InteractionResult.PASS;
         }
 
-        if (player != null && player.isShiftKeyDown()) {
+        // 1. Offhand item priority: if player has any item in offhand, imprint that item!
+        if (player != null && context.getHand() == InteractionHand.MAIN_HAND) {
             ItemStack offhand = player.getOffhandItem();
             if (!offhand.isEmpty()) {
-                // Sneaking with offhand item / schematic imprints offhand even if clicking a block
                 if (!level.isClientSide) {
                     setHoloTarget(stack, offhand.copy(), level.registryAccess());
                     level.playSound(null, clickedPos, SoundEvents.NOTE_BLOCK_CHIME.value(), SoundSource.PLAYERS, 1.0f, 1.4f);
@@ -128,6 +128,7 @@ public class HologramLensItem extends Item {
             }
         }
 
+        // 2. Offhand empty: clicking a block imprints the clicked block
         if (player != null && !state.isAir()) {
             if (!level.isClientSide) {
                 ItemStack target = new ItemStack(state.getBlock().asItem());

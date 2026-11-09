@@ -1,10 +1,44 @@
 package com.mik.optical_diffuser.compat;
 
+import com.simibubi.create.AllDataComponents;
+import com.simibubi.create.content.contraptions.Contraption;
+import com.simibubi.create.content.decoration.copycat.CopycatBlockEntity;
+import com.simibubi.create.foundation.utility.CreatePaths;
+import dev.ryanhcode.sable.neoforge.mixinterface.compatibility.create.schematics.SchematicLevelExtension;
+import dev.ryanhcode.sable.neoforge.mixinterface.compatibility.create.schematics.StructureTemplateExtension;
+import dev.ryanhcode.sable.util.SableNBTUtils;
+import net.createmod.catnip.levelWrappers.SchematicLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtAccounter;
+import net.minecraft.nbt.NbtIo;
+import net.minecraft.nbt.NbtUtils;
+import net.minecraft.nbt.Tag;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.fml.ModList;
+import org.joml.Quaterniond;
+import org.joml.Vector3d;
+
+import java.io.BufferedInputStream;
+import java.io.DataInputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.zip.GZIPInputStream;
 
 public class SableCompat {
 
@@ -381,5 +415,242 @@ public class SableCompat {
             return new RayContext(parentLevel != null ? parentLevel : level, worldStart, worldDir, worldUp, worldRight);
         }
         return new RayContext(level, localStart, localDir, localUp, localRight);
+    }
+
+    public static void populateSchematicSubLevels(
+            ItemStack schematicStack,
+            StructureTemplate template,
+            SchematicLevel schematicLevel,
+            Level level
+    ) {
+        if (!ModList.get().isLoaded("sable")) return;
+        try {
+            if (!(template instanceof StructureTemplateExtension templateExt) ||
+                !(schematicLevel instanceof SchematicLevelExtension levelExt)) {
+                return;
+            }
+
+            List<StructureTemplateExtension.SubLevelTemplate> subTemplates = templateExt.sable$getSubLevels();
+
+            // If templateExt sub-levels are empty, attempt reading directly from schematic file
+            if ((subTemplates == null || subTemplates.isEmpty()) && schematicStack != null && !schematicStack.isEmpty()) {
+                subTemplates = loadSubLevelsFromFile(schematicStack, level);
+            }
+
+            if (subTemplates == null || subTemplates.isEmpty()) return;
+
+            for (StructureTemplateExtension.SubLevelTemplate subLevelTemplate : subTemplates) {
+                SchematicLevel subLevel = new SchematicLevel(BlockPos.ZERO, level);
+                StructurePlaceSettings subSettings = new StructurePlaceSettings();
+                subLevelTemplate.template().placeInWorld(subLevel, BlockPos.ZERO, BlockPos.ZERO, subSettings, level.getRandom(), 2);
+
+                // Initialize Copycat materials in sub-level
+                CompoundTag subTag = subLevelTemplate.template().save(new CompoundTag());
+                ListTag subBlocks = subTag.getList("blocks", Tag.TAG_COMPOUND);
+                for (int j = 0; j < subBlocks.size(); j++) {
+                    CompoundTag bEntry = subBlocks.getCompound(j);
+                    if (bEntry.contains("nbt")) {
+                        CompoundTag bNbt = bEntry.getCompound("nbt");
+                        if (bNbt.contains("Material")) {
+                            BlockPos rawPos = parsePos(bEntry);
+                            BlockEntity beAt = subLevel.getBlockEntity(rawPos);
+                            if (beAt instanceof CopycatBlockEntity copycat) {
+                                if (!copycat.hasCustomMaterial()) {
+                                    BlockState mat = NbtUtils.readBlockState(
+                                            level.holderLookup(Registries.BLOCK),
+                                            bNbt.getCompound("Material")
+                                    );
+                                    if (mat != null && !mat.isAir()) {
+                                        copycat.setMaterial(mat);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Extract contraptions inside sub-level if any
+                ListTag entitiesTag = subTag.getList("entities", Tag.TAG_COMPOUND);
+                for (int j = 0; j < entitiesTag.size(); j++) {
+                    CompoundTag entityEntry = entitiesTag.getCompound(j);
+                    CompoundTag nbt = entityEntry.getCompound("nbt");
+                    String id = nbt.getString("id");
+                    if (id.contains("contraption")) {
+                        CompoundTag contraptionTag = nbt.getCompound("Contraption");
+                        if (!contraptionTag.isEmpty()) {
+                            try {
+                                Contraption contraption = Contraption.fromNBT(level, contraptionTag, false);
+                                if (contraption != null) {
+                                    BlockPos basePos = parsePos(entityEntry);
+                                    for (Map.Entry<BlockPos, StructureTemplate.StructureBlockInfo> entry : contraption.getBlocks().entrySet()) {
+                                        BlockPos placedPos = basePos.offset(entry.getKey());
+                                        subLevel.setBlock(placedPos, entry.getValue().state(), 2);
+                                        if (entry.getValue().nbt() != null) {
+                                            BlockEntity cbe = subLevel.getBlockEntity(placedPos);
+                                            if (cbe != null) {
+                                                cbe.loadWithComponents(entry.getValue().nbt(), level.registryAccess());
+                                            }
+                                        }
+                                    }
+                                    for (var actorPair : contraption.getActors()) {
+                                        if (actorPair != null && actorPair.left != null) {
+                                            StructureTemplate.StructureBlockInfo info = actorPair.left;
+                                            BlockPos placedPos = basePos.offset(info.pos());
+                                            subLevel.setBlock(placedPos, info.state(), 2);
+                                            if (info.nbt() != null) {
+                                                BlockEntity abe = subLevel.getBlockEntity(placedPos);
+                                                if (abe != null) {
+                                                    abe.loadWithComponents(info.nbt(), level.registryAccess());
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (Throwable ignored) {}
+                        }
+                    }
+                }
+
+                levelExt.sable$getSubLevels().add(new SchematicLevelExtension.SchematicSubLevel(
+                        subLevelTemplate.uuid(),
+                        subLevelTemplate.position(),
+                        subLevelTemplate.orientation(),
+                        subLevel
+                ));
+            }
+        } catch (Throwable ignored) {}
+    }
+
+    private static List<StructureTemplateExtension.SubLevelTemplate> loadSubLevelsFromFile(ItemStack stack, Level level) {
+        List<StructureTemplateExtension.SubLevelTemplate> result = new ArrayList<>();
+        try {
+            String file = stack.get(AllDataComponents.SCHEMATIC_FILE);
+            String owner = stack.get(AllDataComponents.SCHEMATIC_OWNER);
+            if (file == null || !file.endsWith(".nbt")) return result;
+
+            Path path = null;
+            if (level.isClientSide) {
+                path = CreatePaths.SCHEMATICS_DIR.resolve(file);
+            } else if (owner != null) {
+                path = CreatePaths.UPLOADED_SCHEMATICS_DIR.resolve(owner).resolve(file);
+            }
+            if (path == null || !Files.exists(path)) {
+                Path fallback = CreatePaths.SCHEMATICS_DIR.resolve(file);
+                if (Files.exists(fallback)) {
+                    path = fallback;
+                }
+            }
+            if (path == null || !Files.exists(path)) return result;
+
+            CompoundTag rootTag;
+            try (DataInputStream dis = new DataInputStream(new BufferedInputStream(new GZIPInputStream(Files.newInputStream(path, StandardOpenOption.READ))))) {
+                rootTag = NbtIo.read(dis, NbtAccounter.unlimitedHeap());
+            } catch (Throwable e) {
+                try (DataInputStream dis = new DataInputStream(new BufferedInputStream(Files.newInputStream(path, StandardOpenOption.READ)))) {
+                    rootTag = NbtIo.read(dis, NbtAccounter.unlimitedHeap());
+                }
+            }
+            if (rootTag == null || !rootTag.contains("sub_levels", Tag.TAG_LIST)) return result;
+
+            ListTag subList = rootTag.getList("sub_levels", Tag.TAG_COMPOUND);
+            for (int i = 0; i < subList.size(); i++) {
+                CompoundTag subTag = subList.getCompound(i);
+                StructureTemplate subTemplate = new StructureTemplate();
+                subTemplate.load(level.holderLookup(Registries.BLOCK), subTag);
+                UUID uuid = subTag.contains("uuid") ? subTag.getUUID("uuid") : UUID.randomUUID();
+                Vector3d pos = SableNBTUtils.readVector3d(subTag.getCompound("position"));
+                Quaterniond rot = SableNBTUtils.readQuaternion(subTag.getCompound("orientation"));
+                result.add(new StructureTemplateExtension.SubLevelTemplate(uuid, pos, rot, subTemplate));
+            }
+        } catch (Throwable ignored) {}
+        return result;
+    }
+
+    private static BlockPos parsePos(CompoundTag entry) {
+        if (entry.contains("pos", Tag.TAG_LIST)) {
+            ListTag list = entry.getList("pos", Tag.TAG_INT);
+            if (list.size() >= 3) {
+                return new BlockPos(list.getInt(0), list.getInt(1), list.getInt(2));
+            }
+            ListTag listD = entry.getList("pos", Tag.TAG_DOUBLE);
+            if (listD.size() >= 3) {
+                return BlockPos.containing(listD.getDouble(0), listD.getDouble(1), listD.getDouble(2));
+            }
+        }
+        if (entry.contains("pos", Tag.TAG_INT_ARRAY)) {
+            int[] arr = entry.getIntArray("pos");
+            if (arr.length >= 3) {
+                return new BlockPos(arr[0], arr[1], arr[2]);
+            }
+        }
+        if (entry.contains("blockPos", Tag.TAG_LIST)) {
+            ListTag list = entry.getList("blockPos", Tag.TAG_INT);
+            if (list.size() >= 3) {
+                return new BlockPos(list.getInt(0), list.getInt(1), list.getInt(2));
+            }
+        }
+        if (entry.contains("blockPos", Tag.TAG_INT_ARRAY)) {
+            int[] arr = entry.getIntArray("blockPos");
+            if (arr.length >= 3) {
+                return new BlockPos(arr[0], arr[1], arr[2]);
+            }
+        }
+        return BlockPos.ZERO;
+    }
+
+    public static double[] computeSchematicBounds(
+            SchematicLevel schematicLevel,
+            BoundingBox rootBounds
+    ) {
+        if (rootBounds == null) return null;
+
+        int minX = rootBounds.minX();
+        int minY = rootBounds.minY();
+        int minZ = rootBounds.minZ();
+        int maxX = rootBounds.maxX();
+        int maxY = rootBounds.maxY();
+        int maxZ = rootBounds.maxZ();
+
+        if (ModList.get().isLoaded("sable")) {
+            try {
+                if (schematicLevel instanceof SchematicLevelExtension ext) {
+                    List<SchematicLevelExtension.SchematicSubLevel> subLevels = ext.sable$getSubLevels();
+                    if (subLevels != null) {
+                        for (SchematicLevelExtension.SchematicSubLevel sub : subLevels) {
+                            BoundingBox sb = sub.level().getBounds();
+                            if (sb != null) {
+                                Vector3d spos = sub.position();
+                                Quaterniond sorient = sub.orientation();
+                                int[] xs = {sb.minX(), sb.maxX() + 1};
+                                int[] ys = {sb.minY(), sb.maxY() + 1};
+                                int[] zs = {sb.minZ(), sb.maxZ() + 1};
+                                for (int x : xs) {
+                                    for (int y : ys) {
+                                        for (int z : zs) {
+                                            Vector3d corner = new Vector3d(x, y, z);
+                                            if (sorient != null) sorient.transform(corner);
+                                            if (spos != null) corner.add(spos);
+                                            minX = Math.min(minX, (int) Math.floor(corner.x));
+                                            minY = Math.min(minY, (int) Math.floor(corner.y));
+                                            minZ = Math.min(minZ, (int) Math.floor(corner.z));
+                                            maxX = Math.max(maxX, (int) Math.ceil(corner.x) - 1);
+                                            maxY = Math.max(maxY, (int) Math.ceil(corner.y) - 1);
+                                            maxZ = Math.max(maxZ, (int) Math.ceil(corner.z) - 1);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        double cx = (minX + maxX + 1) * 0.5;
+        double cy = (minY + maxY + 1) * 0.5;
+        double cz = (minZ + maxZ + 1) * 0.5;
+        double maxDim = Math.max(maxX - minX + 1, Math.max(maxY - minY + 1, maxZ - minZ + 1));
+
+        return new double[] {cx, cy, cz, maxDim};
     }
 }
