@@ -68,37 +68,108 @@ public class SableCompat {
         RayContext ctx = getBlockTransform(level, speakerPos, facing);
         Vec3 rel = playerPos.subtract(ctx.start());
         double forwardDist = rel.dot(ctx.direction());
-        if (forwardDist < -0.5 || forwardDist > 9.5) {
+        if (forwardDist < -1.0 || forwardDist > 28.0) {
             return 0.0f;
         }
 
         double lateral = Math.abs(rel.dot(ctx.right()));
         double vertical = Math.abs(rel.dot(ctx.up()));
-        if (lateral > 4.5 || vertical > 4.5) {
+        if (lateral > 12.0 || vertical > 10.0) {
             return 0.0f;
         }
 
+        // Cinema-scale acoustic coverage:
+        // Forward: 0..20m pristine, 20..28m smooth quadratic falloff
         float forwardGain = 1.0f;
         if (forwardDist < 0.5) {
-            forwardGain = (float) (0.40 + 0.60 * ((forwardDist + 0.5) / 1.0));
-        } else if (forwardDist > 7.0) {
-            double t = (9.5 - forwardDist) / 2.5;
+            forwardGain = (float) (0.50 + 0.50 * ((forwardDist + 1.0) / 1.5));
+        } else if (forwardDist > 20.0) {
+            double t = (28.0 - forwardDist) / 8.0;
             forwardGain = (float) (t * t);
         }
 
+        // Lateral (24m total width): 0..8m full, 8..12m smooth roll-off
         float lateralGain = 1.0f;
-        if (lateral > 3.0) {
-            double t = (4.5 - lateral) / 1.5;
+        if (lateral > 8.0) {
+            double t = (12.0 - lateral) / 4.0;
             lateralGain = (float) (t * t);
         }
 
+        // Vertical (20m total height for balconies/amphitheaters): 0..6m full, 6..10m smooth roll-off
         float verticalGain = 1.0f;
-        if (vertical > 3.0) {
-            double t = (4.5 - vertical) / 1.5;
+        if (vertical > 6.0) {
+            double t = (10.0 - vertical) / 4.0;
             verticalGain = (float) (t * t);
         }
 
         return forwardGain * lateralGain * verticalGain;
+    }
+
+    public static Vec3 transformScreenPointToDiffuserLocal(
+            com.mik.optical_diffuser.block.entity.OpticalDiffuserBlockEntity diffuser,
+            net.minecraft.world.item.ItemStack lens,
+            Vec3 localScreenPoint
+    ) {
+        if (diffuser == null || diffuser.getLevel() == null || localScreenPoint == null) {
+            return Vec3.ZERO;
+        }
+
+        Level level = diffuser.getLevel();
+        Vec3 worldPoint = localScreenPoint;
+
+        if (ModList.get().isLoaded("sable")) {
+            try {
+                worldPoint = resolveScreenWorldPos(level, lens, localScreenPoint);
+            } catch (Throwable ignored) {}
+        }
+
+        // Transform worldPoint into diffuser's local rendering coordinate space
+        if (ModList.get().isLoaded("sable")) {
+            try {
+                dev.ryanhcode.sable.sublevel.SubLevel diffuserSub = dev.ryanhcode.sable.Sable.HELPER.getContaining(level, diffuser.getBlockPos());
+                if (diffuserSub != null && !diffuserSub.isRemoved()) {
+                    Vec3 subLocal = diffuserSub.logicalPose().transformPositionInverse(worldPoint);
+                    return subLocal.subtract(Vec3.atLowerCornerOf(diffuser.getBlockPos()));
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        return worldPoint.subtract(Vec3.atLowerCornerOf(diffuser.getBlockPos()));
+    }
+
+    public static Vec3 resolveScreenWorldPos(Level level, net.minecraft.world.item.ItemStack lens, Vec3 localScreenPoint) {
+        if (level == null || localScreenPoint == null) return Vec3.ZERO;
+        if (!ModList.get().isLoaded("sable")) {
+            return localScreenPoint;
+        }
+
+        try {
+            BlockPos basePos = BlockPos.containing(localScreenPoint);
+
+            // 1. Check if lens explicitly specifies a SubLevel UUID
+            java.util.UUID subLevelId = com.mik.optical_diffuser.item.ProjectorLensItem.getScreenSubLevelId(lens);
+            if (subLevelId != null) {
+                dev.ryanhcode.sable.api.sublevel.SubLevelContainer container =
+                        dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(level);
+                if (container != null) {
+                    dev.ryanhcode.sable.sublevel.SubLevel sub = container.getSubLevel(subLevelId);
+                    if (sub != null && !sub.isRemoved()) {
+                        return sub.logicalPose().transformPosition(localScreenPoint);
+                    }
+                }
+            }
+
+            // 2. Check if localScreenPoint is currently inside any SubLevel (e.g. assembled ship)
+            dev.ryanhcode.sable.sublevel.SubLevel containing = dev.ryanhcode.sable.Sable.HELPER.getContaining(level, basePos);
+            if (containing != null && !containing.isRemoved()) {
+                return containing.logicalPose().transformPosition(localScreenPoint);
+            }
+
+            // 3. Fallback to direct projection via Sable Helper
+            return dev.ryanhcode.sable.Sable.HELPER.projectOutOfSubLevel(level, localScreenPoint);
+        } catch (Throwable t) {
+            return localScreenPoint;
+        }
     }
 
     public static boolean isInsideSpeakerZone(Level level, BlockPos speakerPos, Direction facing, Vec3 playerPos) {

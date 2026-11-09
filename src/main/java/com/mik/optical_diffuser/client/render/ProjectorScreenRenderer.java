@@ -2,6 +2,7 @@ package com.mik.optical_diffuser.client.render;
 
 import com.mik.optical_diffuser.block.entity.OpticalDiffuserBlockEntity;
 import com.mik.optical_diffuser.client.media.DiffuserMediaManager;
+import com.mik.optical_diffuser.compat.SableCompat;
 import com.mik.optical_diffuser.item.ProjectorLensItem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
@@ -9,6 +10,7 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 
@@ -53,60 +55,77 @@ public class ProjectorScreenRenderer {
         boolean isZPlane = (maxZ - minZ == 1);
         boolean isYPlane = (maxY - minY == 1);
 
-        BlockPos diffuserPos = be.getBlockPos();
+        ItemStack activeLens = be.getActiveLens();
 
-        // 4 corner vertices in local block coordinates (relative to diffuser)
-        Vec3 v0, v1, v2, v3;
+        // 4 corner vertices in local screen plane
+        Vec3 corner0, corner1, corner2, corner3;
 
         if (isXPlane) {
             // Facing along X axis
             double planeX = minX;
-            if (diffuserPos.getX() > planeX) {
-                planeX = maxX + 0.02; // screen facing +X
-                v0 = new Vec3(planeX, minY, maxZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
-                v1 = new Vec3(planeX, minY, minZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
-                v2 = new Vec3(planeX, maxY, minZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
-                v3 = new Vec3(planeX, maxY, maxZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
+            double midY = (minY + maxY) * 0.5;
+            double midZ = (minZ + maxZ) * 0.5;
+            Vec3 testP = SableCompat.transformScreenPointToDiffuserLocal(be, activeLens, new Vec3(planeX, midY, midZ));
+            if (testP.x < 0) {
+                // Diffuser is in front of the screen facing +X
+                planeX = maxX + 0.02;
+                corner0 = new Vec3(planeX, minY, maxZ);
+                corner1 = new Vec3(planeX, minY, minZ);
+                corner2 = new Vec3(planeX, maxY, minZ);
+                corner3 = new Vec3(planeX, maxY, maxZ);
             } else {
-                planeX = minX - 0.02; // screen facing -X
-                v0 = new Vec3(planeX, minY, minZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
-                v1 = new Vec3(planeX, minY, maxZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
-                v2 = new Vec3(planeX, maxY, maxZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
-                v3 = new Vec3(planeX, maxY, minZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
+                // Diffuser is in front of the screen facing -X
+                planeX = minX - 0.02;
+                corner0 = new Vec3(planeX, minY, minZ);
+                corner1 = new Vec3(planeX, minY, maxZ);
+                corner2 = new Vec3(planeX, maxY, maxZ);
+                corner3 = new Vec3(planeX, maxY, minZ);
             }
         } else if (isZPlane) {
             // Facing along Z axis
             double planeZ = minZ;
-            if (diffuserPos.getZ() > planeZ) {
+            double midX = (minX + maxX) * 0.5;
+            double midY = (minY + maxY) * 0.5;
+            Vec3 testP = SableCompat.transformScreenPointToDiffuserLocal(be, activeLens, new Vec3(midX, midY, planeZ));
+            if (testP.z < 0) {
                 planeZ = maxZ + 0.02; // screen facing +Z
-                v0 = new Vec3(minX, minY, planeZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
-                v1 = new Vec3(maxX, minY, planeZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
-                v2 = new Vec3(maxX, maxY, planeZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
-                v3 = new Vec3(minX, maxY, planeZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
+                corner0 = new Vec3(minX, minY, planeZ);
+                corner1 = new Vec3(maxX, minY, planeZ);
+                corner2 = new Vec3(maxX, maxY, planeZ);
+                corner3 = new Vec3(minX, maxY, planeZ);
             } else {
                 planeZ = minZ - 0.02; // screen facing -Z
-                v0 = new Vec3(maxX, minY, planeZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
-                v1 = new Vec3(minX, minY, planeZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
-                v2 = new Vec3(minX, maxY, planeZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
-                v3 = new Vec3(maxX, maxY, planeZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
+                corner0 = new Vec3(maxX, minY, planeZ);
+                corner1 = new Vec3(minX, minY, planeZ);
+                corner2 = new Vec3(minX, maxY, planeZ);
+                corner3 = new Vec3(maxX, maxY, planeZ);
             }
         } else {
             // Horizontal floor/ceiling screen
             double planeY = minY;
-            if (diffuserPos.getY() > planeY) {
+            double midX = (minX + maxX) * 0.5;
+            double midZ = (minZ + maxZ) * 0.5;
+            Vec3 testP = SableCompat.transformScreenPointToDiffuserLocal(be, activeLens, new Vec3(midX, planeY, midZ));
+            if (testP.y < 0) {
                 planeY = maxY + 0.02;
-                v0 = new Vec3(minX, planeY, minZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
-                v1 = new Vec3(maxX, planeY, minZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
-                v2 = new Vec3(maxX, planeY, maxZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
-                v3 = new Vec3(minX, planeY, maxZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
+                corner0 = new Vec3(minX, planeY, minZ);
+                corner1 = new Vec3(maxX, planeY, minZ);
+                corner2 = new Vec3(maxX, planeY, maxZ);
+                corner3 = new Vec3(minX, planeY, maxZ);
             } else {
                 planeY = minY - 0.02;
-                v0 = new Vec3(minX, planeY, maxZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
-                v1 = new Vec3(maxX, planeY, maxZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
-                v2 = new Vec3(maxX, planeY, minZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
-                v3 = new Vec3(minX, planeY, minZ).subtract(Vec3.atLowerCornerOf(diffuserPos));
+                corner0 = new Vec3(minX, planeY, maxZ);
+                corner1 = new Vec3(maxX, planeY, maxZ);
+                corner2 = new Vec3(maxX, planeY, minZ);
+                corner3 = new Vec3(minX, planeY, minZ);
             }
         }
+
+        // Project every corner vertex through Sable 3D space into the local pose of the diffuser renderer:
+        Vec3 v0 = SableCompat.transformScreenPointToDiffuserLocal(be, activeLens, corner0);
+        Vec3 v1 = SableCompat.transformScreenPointToDiffuserLocal(be, activeLens, corner1);
+        Vec3 v2 = SableCompat.transformScreenPointToDiffuserLocal(be, activeLens, corner2);
+        Vec3 v3 = SableCompat.transformScreenPointToDiffuserLocal(be, activeLens, corner3);
 
         boolean isSilent = (mod == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SILENT);
 

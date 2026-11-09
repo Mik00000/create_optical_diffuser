@@ -28,12 +28,25 @@ public class FilmReelBlockEntity extends KineticBlockEntity {
         super(ModRegistry.FILM_REEL_BE.get(), pos, state);
     }
 
+    private static final java.util.Map<String, Long> GLOBAL_TIME_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public static long getLastKnownTime(String url) {
+        if (url == null || url.isEmpty()) return 0;
+        return GLOBAL_TIME_CACHE.getOrDefault(url, 0L);
+    }
+
     public String getUrl() {
         return this.videoUrl;
     }
 
     public void setUrl(String url) {
         this.videoUrl = url != null ? url.trim() : "";
+        if (!this.videoUrl.isEmpty() && this.currentTimeMs == 0) {
+            long cached = getLastKnownTime(this.videoUrl);
+            if (cached > 0) {
+                this.currentTimeMs = cached;
+            }
+        }
         notifyUpdate();
     }
 
@@ -43,6 +56,9 @@ public class FilmReelBlockEntity extends KineticBlockEntity {
 
     public void setCurrentTimeMs(long ms) {
         this.currentTimeMs = Math.max(0, ms);
+        if (this.currentTimeMs > 0 && this.videoUrl != null && !this.videoUrl.isEmpty()) {
+            GLOBAL_TIME_CACHE.put(this.videoUrl, this.currentTimeMs);
+        }
         setChanged();
     }
 
@@ -109,6 +125,12 @@ public class FilmReelBlockEntity extends KineticBlockEntity {
         super.read(tag, registries, clientPacket);
         this.videoUrl = tag.getString("VideoUrl");
         this.currentTimeMs = tag.getLong("CurrentTimeMs");
+        if (this.currentTimeMs == 0 && !this.videoUrl.isEmpty()) {
+            long cached = getLastKnownTime(this.videoUrl);
+            if (cached > 0) {
+                this.currentTimeMs = cached;
+            }
+        }
     }
 
     public static String getDisplayFilename(String url) {

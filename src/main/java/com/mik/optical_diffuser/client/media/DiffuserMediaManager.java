@@ -238,6 +238,13 @@ public class DiffuserMediaManager {
                         this.lastRecordedTimeMs = curTime;
                         syncTimeToReel(filmReel, curTime);
 
+                        // Periodically sync time to server every 20 ticks (1s) to prevent rollback
+                        if (filmReel != null && diffuser.getLevel() != null && (diffuser.getLevel().getGameTime() % 20 == 0)) {
+                            net.neoforged.neoforge.network.PacketDistributor.sendToServer(
+                                    new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), curTime)
+                            );
+                        }
+
                         // If server drifted past end of video, reset server reel time to 0
                         if (filmReel != null && duration > 0 && filmReel.getCurrentTimeMs() >= duration) {
                             filmReel.setCurrentTimeMs(0);
@@ -306,13 +313,13 @@ public class DiffuserMediaManager {
                     net.minecraft.world.phys.Vec3 diffuserCenter = com.mik.optical_diffuser.compat.SableCompat.getWorldPos(diffuser.getLevel(), diffuser.getBlockPos());
                     double distToDiffuser = playerPos.distanceTo(diffuserCenter);
 
-                    // 1. Built-in projector soundhead: up to 10 blocks radius (0..6 full 0.60, 6..10 smooth falloff)
-                    if (distToDiffuser <= 10.0) {
-                        if (distToDiffuser <= 6.0) {
-                            builtInGain = 0.60f;
+                    // 1. Built-in projector soundhead: up to 24 blocks radius (0..12 full 0.65, 12..24 smooth falloff)
+                    if (distToDiffuser <= 24.0) {
+                        if (distToDiffuser <= 12.0) {
+                            builtInGain = 0.65f;
                         } else {
-                            double t = (10.0 - distToDiffuser) / 4.0;
-                            builtInGain = (float) (0.60 * (t * t));
+                            double t = (24.0 - distToDiffuser) / 12.0;
+                            builtInGain = (float) (0.65 * (t * t));
                         }
                     }
 
@@ -394,9 +401,10 @@ public class DiffuserMediaManager {
     }
 
     private void startMedia(String url, boolean sound, long resumeTimeMs) {
+        long cachedFallback = FilmReelBlockEntity.getLastKnownTime(url);
         long effectiveTime = (url.equals(this.currentUrl) && this.lastRecordedTimeMs > 0)
                 ? this.lastRecordedTimeMs
-                : (resumeTimeMs > 0 ? resumeTimeMs : this.lastRecordedTimeMs);
+                : (resumeTimeMs > 0 ? resumeTimeMs : (this.lastRecordedTimeMs > 0 ? this.lastRecordedTimeMs : cachedFallback));
         release();
         this.currentUrl = url;
         this.soundEnabled = sound;
@@ -485,6 +493,11 @@ public class DiffuserMediaManager {
             FilmReelBlockEntity filmReel = diffuser.getConnectedFilmReel();
             if (filmReel != null && this.lastRecordedTimeMs > 0) {
                 syncTimeToReel(filmReel, this.lastRecordedTimeMs);
+                try {
+                    net.neoforged.neoforge.network.PacketDistributor.sendToServer(
+                            new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs)
+                    );
+                } catch (Throwable ignored) {}
             }
             try {
                 com.mik.optical_diffuser.util.DiffuserLogger.info("Releasing media player for url='{}'", currentUrl);

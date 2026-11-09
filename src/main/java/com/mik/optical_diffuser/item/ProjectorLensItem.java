@@ -69,6 +69,27 @@ public class ProjectorLensItem extends Item {
         });
     }
 
+    public static java.util.UUID getScreenSubLevelId(ItemStack stack) {
+        CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
+        if (customData != null) {
+            CompoundTag tag = customData.copyTag();
+            if (tag.hasUUID("ScreenSubLevel")) {
+                return tag.getUUID("ScreenSubLevel");
+            }
+        }
+        return null;
+    }
+
+    public static void setScreenSubLevelId(ItemStack stack, java.util.UUID uuid) {
+        CustomData.update(DataComponents.CUSTOM_DATA, stack, tag -> {
+            if (uuid != null) {
+                tag.putUUID("ScreenSubLevel", uuid);
+            } else {
+                tag.remove("ScreenSubLevel");
+            }
+        });
+    }
+
     @Override
     public boolean isFoil(ItemStack stack) {
         // Enchantment glint appears when both coordinates are selected
@@ -88,10 +109,23 @@ public class ProjectorLensItem extends Item {
         }
 
         if (player != null) {
+            java.util.UUID subLevelId = null;
+            String subLevelName = null;
+            if (net.neoforged.fml.ModList.get().isLoaded("sable")) {
+                try {
+                    dev.ryanhcode.sable.sublevel.SubLevel sub = dev.ryanhcode.sable.Sable.HELPER.getContaining(level, clickedPos);
+                    if (sub != null && !sub.isRemoved()) {
+                        subLevelId = sub.getUniqueId();
+                        subLevelName = sub.getName();
+                    }
+                } catch (Throwable ignored) {}
+            }
+
             if (player.isShiftKeyDown()) {
                 // Shift + Right-Click: select corner 2
                 if (!level.isClientSide) {
                     setPos2(stack, clickedPos);
+                    setScreenSubLevelId(stack, subLevelId);
                     ScreenCoords coords = getScreenCoords(stack);
                     player.displayClientMessage(Component.translatable("chat.create_optical_diffuser.corner2_set",
                             clickedPos.getX(), clickedPos.getY(), clickedPos.getZ()).withStyle(ChatFormatting.AQUA), true);
@@ -102,7 +136,11 @@ public class ProjectorLensItem extends Item {
                         int dz = Math.abs(coords.pos1.getZ() - coords.pos2.getZ()) + 1;
                         int w = Math.max(dx, dz);
                         int h = dy;
-                        player.displayClientMessage(Component.translatable("chat.create_optical_diffuser.screen_configured", w, h).withStyle(ChatFormatting.GREEN), false);
+                        net.minecraft.network.chat.MutableComponent msg = Component.translatable("chat.create_optical_diffuser.screen_configured", w, h).withStyle(ChatFormatting.GREEN);
+                        if (subLevelName != null && !subLevelName.isEmpty()) {
+                            msg.append(Component.literal(" [" + subLevelName + "]").withStyle(ChatFormatting.LIGHT_PURPLE));
+                        }
+                        player.displayClientMessage(msg, false);
                     }
                 }
                 return InteractionResult.sidedSuccess(level.isClientSide);
@@ -110,6 +148,7 @@ public class ProjectorLensItem extends Item {
                 // Right-Click: select corner 1
                 if (!level.isClientSide) {
                     setPos1(stack, clickedPos);
+                    setScreenSubLevelId(stack, subLevelId);
                     player.displayClientMessage(Component.translatable("chat.create_optical_diffuser.corner1_set",
                             clickedPos.getX(), clickedPos.getY(), clickedPos.getZ()).withStyle(ChatFormatting.GOLD), true);
                 }
@@ -144,6 +183,12 @@ public class ProjectorLensItem extends Item {
                     coords.pos1.getX(), coords.pos1.getY(), coords.pos1.getZ(),
                     coords.pos2.getX(), coords.pos2.getY(), coords.pos2.getZ(),
                     w, h).withStyle(ChatFormatting.GREEN));
+
+            java.util.UUID subId = getScreenSubLevelId(stack);
+            if (subId != null) {
+                tooltip.add(Component.literal("Anchor: ").withStyle(ChatFormatting.DARK_PURPLE)
+                        .append(Component.literal("Sable Contraption").withStyle(ChatFormatting.LIGHT_PURPLE)));
+            }
         } else {
             tooltip.add(Component.translatable("tooltip.create_optical_diffuser.projector_lens.screen_not_configured").withStyle(ChatFormatting.RED));
         }

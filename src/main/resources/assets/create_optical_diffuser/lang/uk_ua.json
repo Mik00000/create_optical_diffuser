@@ -42,7 +42,7 @@
   "tooltip.create_optical_diffuser.speaker.volume_fmt": "Гучність: %d%%",
   "tooltip.create_optical_diffuser.speaker.linked": "Підключений дифузор: [%d, %d, %d]",
   "tooltip.create_optical_diffuser.speaker.unlinked": "Не прив'язано (ПКМ по оптичному дифузору для прив'язки)",
-  "tooltip.create_optical_diffuser.speaker.coverage": "Зона покриття: 9x9 попереду",
+  "tooltip.create_optical_diffuser.speaker.coverage": "Зона покриття: 28x24 попереду (Кінозал)",
   "display_source.create_optical_diffuser.film_reel_time": "Час відтворення плівки",
   "display_source.create_optical_diffuser.film_reel_info": "Назва та статус фільму"
 }

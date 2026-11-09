@@ -66,7 +66,7 @@ public class DiffuserClientEffects {
                     (coords.pos1.getY() + coords.pos2.getY()) * 0.5 + 0.5,
                     (coords.pos1.getZ() + coords.pos2.getZ()) * 0.5 + 0.5
             );
-            Vec3 worldScreenCenter = SableCompat.getWorldPos(level, BlockPos.containing(screenCenter));
+            Vec3 worldScreenCenter = SableCompat.resolveScreenWorldPos(level, be.getActiveLens(), screenCenter);
 
             Vec3 beamVec = worldScreenCenter.subtract(start);
             double beamDist = beamVec.length();

@@ -58,7 +58,7 @@
   "tooltip.create_optical_diffuser.speaker.volume_fmt": "Volume: %d%%",
   "tooltip.create_optical_diffuser.speaker.linked": "Linked Diffuser: [%d, %d, %d]",
   "tooltip.create_optical_diffuser.speaker.unlinked": "Unlinked (Right-click an Optical Diffuser to pair)",
-  "tooltip.create_optical_diffuser.speaker.coverage": "Coverage: 9x9 Zone Ahead",
+  "tooltip.create_optical_diffuser.speaker.coverage": "Coverage: 28x24 Cinema Zone Ahead",
   "display_source.create_optical_diffuser.film_reel_time": "Film Playback Time",
   "display_source.create_optical_diffuser.film_reel_info": "Film Title & Status"
 }
