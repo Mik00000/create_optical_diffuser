@@ -17,6 +17,8 @@ public class DiffuserServerConfig {
     public final ModConfigSpec.ConfigValue<String> publicHost;
     public final ModConfigSpec.IntValue maxUploadMb;
 
+    public final ModConfigSpec.BooleanValue archimedesOverchargedApocalypseMode;
+
     public DiffuserServerConfig(ModConfigSpec.Builder builder) {
         builder.comment("Server-side media streaming and upload settings for Create Optical Diffuser").push("server_media");
 
@@ -31,6 +33,14 @@ public class DiffuserServerConfig {
         maxUploadMb = builder
                 .comment("Maximum video file upload size allowed for server admins in MB (default: 500 MB).")
                 .defineInRange("maxUploadMb", 500, 10, 4096);
+
+        builder.pop();
+
+        builder.comment("Lens mechanics and gameplay balance settings").push("lenses");
+
+        archimedesOverchargedApocalypseMode = builder
+                .comment("Semi-secret overcharged apocalypse mode for Archimedes Thermal Lens: vaporizes water into dry holes, spreads fire chaotically on any surface, and unleashes destructive high-damage chaos (default: false).")
+                .define("archimedesOverchargedApocalypseMode", false);
 
         builder.pop();
     }
