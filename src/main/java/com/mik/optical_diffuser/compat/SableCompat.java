@@ -115,22 +115,36 @@ public class SableCompat {
         }
     }
 
+    public static List<dev.ryanhcode.sable.sublevel.SubLevel> getIntersectingSubLevels(Level level, AABB aabb) {
+        if (level == null || aabb == null || !ModList.get().isLoaded("sable")) return List.of();
+        try {
+            dev.ryanhcode.sable.api.sublevel.SubLevelContainer container =
+                    dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(level);
+            if (container == null) return List.of();
+
+            List<dev.ryanhcode.sable.sublevel.SubLevel> result = new ArrayList<>();
+            for (dev.ryanhcode.sable.sublevel.SubLevel sub : container.getAllSubLevels()) {
+                if (sub == null || sub.isRemoved() || sub.logicalPose() == null || sub.getLevel() == null) continue;
+                if (sub.boundingBox() != null && !sub.boundingBox().toMojang().intersects(aabb)) continue;
+                result.add(sub);
+            }
+            return result;
+        } catch (Throwable t) {
+            return List.of();
+        }
+    }
+
     public static boolean processThermalAt(
-            Level worldLevel,
+            List<dev.ryanhcode.sable.sublevel.SubLevel> candidateSubLevels,
             Vec3 worldPt,
             Vec3 rayDir,
             float rpm,
             RandomSource random,
-            boolean isApocalypse,
             Set<BlockPos> visitedDepots
     ) {
-        if (worldLevel == null || !ModList.get().isLoaded("sable")) return false;
+        if (candidateSubLevels == null || candidateSubLevels.isEmpty()) return false;
         try {
-            dev.ryanhcode.sable.api.sublevel.SubLevelContainer container =
-                    dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(worldLevel);
-            if (container == null) return false;
-
-            for (dev.ryanhcode.sable.sublevel.SubLevel sub : container.getAllSubLevels()) {
+            for (dev.ryanhcode.sable.sublevel.SubLevel sub : candidateSubLevels) {
                 if (sub == null || sub.isRemoved() || sub.logicalPose() == null || sub.getLevel() == null) continue;
 
                 if (sub.boundingBox() != null) {
@@ -147,28 +161,31 @@ public class SableCompat {
                     continue;
                 }
 
-                // Process Create Depots and Belts on the ship
+                // Process Create Depots and Belts on the ship (only if block has a block entity!)
                 if (visitedDepots != null) {
                     BlockPos[] depotCandidates = new BlockPos[]{plotPos, plotPos.below()};
                     for (BlockPos dPos : depotCandidates) {
                         if (visitedDepots.add(dPos)) {
-                            com.simibubi.create.content.kinetics.belt.behaviour.TransportedItemStackHandlerBehaviour handler =
-                                    com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour.get(
-                                            subLevel, dPos, com.simibubi.create.content.kinetics.belt.behaviour.TransportedItemStackHandlerBehaviour.TYPE
-                                    );
-                            if (handler != null) {
-                                handler.handleProcessingOnAllItems(transported -> {
-                                    if (com.simibubi.create.content.kinetics.fan.processing.AllFanProcessingTypes.SMOKING.canProcess(transported.stack, subLevel)) {
-                                        return com.simibubi.create.content.kinetics.fan.processing.FanProcessing.applyProcessing(
-                                                transported, subLevel, com.simibubi.create.content.kinetics.fan.processing.AllFanProcessingTypes.SMOKING
+                            BlockState dState = subLevel.getBlockState(dPos);
+                            if (dState.hasBlockEntity()) {
+                                com.simibubi.create.content.kinetics.belt.behaviour.TransportedItemStackHandlerBehaviour handler =
+                                        com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour.get(
+                                                subLevel, dPos, com.simibubi.create.content.kinetics.belt.behaviour.TransportedItemStackHandlerBehaviour.TYPE
                                         );
-                                    } else if ((rpm >= 128.0f || isApocalypse) && com.simibubi.create.content.kinetics.fan.processing.AllFanProcessingTypes.BLASTING.canProcess(transported.stack, subLevel)) {
-                                        return com.simibubi.create.content.kinetics.fan.processing.FanProcessing.applyProcessing(
-                                                transported, subLevel, com.simibubi.create.content.kinetics.fan.processing.AllFanProcessingTypes.BLASTING
-                                        );
-                                    }
-                                    return com.simibubi.create.content.kinetics.belt.behaviour.TransportedItemStackHandlerBehaviour.TransportedResult.doNothing();
-                                });
+                                if (handler != null) {
+                                    handler.handleProcessingOnAllItems(transported -> {
+                                        if (com.simibubi.create.content.kinetics.fan.processing.AllFanProcessingTypes.SMOKING.canProcess(transported.stack, subLevel)) {
+                                            return com.simibubi.create.content.kinetics.fan.processing.FanProcessing.applyProcessing(
+                                                    transported, subLevel, com.simibubi.create.content.kinetics.fan.processing.AllFanProcessingTypes.SMOKING
+                                            );
+                                        } else if (rpm >= 128.0f && com.simibubi.create.content.kinetics.fan.processing.AllFanProcessingTypes.BLASTING.canProcess(transported.stack, subLevel)) {
+                                            return com.simibubi.create.content.kinetics.fan.processing.FanProcessing.applyProcessing(
+                                                    transported, subLevel, com.simibubi.create.content.kinetics.fan.processing.AllFanProcessingTypes.BLASTING
+                                            );
+                                        }
+                                        return com.simibubi.create.content.kinetics.belt.behaviour.TransportedItemStackHandlerBehaviour.TransportedResult.doNothing();
+                                    });
+                                }
                             }
                         }
                     }
@@ -178,7 +195,7 @@ public class SableCompat {
                 Direction plotHitFace = Direction.getNearest(-plotRayDir.x, -plotRayDir.y, -plotRayDir.z);
 
                 return com.mik.optical_diffuser.block.entity.OpticalDiffuserBlockEntity.processThermalBlock(
-                        subLevel, plotPos, plotHitFace, rpm, random, isApocalypse
+                        subLevel, plotPos, plotHitFace, rpm, random
                 );
             }
         } catch (Throwable ignored) {}

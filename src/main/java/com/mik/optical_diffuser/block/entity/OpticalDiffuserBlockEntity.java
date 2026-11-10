@@ -922,13 +922,15 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
 
             // Stage 4 Archimedes Thermal Death Ray
             if (module == DiffuserModule.THERMAL_IGNITER) {
-                applyThermalIgniterConeEffects(targetLevel, start, centerDir, rayCtx.up(), rayCtx.right());
-                if (level != targetLevel) {
-                    Vec3 localStart = Vec3.atCenterOf(pos).add(Vec3.atLowerCornerOf(facing.getNormal()).scale(0.50));
-                    Vec3 localDir = Vec3.atLowerCornerOf(facing.getNormal());
-                    Vec3 localUp = (facing.getAxis() == Direction.Axis.Y) ? new Vec3(0, 0, 1) : new Vec3(0, 1, 0);
-                    Vec3 localRight = localDir.cross(localUp).normalize();
-                    applyThermalIgniterConeEffects(level, localStart, localDir, localUp, localRight);
+                if (gameTime % 4 == 0) {
+                    applyThermalIgniterConeEffects(targetLevel, start, centerDir, rayCtx.up(), rayCtx.right());
+                    if (level != targetLevel) {
+                        Vec3 localStart = Vec3.atCenterOf(pos).add(Vec3.atLowerCornerOf(facing.getNormal()).scale(0.50));
+                        Vec3 localDir = Vec3.atLowerCornerOf(facing.getNormal());
+                        Vec3 localUp = (facing.getAxis() == Direction.Axis.Y) ? new Vec3(0, 0, 1) : new Vec3(0, 1, 0);
+                        Vec3 localRight = localDir.cross(localUp).normalize();
+                        applyThermalIgniterConeEffects(level, localStart, localDir, localUp, localRight);
+                    }
                 }
             }
 
@@ -1339,52 +1341,32 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         double tanHalf = Math.tan(Math.toRadians(this.coneAngle * 0.5));
         double maxRadius = Math.max(1.0, this.coneRange * tanHalf);
         AABB coneAABB = new AABB(start, start.add(centerDir.scale(this.coneRange))).inflate(maxRadius + 3.0);
-        List<LivingEntity> entities = targetLevel.getEntitiesOfClass(LivingEntity.class, coneAABB, e -> e.isAlive() && !e.isSpectator());
         Vec3 rayStart = start.add(centerDir.scale(0.12));
 
         float rpm = Math.max(this.cachedSpeed, Math.max(Math.abs(getSpeed()), Math.abs(getEffectiveSpinSpeed())));
         float rpmRatio = Math.min(1.0f, Math.max(0.0f, rpm / 256.0f));
 
-        boolean isApocalypse = DiffuserServerConfig.INSTANCE != null && DiffuserServerConfig.INSTANCE.archimedesOverchargedApocalypseMode.get();
-
         long gameTime = targetLevel.getGameTime();
 
-        // Mob damage
-        if (isApocalypse) {
-            // Secret apocalypse mode: original high damage
-            float damage = 2.5f + rpmRatio * 7.5f;
-            if (gameTime % 4 == 0) {
-                for (LivingEntity entity : entities) {
-                    if (isEntityInCone(entity, rayStart, centerDir, tanHalf, targetLevel)) {
-                        Vec3 originalMotion = entity.getDeltaMovement();
-                        entity.invulnerableTime = 0;
-                        entity.hurt(targetLevel.damageSources().inFire(), damage);
-                        entity.setDeltaMovement(originalMotion);
-                        entity.hurtMarked = true;
-                        entity.igniteForSeconds((int) (4 + rpmRatio * 8));
-                    }
-                }
-            }
-        } else {
-            // Standard balanced mode: moderate damage, no one-shot
+        // Mob damage every 8 ticks
+        if (gameTime % 8 == 0) {
             float damage = 1.0f + rpmRatio * 2.0f; // 1.0 to 3.0 damage (0.5 to 1.5 hearts)
-            if (gameTime % 8 == 0) {
-                for (LivingEntity entity : entities) {
-                    if (isEntityInCone(entity, rayStart, centerDir, tanHalf, targetLevel)) {
-                        Vec3 originalMotion = entity.getDeltaMovement();
-                        entity.hurt(targetLevel.damageSources().inFire(), damage);
-                        entity.setDeltaMovement(originalMotion);
-                        entity.igniteForSeconds((int) (4 + rpmRatio * 6));
-                    }
+            List<LivingEntity> entities = targetLevel.getEntitiesOfClass(LivingEntity.class, coneAABB, e -> e.isAlive() && !e.isSpectator());
+            for (LivingEntity entity : entities) {
+                if (isEntityInCone(entity, rayStart, centerDir, tanHalf, targetLevel)) {
+                    Vec3 originalMotion = entity.getDeltaMovement();
+                    entity.hurt(targetLevel.damageSources().inFire(), damage);
+                    entity.setDeltaMovement(originalMotion);
+                    entity.igniteForSeconds((int) (4 + rpmRatio * 6));
                 }
             }
         }
 
         // Process dropped items in cone (cooking food / smelting)
-        processItemsInCone(targetLevel, coneAABB, rayStart, centerDir, tanHalf, rpm >= 128.0f || isApocalypse);
+        processItemsInCone(targetLevel, coneAABB, rayStart, centerDir, tanHalf, rpm >= 128.0f);
 
         // Process blocks and depots in cone
-        processArchimedesBlockThermalRay(targetLevel, start, centerDir, up, right, rpm, isApocalypse);
+        processArchimedesBlockThermalRay(targetLevel, start, centerDir, up, right, rpm, coneAABB);
 
         // Quiet ambient fire sound throttled to once per second
         if (gameTime % 20 == 0) {
@@ -1562,12 +1544,6 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
             } else if (st.is(BlockTags.ICE) || st.is(Blocks.ICE) || st.is(Blocks.FROSTED_ICE)) {
                 lvl.levelEvent(2009, p, 0);
                 lvl.setBlock(p, Blocks.WATER.defaultBlockState(), 3);
-            } else if (st.is(Blocks.WATER)) {
-                boolean isApocalypse = DiffuserServerConfig.INSTANCE != null && DiffuserServerConfig.INSTANCE.archimedesOverchargedApocalypseMode.get();
-                if (isApocalypse) {
-                    lvl.levelEvent(2009, p, 0);
-                    lvl.setBlock(p, Blocks.AIR.defaultBlockState(), 3);
-                }
             } else {
                 String id = BuiltInRegistries.BLOCK.getKey(st.getBlock()).getPath();
                 if (id.contains("snow")) {
@@ -1581,31 +1557,32 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         } catch (Exception ignored) {}
     }
 
-    private void processArchimedesBlockThermalRay(Level targetLevel, Vec3 start, Vec3 centerDir, Vec3 up, Vec3 right, float rpm, boolean isApocalypse) {
+    private void processArchimedesBlockThermalRay(Level targetLevel, Vec3 start, Vec3 centerDir, Vec3 up, Vec3 right, float rpm, AABB coneAABB) {
         if (targetLevel == null) return;
         double tanHalf = Math.tan(Math.toRadians(this.coneAngle * 0.5));
         RandomSource random = targetLevel.getRandom();
 
-        // Rays to sample: Center + 3 concentric rings (37 rays for dense, gap-free thermal cone coverage)
-        List<double[]> uvList = new ArrayList<>();
+        // Rays: Center + 6 inner + 10 outer = 17 rays (dense coverage without lag)
+        List<double[]> uvList = new ArrayList<>(17);
         uvList.add(new double[]{0.0, 0.0});
         for (int i = 0; i < 6; i++) {
             double a = i * (Math.PI / 3.0);
-            uvList.add(new double[]{Math.cos(a) * 0.30, Math.sin(a) * 0.30});
+            uvList.add(new double[]{Math.cos(a) * 0.40, Math.sin(a) * 0.40});
         }
-        for (int i = 0; i < 12; i++) {
-            double a = i * (Math.PI / 6.0) + (Math.PI / 12.0);
-            uvList.add(new double[]{Math.cos(a) * 0.60, Math.sin(a) * 0.60});
+        for (int i = 0; i < 10; i++) {
+            double a = i * (Math.PI / 5.0) + (Math.PI / 10.0);
+            uvList.add(new double[]{Math.cos(a) * 0.85, Math.sin(a) * 0.85});
         }
-        for (int i = 0; i < 18; i++) {
-            double a = i * (Math.PI / 9.0) + (Math.PI / 18.0);
-            uvList.add(new double[]{Math.cos(a) * 0.90, Math.sin(a) * 0.90});
+
+        List<dev.ryanhcode.sable.sublevel.SubLevel> sableCandidates = null;
+        if (ModList.get().isLoaded("sable")) {
+            sableCandidates = SableCompat.getIntersectingSubLevels(targetLevel, coneAABB);
         }
 
         Set<BlockPos> visited = new HashSet<>();
         Set<BlockPos> visitedDepots = new HashSet<>();
         double maxDist = this.coneRange;
-        double step = 1.0;
+        double step = 1.5;
 
         for (double[] uv : uvList) {
             Vec3 rayDir = centerDir.add(right.scale(uv[0] * tanHalf)).add(up.scale(uv[1] * tanHalf)).normalize();
@@ -1613,29 +1590,32 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                 Vec3 pt = start.add(rayDir.scale(d));
                 BlockPos p = BlockPos.containing(pt);
 
-                // Cook food or smelt items on Create Depots & Belts
+                // Cook food or smelt items on Create Depots & Belts (only if block has block entity!)
                 BlockPos[] depotCandidates = new BlockPos[]{p, p.below()};
                 for (BlockPos dPos : depotCandidates) {
                     if (visitedDepots.add(dPos)) {
-                        TransportedItemStackHandlerBehaviour handler = BlockEntityBehaviour.get(targetLevel, dPos, TransportedItemStackHandlerBehaviour.TYPE);
-                        if (handler != null) {
-                            handler.handleProcessingOnAllItems(transported -> {
-                                if (AllFanProcessingTypes.SMOKING.canProcess(transported.stack, targetLevel)) {
-                                    return FanProcessing.applyProcessing(transported, targetLevel, AllFanProcessingTypes.SMOKING);
-                                } else if ((rpm >= 128.0f || isApocalypse) && AllFanProcessingTypes.BLASTING.canProcess(transported.stack, targetLevel)) {
-                                    return FanProcessing.applyProcessing(transported, targetLevel, AllFanProcessingTypes.BLASTING);
-                                }
-                                return TransportedItemStackHandlerBehaviour.TransportedResult.doNothing();
-                            });
+                        BlockState dState = targetLevel.getBlockState(dPos);
+                        if (dState.hasBlockEntity()) {
+                            TransportedItemStackHandlerBehaviour handler = BlockEntityBehaviour.get(targetLevel, dPos, TransportedItemStackHandlerBehaviour.TYPE);
+                            if (handler != null) {
+                                handler.handleProcessingOnAllItems(transported -> {
+                                    if (AllFanProcessingTypes.SMOKING.canProcess(transported.stack, targetLevel)) {
+                                        return FanProcessing.applyProcessing(transported, targetLevel, AllFanProcessingTypes.SMOKING);
+                                    } else if (rpm >= 128.0f && AllFanProcessingTypes.BLASTING.canProcess(transported.stack, targetLevel)) {
+                                        return FanProcessing.applyProcessing(transported, targetLevel, AllFanProcessingTypes.BLASTING);
+                                    }
+                                    return TransportedItemStackHandlerBehaviour.TransportedResult.doNothing();
+                                });
+                            }
                         }
                     }
                 }
 
                 if (visited.add(p)) {
                     Direction hitFace = Direction.getNearest(-rayDir.x, -rayDir.y, -rayDir.z);
-                    boolean stop = processThermalBlock(targetLevel, p, hitFace, rpm, random, isApocalypse);
-                    if (!stop && ModList.get().isLoaded("sable")) {
-                        stop = SableCompat.processThermalAt(targetLevel, pt, rayDir, rpm, random, isApocalypse, visitedDepots);
+                    boolean stop = processThermalBlock(targetLevel, p, hitFace, rpm, random);
+                    if (!stop && sableCandidates != null && !sableCandidates.isEmpty()) {
+                        stop = SableCompat.processThermalAt(sableCandidates, pt, rayDir, rpm, random, visitedDepots);
                     }
                     if (stop) {
                         break;
@@ -1719,7 +1699,7 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         return false;
     }
 
-    public static void igniteNeighborFace(Level lvl, BlockPos p, @Nullable Direction hitDir, boolean isApocalypse) {
+    public static void igniteNeighborFace(Level lvl, BlockPos p, @Nullable Direction hitDir) {
         Direction[] tryDirs;
         if (hitDir != null) {
             tryDirs = new Direction[]{hitDir, Direction.UP, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.DOWN};
@@ -1735,7 +1715,7 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                     continue; // Never place fire inside water
                 }
                 BlockState fireState = BaseFireBlock.getState(lvl, adj);
-                if (isApocalypse || fireState.canSurvive(lvl, adj)) {
+                if (fireState.canSurvive(lvl, adj)) {
                     lvl.setBlock(adj, fireState, 3);
                     return;
                 }
@@ -1743,7 +1723,7 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         }
     }
 
-    public static boolean processThermalBlock(Level lvl, BlockPos p, @Nullable Direction hitDir, float rpm, RandomSource random, boolean isApocalypse) {
+    public static boolean processThermalBlock(Level lvl, BlockPos p, @Nullable Direction hitDir, float rpm, RandomSource random) {
         try {
             BlockState st = lvl.getBlockState(p);
             if (st.isAir() || st.is(Blocks.LIGHT)) {
@@ -1753,17 +1733,12 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                 return true;
             }
 
-            // 1. Water handling
+            // 1. Water handling: steam puff (20% chance), absorbs beam
             if (st.is(Blocks.WATER) || st.getFluidState().is(FluidTags.WATER)) {
-                if (isApocalypse) {
-                    meltAt(lvl, p);
-                    return false;
-                } else {
-                    if (random.nextFloat() < 0.20f) {
-                        lvl.levelEvent(2009, p, 0); // Steam puff
-                    }
-                    return true; // Water absorbs beam in balanced mode, never turns to dry air holes
+                if (random.nextFloat() < 0.20f) {
+                    lvl.levelEvent(2009, p, 0); // Steam puff
                 }
+                return true; // Water absorbs beam in balanced mode, never turns to dry air holes
             }
 
             // 2. Ice and snow
@@ -1793,14 +1768,14 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                 if (fireState.canSurvive(lvl, p)) {
                     lvl.setBlock(p, fireState, 3);
                 } else {
-                    igniteNeighborFace(lvl, p, hitDir, isApocalypse);
+                    igniteNeighborFace(lvl, p, hitDir);
                 }
                 return false; // Ray penetrates deeper into the tree canopy
             }
 
             // 5. Solid flammable blocks: logs, planks, wool, fences, etc.
             if (isFlammableBlock(lvl, p, st)) {
-                igniteNeighborFace(lvl, p, hitDir, isApocalypse);
+                igniteNeighborFace(lvl, p, hitDir);
                 if (rpm >= 128.0f && random.nextFloat() < 0.25f) {
                     BlockState fireState = BaseFireBlock.getState(lvl, p);
                     if (fireState.canSurvive(lvl, p)) {
