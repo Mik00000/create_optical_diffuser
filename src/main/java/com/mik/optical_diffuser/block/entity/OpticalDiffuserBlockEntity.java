@@ -37,6 +37,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.level.block.BaseFireBlock;
 import net.minecraft.world.level.block.BeaconBeamBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.item.ItemStack;
@@ -44,6 +45,7 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.BaseFireBlock;
 import net.minecraft.world.level.block.BeaconBeamBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.Blocks;
@@ -1349,9 +1351,7 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         processItemsInCone(targetLevel, coneAABB, rayStart, centerDir, tanHalf, rpm >= 128.0f || isApocalypse);
 
         // Process blocks and depots in cone
-        if (gameTime % 4 == 0) {
-            processArchimedesBlockThermalRay(targetLevel, start, centerDir, up, right, rpm, isApocalypse);
-        }
+        processArchimedesBlockThermalRay(targetLevel, start, centerDir, up, right, rpm, isApocalypse);
 
         // Quiet ambient fire sound throttled to once per second
         if (gameTime % 20 == 0) {
@@ -1553,15 +1553,19 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         double tanHalf = Math.tan(Math.toRadians(this.coneAngle * 0.5));
         RandomSource random = targetLevel.getRandom();
 
-        // Rays to sample: Center + concentric rings (19 rays for dense cone coverage)
+        // Rays to sample: Center + 3 concentric rings (37 rays for dense, gap-free thermal cone coverage)
         List<double[]> uvList = new ArrayList<>();
         uvList.add(new double[]{0.0, 0.0});
         for (int i = 0; i < 6; i++) {
             double a = i * (Math.PI / 3.0);
-            uvList.add(new double[]{Math.cos(a) * 0.45, Math.sin(a) * 0.45});
+            uvList.add(new double[]{Math.cos(a) * 0.30, Math.sin(a) * 0.30});
         }
         for (int i = 0; i < 12; i++) {
             double a = i * (Math.PI / 6.0) + (Math.PI / 12.0);
+            uvList.add(new double[]{Math.cos(a) * 0.60, Math.sin(a) * 0.60});
+        }
+        for (int i = 0; i < 18; i++) {
+            double a = i * (Math.PI / 9.0) + (Math.PI / 18.0);
             uvList.add(new double[]{Math.cos(a) * 0.90, Math.sin(a) * 0.90});
         }
 
@@ -1679,19 +1683,6 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         return false;
     }
 
-    private static boolean isAdjacentToWater(Level lvl, BlockPos pos) {
-        if (lvl.getFluidState(pos).is(FluidTags.WATER) || lvl.getBlockState(pos).is(Blocks.WATER)) {
-            return true;
-        }
-        for (Direction d : Direction.values()) {
-            BlockPos neighbor = pos.relative(d);
-            if (lvl.getFluidState(neighbor).is(FluidTags.WATER) || lvl.getBlockState(neighbor).is(Blocks.WATER)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private void igniteNeighborFace(Level lvl, BlockPos p, @Nullable Direction hitDir, boolean isApocalypse) {
         Direction[] tryDirs;
         if (hitDir != null) {
@@ -1704,11 +1695,12 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
             BlockPos adj = p.relative(dir);
             BlockState adjState = lvl.getBlockState(adj);
             if (adjState.isAir() || adjState.canBeReplaced()) {
-                if (!isApocalypse && isAdjacentToWater(lvl, adj)) {
-                    continue; // Never place fire near water in balanced mode
+                if (lvl.getFluidState(adj).is(FluidTags.WATER) || adjState.is(Blocks.WATER)) {
+                    continue; // Never place fire inside water
                 }
-                if (isApocalypse || Blocks.FIRE.defaultBlockState().canSurvive(lvl, adj)) {
-                    lvl.setBlock(adj, Blocks.FIRE.defaultBlockState(), 3);
+                BlockState fireState = BaseFireBlock.getState(lvl, adj);
+                if (isApocalypse || fireState.canSurvive(lvl, adj)) {
+                    lvl.setBlock(adj, fireState, 3);
                     return;
                 }
             }
@@ -1744,33 +1736,41 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                 return false;
             }
 
-            // 3. Bushes, plants, grass, crops, vines - quietly vaporized WITHOUT fire
+            // 3. Bushes, plants, grass, crops, vines
             if (isPlantOrBush(st, lvl, p)) {
+                if (rpm >= 100.0f && random.nextFloat() < 0.30f) {
+                    BlockState fireState = BaseFireBlock.getState(lvl, p);
+                    if (fireState.canSurvive(lvl, p)) {
+                        lvl.setBlock(p, fireState, 3);
+                        return false;
+                    }
+                }
                 lvl.destroyBlock(p, false);
                 lvl.levelEvent(2009, p, 0); // Subtle smoke puff
                 return false; // Ray continues through cleared bush
             }
 
-            // 4. Leaves
+            // 4. Leaves (Trees!)
             boolean isLeaves = st.is(BlockTags.LEAVES) || st.getBlock() instanceof net.minecraft.world.level.block.LeavesBlock;
             if (isLeaves) {
-                if (rpm >= 64.0f || isApocalypse) {
-                    if (random.nextFloat() < (isApocalypse ? 0.60f : 0.35f)) {
-                        lvl.setBlock(p, Blocks.FIRE.defaultBlockState(), 3);
-                    } else {
-                        lvl.destroyBlock(p, false);
-                        lvl.levelEvent(2009, p, 0);
-                    }
-                    return false;
+                BlockState fireState = BaseFireBlock.getState(lvl, p);
+                if (fireState.canSurvive(lvl, p)) {
+                    lvl.setBlock(p, fireState, 3);
                 } else {
                     igniteNeighborFace(lvl, p, hitDir, isApocalypse);
-                    return true;
                 }
+                return false; // Ray penetrates deeper into the tree canopy
             }
 
             // 5. Solid flammable blocks: logs, planks, wool, fences, etc.
             if (isFlammableBlock(lvl, p, st)) {
                 igniteNeighborFace(lvl, p, hitDir, isApocalypse);
+                if (rpm >= 128.0f && random.nextFloat() < 0.25f) {
+                    BlockState fireState = BaseFireBlock.getState(lvl, p);
+                    if (fireState.canSurvive(lvl, p)) {
+                        lvl.setBlock(p, fireState, 3);
+                    }
+                }
                 if (rpm >= 200.0f && random.nextFloat() < 0.05f) {
                     if (st.is(BlockTags.LOGS)) {
                         lvl.setBlock(p, Blocks.COAL_BLOCK.defaultBlockState(), 3);
