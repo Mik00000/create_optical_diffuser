@@ -4,28 +4,20 @@ import com.mik.optical_diffuser.block.FilmReelBlock;
 import com.mik.optical_diffuser.block.OpticalDiffuserBlock;
 import com.mik.optical_diffuser.block.entity.FilmReelBlockEntity;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.mojang.math.Axis;
-import com.simibubi.create.AllPartialModels;
+import com.simibubi.create.AllBlocks;
 import com.simibubi.create.content.kinetics.base.KineticBlockEntityRenderer;
+import dev.engine_room.flywheel.lib.transform.TransformStack;
 import net.createmod.catnip.render.CachedBuffers;
 import net.createmod.catnip.render.SuperByteBuffer;
-import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
-import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.Direction;
-import net.minecraft.resources.ResourceLocation;
-import org.joml.Matrix4f;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 
 public class FilmReelRenderer implements BlockEntityRenderer<FilmReelBlockEntity> {
-
-    public static final ResourceLocation REEL_TEXTURE = ResourceLocation.fromNamespaceAndPath(
-            com.mik.optical_diffuser.OpticalDiffuserMod.MOD_ID,
-            "textures/item/film_reel.png"
-    );
 
     public FilmReelRenderer(BlockEntityRendererProvider.Context context) {
     }
@@ -36,52 +28,39 @@ public class FilmReelRenderer implements BlockEntityRenderer<FilmReelBlockEntity
 
         Direction facing = be.getBlockState().getValue(FilmReelBlock.FACING);
         Direction outerFace = OpticalDiffuserBlock.getRightDirection(facing);
+        Direction.Axis axis = outerFace.getAxis();
 
-        // 1. Render rotating kinetic shaft half connected on the outer face
+        // 1. Render rotating continuous kinetic shaft through entire block into diffuser
         try {
-            SuperByteBuffer shaft = CachedBuffers.partialFacing(AllPartialModels.SHAFT_HALF, be.getBlockState(), outerFace);
-            int shaftLight = LevelRenderer.getLightColor(be.getLevel(), be.getBlockPos().relative(outerFace));
-            KineticBlockEntityRenderer.standardKineticRotationTransform(shaft, be, shaftLight);
+            BlockState shaftState = AllBlocks.SHAFT.getDefaultState().setValue(BlockStateProperties.AXIS, axis);
+            SuperByteBuffer shaft = CachedBuffers.block(shaftState);
+            KineticBlockEntityRenderer.standardKineticRotationTransform(shaft, be, packedLight);
             shaft.renderInto(poseStack, bufferSource.getBuffer(RenderType.solid()));
         } catch (Exception ignored) {}
 
-        // 2. Render spinning film spool
-        poseStack.pushPose();
-        poseStack.translate(0.5, 0.5, 0.5);
-
-        switch (outerFace) {
-            case SOUTH -> poseStack.mulPose(Axis.YP.rotationDegrees(0));
-            case EAST  -> poseStack.mulPose(Axis.YP.rotationDegrees(90));
-            case NORTH -> poseStack.mulPose(Axis.YP.rotationDegrees(180));
-            case WEST  -> poseStack.mulPose(Axis.YP.rotationDegrees(270));
-            case UP    -> poseStack.mulPose(Axis.XP.rotationDegrees(-90));
-            case DOWN  -> poseStack.mulPose(Axis.XP.rotationDegrees(90));
-        }
-
-        // Slight offset from center towards outer face
-        poseStack.translate(0.0, 0.0, 0.1);
-
-        float speed = be.getEffectiveSpeed();
-        float angle = be.getVisualAngle() + (speed != 0.0f ? (speed * 6.0f / 20.0f) * partialTicks : 0.0f);
-        poseStack.mulPose(Axis.ZP.rotationDegrees(-angle));
-
-        VertexConsumer consumer = bufferSource.getBuffer(RenderType.entityCutout(REEL_TEXTURE));
-        Matrix4f mat = poseStack.last().pose();
-
-        float s = 0.45f;
-        // Front face of reel
-        consumer.addVertex(mat, -s, -s, 0.0f).setColor(255, 255, 255, 255).setUv(0.0f, 1.0f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(packedLight).setNormal(0.0f, 0.0f, 1.0f);
-        consumer.addVertex(mat,  s, -s, 0.0f).setColor(255, 255, 255, 255).setUv(1.0f, 1.0f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(packedLight).setNormal(0.0f, 0.0f, 1.0f);
-        consumer.addVertex(mat,  s,  s, 0.0f).setColor(255, 255, 255, 255).setUv(1.0f, 0.0f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(packedLight).setNormal(0.0f, 0.0f, 1.0f);
-        consumer.addVertex(mat, -s,  s, 0.0f).setColor(255, 255, 255, 255).setUv(0.0f, 0.0f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(packedLight).setNormal(0.0f, 0.0f, 1.0f);
-
-        // Back face of reel
-        consumer.addVertex(mat, -s,  s, 0.0f).setColor(255, 255, 255, 255).setUv(0.0f, 0.0f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(packedLight).setNormal(0.0f, 0.0f, -1.0f);
-        consumer.addVertex(mat,  s,  s, 0.0f).setColor(255, 255, 255, 255).setUv(1.0f, 0.0f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(packedLight).setNormal(0.0f, 0.0f, -1.0f);
-        consumer.addVertex(mat,  s, -s, 0.0f).setColor(255, 255, 255, 255).setUv(1.0f, 1.0f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(packedLight).setNormal(0.0f, 0.0f, -1.0f);
-        consumer.addVertex(mat, -s, -s, 0.0f).setColor(255, 255, 255, 255).setUv(0.0f, 1.0f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(packedLight).setNormal(0.0f, 0.0f, -1.0f);
-
-        poseStack.popPose();
+        // 2. Render spinning 3D Film Reel Spool model pre-aligned to block facing and locked to kinetic shaft
+        try {
+            float yRot = switch (facing) {
+                case NORTH -> 0f;
+                case EAST -> 270f;
+                case SOUTH -> 180f;
+                case WEST -> 90f;
+                default -> 0f;
+            };
+            SuperByteBuffer spool = CachedBuffers.partialDirectional(
+                    ModPartialModels.FILM_REEL_SPOOL,
+                    be.getBlockState(),
+                    facing,
+                    () -> {
+                        PoseStack stack = new PoseStack();
+                        if (yRot != 0f) {
+                            TransformStack.of(stack).center().rotateYDegrees(yRot).uncenter();
+                        }
+                        return stack;
+                    }
+            );
+            KineticBlockEntityRenderer.standardKineticRotationTransform(spool, be, packedLight);
+            spool.renderInto(poseStack, bufferSource.getBuffer(RenderType.cutoutMipped()));
+        } catch (Exception ignored) {}
     }
 }
-

@@ -89,6 +89,10 @@ public class ModRegistry {
             () -> new com.mik.optical_diffuser.item.FilmReelBlockItem(FILM_REEL_BLOCK.get(), new Item.Properties().stacksTo(1))
     );
 
+    public static final DeferredItem<Item> FILM_STRIP = ITEMS.register("film_strip",
+            () -> new Item(new Item.Properties().stacksTo(64))
+    );
+
     public static final DeferredItem<com.mik.optical_diffuser.item.ProjectorLensItem> SILENT_PROJECTOR_LENS = ITEMS.register("silent_projector_lens",
             () -> new com.mik.optical_diffuser.item.ProjectorLensItem(new Item.Properties().stacksTo(1), false)
     );
@@ -107,6 +111,14 @@ public class ModRegistry {
 
     public static final DeferredItem<SequencedAssemblyItem> INCOMPLETE_DISPERSING_LENS = ITEMS.register("incomplete_dispersing_lens",
             () -> new SequencedAssemblyItem(new Item.Properties().stacksTo(16))
+    );
+
+    public static final DeferredItem<SequencedAssemblyItem> INCOMPLETE_SILENT_PROJECTOR_LENS = ITEMS.register("incomplete_silent_projector_lens",
+            () -> new SequencedAssemblyItem(new Item.Properties().stacksTo(1))
+    );
+
+    public static final DeferredItem<SequencedAssemblyItem> INCOMPLETE_SOUND_PROJECTOR_LENS = ITEMS.register("incomplete_sound_projector_lens",
+            () -> new SequencedAssemblyItem(new Item.Properties().stacksTo(1))
     );
 
     public static final DeferredItem<SequencedAssemblyItem> INCOMPLETE_FILM_REEL = ITEMS.register("incomplete_film_reel",

@@ -4,6 +4,7 @@ import com.mik.optical_diffuser.ModRegistry;
 import com.mik.optical_diffuser.OpticalDiffuserMod;
 import com.mik.optical_diffuser.client.gui.OpticalDiffuserScreen;
 import com.mik.optical_diffuser.client.render.FilmReelRenderer;
+import com.mik.optical_diffuser.client.render.ModPartialModels;
 import com.mik.optical_diffuser.client.render.ModShaders;
 import com.mik.optical_diffuser.client.render.OpticalDiffuserRenderer;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -18,6 +19,7 @@ import java.io.IOException;
 public class ClientModEvents {
 
     public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
+        ModPartialModels.init();
         event.registerBlockEntityRenderer(ModRegistry.OPTICAL_DIFFUSER_BE.get(), OpticalDiffuserRenderer::new);
         event.registerBlockEntityRenderer(ModRegistry.FILM_REEL_BE.get(), FilmReelRenderer::new);
     }

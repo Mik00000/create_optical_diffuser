@@ -1,0 +1,78 @@
+{
+  "type": "create:sequenced_assembly",
+  "ingredient": {
+    "item": "create_optical_diffuser:silent_projector_lens"
+  },
+  "loops": 1,
+  "results": [
+    {
+      "id": "create_optical_diffuser:sound_projector_lens"
+    }
+  ],
+  "sequence": [
+    {
+      "type": "create:deploying",
+      "ingredients": [
+        {
+          "item": "create_optical_diffuser:incomplete_sound_projector_lens"
+        },
+        {
+          "item": "create_optical:golden_coil"
+        }
+      ],
+      "results": [
+        {
+          "id": "create_optical_diffuser:incomplete_sound_projector_lens"
+        }
+      ]
+    },
+    {
+      "type": "create:deploying",
+      "ingredients": [
+        {
+          "item": "create_optical_diffuser:incomplete_sound_projector_lens"
+        },
+        {
+          "item": "create_optical_diffuser:speaker"
+        }
+      ],
+      "results": [
+        {
+          "id": "create_optical_diffuser:incomplete_sound_projector_lens"
+        }
+      ]
+    },
+    {
+      "type": "create:deploying",
+      "ingredients": [
+        {
+          "item": "create_optical_diffuser:incomplete_sound_projector_lens"
+        },
+        {
+          "item": "create:brass_sheet"
+        }
+      ],
+      "results": [
+        {
+          "id": "create_optical_diffuser:incomplete_sound_projector_lens"
+        }
+      ]
+    },
+    {
+      "type": "create:pressing",
+      "ingredients": [
+        {
+          "item": "create_optical_diffuser:incomplete_sound_projector_lens"
+        }
+      ],
+      "results": [
+        {
+          "id": "create_optical_diffuser:incomplete_sound_projector_lens"
+        }
+      ]
+    }
+  ],
+  "transitional_item": {
+    "id": "create_optical_diffuser:incomplete_sound_projector_lens"
+  }
+}

@@ -1,15 +1,47 @@
 {
   "type": "create:sequenced_assembly",
   "ingredient": {
-    "item": "create_optical_diffuser:focusing_lens"
+    "item": "create:sturdy_sheet"
   },
-  "loops": 1,
+  "loops": 3,
   "results": [
     {
       "id": "create_optical_diffuser:thermal_ignition_lens"
     }
   ],
   "sequence": [
+    {
+      "type": "create:deploying",
+      "ingredients": [
+        {
+          "item": "create_optical_diffuser:incomplete_thermal_ignition_lens"
+        },
+        {
+          "item": "create_optical:copper_coil"
+        }
+      ],
+      "results": [
+        {
+          "id": "create_optical_diffuser:incomplete_thermal_ignition_lens"
+        }
+      ]
+    },
+    {
+      "type": "create:deploying",
+      "ingredients": [
+        {
+          "item": "create_optical_diffuser:incomplete_thermal_ignition_lens"
+        },
+        {
+          "item": "create_optical:mirror"
+        }
+      ],
+      "results": [
+        {
+          "id": "create_optical_diffuser:incomplete_thermal_ignition_lens"
+        }
+      ]
+    },
     {
       "type": "create:deploying",
       "ingredients": [
@@ -33,7 +65,7 @@
           "item": "create_optical_diffuser:incomplete_thermal_ignition_lens"
         },
         {
-          "item": "create:brass_sheet"
+          "item": "create:precision_mechanism"
         }
       ],
       "results": [

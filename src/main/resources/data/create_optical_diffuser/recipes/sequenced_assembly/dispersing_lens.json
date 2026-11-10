@@ -3,13 +3,29 @@
   "ingredient": {
     "item": "create:copper_sheet"
   },
-  "loops": 1,
+  "loops": 2,
   "results": [
     {
       "id": "create_optical_diffuser:dispersing_lens"
     }
   ],
   "sequence": [
+    {
+      "type": "create:deploying",
+      "ingredients": [
+        {
+          "item": "create_optical_diffuser:incomplete_dispersing_lens"
+        },
+        {
+          "item": "create_optical:polarizing_filter"
+        }
+      ],
+      "results": [
+        {
+          "id": "create_optical_diffuser:incomplete_dispersing_lens"
+        }
+      ]
+    },
     {
       "type": "create:deploying",
       "ingredients": [
@@ -33,7 +49,7 @@
           "item": "create_optical_diffuser:incomplete_dispersing_lens"
         },
         {
-          "item": "minecraft:glass_pane"
+          "item": "create_optical:optical_device"
         }
       ],
       "results": [

@@ -3,7 +3,7 @@
   "ingredient": {
     "item": "create:brass_sheet"
   },
-  "loops": 1,
+  "loops": 2,
   "results": [
     {
       "id": "create_optical_diffuser:focusing_lens"
@@ -17,7 +17,7 @@
           "item": "create_optical_diffuser:incomplete_focusing_lens"
         },
         {
-          "item": "minecraft:quartz"
+          "item": "create_optical:mirror"
         }
       ],
       "results": [
@@ -33,7 +33,23 @@
           "item": "create_optical_diffuser:incomplete_focusing_lens"
         },
         {
-          "item": "minecraft:glass_pane"
+          "item": "create:polished_rose_quartz"
+        }
+      ],
+      "results": [
+        {
+          "id": "create_optical_diffuser:incomplete_focusing_lens"
+        }
+      ]
+    },
+    {
+      "type": "create:deploying",
+      "ingredients": [
+        {
+          "item": "create_optical_diffuser:incomplete_focusing_lens"
+        },
+        {
+          "item": "create_optical:optical_device"
         }
       ],
       "results": [
