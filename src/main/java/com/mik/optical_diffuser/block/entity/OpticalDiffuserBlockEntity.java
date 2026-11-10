@@ -66,6 +66,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.neoforged.fml.ModList;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -1014,6 +1015,9 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
 
                     if (doThermalMelt) {
                         meltAt(targetLevel, hitBlock);
+                        if (ModList.get().isLoaded("sable")) {
+                            SableCompat.meltAt(targetLevel, hit.getLocation());
+                        }
                     }
 
                     // Multi-layer pass: if hit was an obstacle before the end, also illuminate ground behind it
@@ -1024,6 +1028,9 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                             addSurfaceLightCandidate(targetLevel, hit2.getBlockPos(), hit2.getDirection(), newPositions, 15);
                             if (doThermalMelt) {
                                 meltAt(targetLevel, hit2.getBlockPos());
+                                if (ModList.get().isLoaded("sable")) {
+                                    SableCompat.meltAt(targetLevel, hit2.getLocation());
+                                }
                             }
                         }
                     }
@@ -1081,6 +1088,9 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                     BlockHitResult sideHit = raycastBeam(targetLevel, start, sideEnd);
                     if (sideHit.getType() == HitResult.Type.BLOCK) {
                         meltAt(targetLevel, sideHit.getBlockPos());
+                        if (ModList.get().isLoaded("sable")) {
+                            SableCompat.meltAt(targetLevel, sideHit.getLocation());
+                        }
                     }
                 }
                 if (level != targetLevel) {
@@ -1140,6 +1150,27 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                     ClipContext.Fluid.NONE,
                     CollisionContext.empty()
             ));
+
+            SableCompat.SableBlockHit sableHit = null;
+            if (ModList.get().isLoaded("sable")) {
+                sableHit = SableCompat.raycastSubLevels(targetLevel, currentStart, rayEnd, false);
+            }
+
+            double worldDist = (hit.getType() == HitResult.Type.BLOCK) ? currentStart.distanceTo(hit.getLocation()) : Double.MAX_VALUE;
+            double sableDist = (sableHit != null) ? sableHit.worldDistance() : Double.MAX_VALUE;
+
+            if (sableDist < worldDist && sableHit != null) {
+                if (isTransparentForBeam(sableHit.state(), sableHit.subLevel().getLevel(), sableHit.plotPos())) {
+                    Vec3 forward = sableHit.worldHitPos().add(dir.scale(0.2));
+                    currentStart = forward;
+                    if (currentStart.distanceTo(start) >= totalDist) {
+                        return BlockHitResult.miss(rayEnd, sableHit.worldFace(), BlockPos.containing(rayEnd));
+                    }
+                    continue;
+                } else {
+                    return new BlockHitResult(sableHit.worldHitPos(), sableHit.worldFace(), BlockPos.containing(sableHit.worldHitPos()), false);
+                }
+            }
 
             if (hit.getType() == HitResult.Type.MISS) {
                 return hit;
@@ -1212,15 +1243,17 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         if (targetLevel != null) {
             // Check forward in target level
             for (double d = 0.5; d <= 6.0; d += 0.8) {
-                BlockPos worldCheck = BlockPos.containing(start.add(centerDir.scale(d)));
-                if (targetLevel.getBlockState(worldCheck).is(ModRegistry.LEAD_GLASS.get())) {
+                Vec3 pt = start.add(centerDir.scale(d));
+                BlockPos worldCheck = BlockPos.containing(pt);
+                if (targetLevel.getBlockState(worldCheck).is(ModRegistry.LEAD_GLASS.get()) || SableCompat.isLeadGlassAt(targetLevel, pt)) {
                     return true;
                 }
             }
             // Check backward in target level
             for (double d = 0.5; d <= 6.0; d += 0.8) {
-                BlockPos worldCheck = BlockPos.containing(start.subtract(centerDir.scale(d)));
-                if (targetLevel.getBlockState(worldCheck).is(ModRegistry.LEAD_GLASS.get())) {
+                Vec3 pt = start.subtract(centerDir.scale(d));
+                BlockPos worldCheck = BlockPos.containing(pt);
+                if (targetLevel.getBlockState(worldCheck).is(ModRegistry.LEAD_GLASS.get()) || SableCompat.isLeadGlassAt(targetLevel, pt)) {
                     return true;
                 }
             }
@@ -1511,7 +1544,7 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         }
     }
 
-    private void meltAt(Level lvl, BlockPos p) {
+    public static void meltAt(Level lvl, BlockPos p) {
         try {
             BlockState st = lvl.getBlockState(p);
             if (st.is(BlockTags.SNOW) || st.is(Blocks.SNOW)) {
@@ -1601,6 +1634,9 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                 if (visited.add(p)) {
                     Direction hitFace = Direction.getNearest(-rayDir.x, -rayDir.y, -rayDir.z);
                     boolean stop = processThermalBlock(targetLevel, p, hitFace, rpm, random, isApocalypse);
+                    if (!stop && ModList.get().isLoaded("sable")) {
+                        stop = SableCompat.processThermalAt(targetLevel, pt, rayDir, rpm, random, isApocalypse, visitedDepots);
+                    }
                     if (stop) {
                         break;
                     }
@@ -1683,7 +1719,7 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         return false;
     }
 
-    private void igniteNeighborFace(Level lvl, BlockPos p, @Nullable Direction hitDir, boolean isApocalypse) {
+    public static void igniteNeighborFace(Level lvl, BlockPos p, @Nullable Direction hitDir, boolean isApocalypse) {
         Direction[] tryDirs;
         if (hitDir != null) {
             tryDirs = new Direction[]{hitDir, Direction.UP, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.DOWN};
@@ -1707,7 +1743,7 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         }
     }
 
-    private boolean processThermalBlock(Level lvl, BlockPos p, @Nullable Direction hitDir, float rpm, RandomSource random, boolean isApocalypse) {
+    public static boolean processThermalBlock(Level lvl, BlockPos p, @Nullable Direction hitDir, float rpm, RandomSource random, boolean isApocalypse) {
         try {
             BlockState st = lvl.getBlockState(p);
             if (st.isAir() || st.is(Blocks.LIGHT)) {

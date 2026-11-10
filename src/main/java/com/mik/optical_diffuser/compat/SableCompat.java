@@ -37,12 +37,199 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.zip.GZIPInputStream;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 
 public class SableCompat {
 
     public record RayContext(Level level, Vec3 start, Vec3 direction, Vec3 up, Vec3 right) {}
+
+    public record SableBlockHit(
+            dev.ryanhcode.sable.sublevel.SubLevel subLevel,
+            BlockPos plotPos,
+            BlockState state,
+            Vec3 worldHitPos,
+            Direction worldFace,
+            double worldDistance
+    ) {}
+
+    public static SableBlockHit raycastSubLevels(Level level, Vec3 start, Vec3 end, boolean stopOnLiquid) {
+        if (level == null || !ModList.get().isLoaded("sable")) return null;
+        try {
+            dev.ryanhcode.sable.api.sublevel.SubLevelContainer container =
+                    dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(level);
+            if (container == null) return null;
+
+            SableBlockHit closest = null;
+            double closestDist = Double.MAX_VALUE;
+
+            AABB rayAABB = new AABB(start, end).inflate(1.0);
+
+            for (dev.ryanhcode.sable.sublevel.SubLevel sub : container.getAllSubLevels()) {
+                if (sub == null || sub.isRemoved() || sub.logicalPose() == null || sub.getLevel() == null) continue;
+
+                if (sub.boundingBox() != null) {
+                    AABB shipBox = sub.boundingBox().toMojang();
+                    if (!shipBox.intersects(rayAABB) && !shipBox.clip(start, end).isPresent()) {
+                        continue;
+                    }
+                }
+
+                Vec3 plotStart = sub.logicalPose().transformPositionInverse(start);
+                Vec3 plotEnd = sub.logicalPose().transformPositionInverse(end);
+
+                net.minecraft.world.level.ClipContext clipCtx = new net.minecraft.world.level.ClipContext(
+                        plotStart, plotEnd,
+                        net.minecraft.world.level.ClipContext.Block.COLLIDER,
+                        stopOnLiquid ? net.minecraft.world.level.ClipContext.Fluid.ANY : net.minecraft.world.level.ClipContext.Fluid.NONE,
+                        net.minecraft.world.phys.shapes.CollisionContext.empty()
+                );
+
+                if (clipCtx instanceof dev.ryanhcode.sable.mixinterface.clip_overwrite.ClipContextExtension ext) {
+                    ext.sable$setDoNotProject(true);
+                }
+
+                BlockHitResult hit = sub.getLevel().clip(clipCtx);
+                if (hit.getType() == HitResult.Type.BLOCK) {
+                    Vec3 worldHitPos = sub.logicalPose().transformPosition(hit.getLocation());
+                    double d = start.distanceTo(worldHitPos);
+                    if (d < closestDist) {
+                        BlockState st = sub.getLevel().getBlockState(hit.getBlockPos());
+                        Vec3 plotNormal = Vec3.atLowerCornerOf(hit.getDirection().getNormal());
+                        Vec3 worldNormal = sub.logicalPose().transformNormal(plotNormal).normalize();
+                        Direction worldFace = Direction.getNearest(worldNormal.x, worldNormal.y, worldNormal.z);
+
+                        closest = new SableBlockHit(sub, hit.getBlockPos(), st, worldHitPos, worldFace, d);
+                        closestDist = d;
+                    }
+                }
+            }
+            return closest;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static boolean processThermalAt(
+            Level worldLevel,
+            Vec3 worldPt,
+            Vec3 rayDir,
+            float rpm,
+            RandomSource random,
+            boolean isApocalypse,
+            Set<BlockPos> visitedDepots
+    ) {
+        if (worldLevel == null || !ModList.get().isLoaded("sable")) return false;
+        try {
+            dev.ryanhcode.sable.api.sublevel.SubLevelContainer container =
+                    dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(worldLevel);
+            if (container == null) return false;
+
+            for (dev.ryanhcode.sable.sublevel.SubLevel sub : container.getAllSubLevels()) {
+                if (sub == null || sub.isRemoved() || sub.logicalPose() == null || sub.getLevel() == null) continue;
+
+                if (sub.boundingBox() != null) {
+                    AABB box = sub.boundingBox().toMojang().inflate(0.5);
+                    if (!box.contains(worldPt)) continue;
+                }
+
+                Vec3 plotPt = sub.logicalPose().transformPositionInverse(worldPt);
+                BlockPos plotPos = BlockPos.containing(plotPt);
+
+                Level subLevel = sub.getLevel();
+                BlockState st = subLevel.getBlockState(plotPos);
+                if (st.isAir() || st.is(net.minecraft.world.level.block.Blocks.LIGHT)) {
+                    continue;
+                }
+
+                // Process Create Depots and Belts on the ship
+                if (visitedDepots != null) {
+                    BlockPos[] depotCandidates = new BlockPos[]{plotPos, plotPos.below()};
+                    for (BlockPos dPos : depotCandidates) {
+                        if (visitedDepots.add(dPos)) {
+                            com.simibubi.create.content.kinetics.belt.behaviour.TransportedItemStackHandlerBehaviour handler =
+                                    com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour.get(
+                                            subLevel, dPos, com.simibubi.create.content.kinetics.belt.behaviour.TransportedItemStackHandlerBehaviour.TYPE
+                                    );
+                            if (handler != null) {
+                                handler.handleProcessingOnAllItems(transported -> {
+                                    if (com.simibubi.create.content.kinetics.fan.processing.AllFanProcessingTypes.SMOKING.canProcess(transported.stack, subLevel)) {
+                                        return com.simibubi.create.content.kinetics.fan.processing.FanProcessing.applyProcessing(
+                                                transported, subLevel, com.simibubi.create.content.kinetics.fan.processing.AllFanProcessingTypes.SMOKING
+                                        );
+                                    } else if ((rpm >= 128.0f || isApocalypse) && com.simibubi.create.content.kinetics.fan.processing.AllFanProcessingTypes.BLASTING.canProcess(transported.stack, subLevel)) {
+                                        return com.simibubi.create.content.kinetics.fan.processing.FanProcessing.applyProcessing(
+                                                transported, subLevel, com.simibubi.create.content.kinetics.fan.processing.AllFanProcessingTypes.BLASTING
+                                        );
+                                    }
+                                    return com.simibubi.create.content.kinetics.belt.behaviour.TransportedItemStackHandlerBehaviour.TransportedResult.doNothing();
+                                });
+                            }
+                        }
+                    }
+                }
+
+                Vec3 plotRayDir = sub.logicalPose().transformNormalInverse(rayDir).normalize();
+                Direction plotHitFace = Direction.getNearest(-plotRayDir.x, -plotRayDir.y, -plotRayDir.z);
+
+                return com.mik.optical_diffuser.block.entity.OpticalDiffuserBlockEntity.processThermalBlock(
+                        subLevel, plotPos, plotHitFace, rpm, random, isApocalypse
+                );
+            }
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
+    public static boolean isLeadGlassAt(Level level, Vec3 worldPt) {
+        if (level == null || !ModList.get().isLoaded("sable")) return false;
+        try {
+            dev.ryanhcode.sable.api.sublevel.SubLevelContainer container =
+                    dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(level);
+            if (container == null) return false;
+
+            for (dev.ryanhcode.sable.sublevel.SubLevel sub : container.getAllSubLevels()) {
+                if (sub == null || sub.isRemoved() || sub.logicalPose() == null || sub.getLevel() == null) continue;
+
+                if (sub.boundingBox() != null) {
+                    if (!sub.boundingBox().toMojang().inflate(0.5).contains(worldPt)) continue;
+                }
+
+                Vec3 plotPt = sub.logicalPose().transformPositionInverse(worldPt);
+                BlockPos plotPos = BlockPos.containing(plotPt);
+                BlockState st = sub.getLevel().getBlockState(plotPos);
+                if (st.is(com.mik.optical_diffuser.ModRegistry.LEAD_GLASS.get())) {
+                    return true;
+                }
+            }
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
+    public static void meltAt(Level level, Vec3 worldPt) {
+        if (level == null || !ModList.get().isLoaded("sable")) return;
+        try {
+            dev.ryanhcode.sable.api.sublevel.SubLevelContainer container =
+                    dev.ryanhcode.sable.api.sublevel.SubLevelContainer.getContainer(level);
+            if (container == null) return;
+
+            for (dev.ryanhcode.sable.sublevel.SubLevel sub : container.getAllSubLevels()) {
+                if (sub == null || sub.isRemoved() || sub.logicalPose() == null || sub.getLevel() == null) continue;
+
+                if (sub.boundingBox() != null) {
+                    if (!sub.boundingBox().toMojang().inflate(0.5).contains(worldPt)) continue;
+                }
+
+                Vec3 plotPt = sub.logicalPose().transformPositionInverse(worldPt);
+                BlockPos plotPos = BlockPos.containing(plotPt);
+                com.mik.optical_diffuser.block.entity.OpticalDiffuserBlockEntity.meltAt(sub.getLevel(), plotPos);
+            }
+        } catch (Throwable ignored) {}
+    }
 
     public static RayContext getRayContext(Level level, BlockPos pos, Direction facing) {
         Vec3 localStart = Vec3.atCenterOf(pos).add(Vec3.atLowerCornerOf(facing.getNormal()).scale(0.50));
