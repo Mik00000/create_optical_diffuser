@@ -59,6 +59,12 @@ public class SableCompat {
     ) {}
 
     public static SableBlockHit raycastSubLevels(Level level, Vec3 start, Vec3 end, boolean stopOnLiquid) {
+        return raycastSubLevels(level, start, end, stopOnLiquid, net.minecraft.world.level.ClipContext.Block.COLLIDER);
+    }
+
+    public static SableBlockHit raycastSubLevels(
+            Level level, Vec3 start, Vec3 end, boolean stopOnLiquid, net.minecraft.world.level.ClipContext.Block blockClip
+    ) {
         if (level == null || !ModList.get().isLoaded("sable")) return null;
         try {
             dev.ryanhcode.sable.api.sublevel.SubLevelContainer container =
@@ -85,7 +91,7 @@ public class SableCompat {
 
                 net.minecraft.world.level.ClipContext clipCtx = new net.minecraft.world.level.ClipContext(
                         plotStart, plotEnd,
-                        net.minecraft.world.level.ClipContext.Block.COLLIDER,
+                        blockClip,
                         stopOnLiquid ? net.minecraft.world.level.ClipContext.Fluid.ANY : net.minecraft.world.level.ClipContext.Fluid.NONE,
                         net.minecraft.world.phys.shapes.CollisionContext.empty()
                 );
@@ -173,18 +179,9 @@ public class SableCompat {
                                                 subLevel, dPos, com.simibubi.create.content.kinetics.belt.behaviour.TransportedItemStackHandlerBehaviour.TYPE
                                         );
                                 if (handler != null) {
-                                    handler.handleProcessingOnAllItems(transported -> {
-                                        if (com.simibubi.create.content.kinetics.fan.processing.AllFanProcessingTypes.SMOKING.canProcess(transported.stack, subLevel)) {
-                                            return com.simibubi.create.content.kinetics.fan.processing.FanProcessing.applyProcessing(
-                                                    transported, subLevel, com.simibubi.create.content.kinetics.fan.processing.AllFanProcessingTypes.SMOKING
-                                            );
-                                        } else if (rpm >= 128.0f && com.simibubi.create.content.kinetics.fan.processing.AllFanProcessingTypes.BLASTING.canProcess(transported.stack, subLevel)) {
-                                            return com.simibubi.create.content.kinetics.fan.processing.FanProcessing.applyProcessing(
-                                                    transported, subLevel, com.simibubi.create.content.kinetics.fan.processing.AllFanProcessingTypes.BLASTING
-                                            );
-                                        }
-                                        return com.simibubi.create.content.kinetics.belt.behaviour.TransportedItemStackHandlerBehaviour.TransportedResult.doNothing();
-                                    });
+                                    handler.handleProcessingOnAllItems(transported ->
+                                            com.mik.optical_diffuser.block.entity.OpticalDiffuserBlockEntity.processTransportedCooking(transported, subLevel, rpm)
+                                    );
                                 }
                             }
                         }

@@ -7,6 +7,7 @@ import com.mik.optical_diffuser.config.DiffuserServerConfig;
 import com.mik.optical_diffuser.menu.OpticalDiffuserMenu;
 import com.simibubi.create.content.kinetics.base.KineticBlockEntity;
 import com.simibubi.create.content.kinetics.belt.behaviour.TransportedItemStackHandlerBehaviour;
+import com.simibubi.create.content.kinetics.belt.transport.TransportedItemStack;
 import com.simibubi.create.content.kinetics.fan.processing.FanProcessing;
 import com.simibubi.create.content.kinetics.fan.processing.AllFanProcessingTypes;
 import com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour;
@@ -1327,7 +1328,7 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
             }
         }
 
-        processItemsInCone(targetLevel, coneAABB, rayStart, centerDir, tanHalf, false);
+        processItemsInCone(targetLevel, coneAABB, rayStart, centerDir, tanHalf, rpm);
     }
 
     private void applyThermalIgniterConeEffects(Level targetLevel, Vec3 start, Vec3 centerDir) {
@@ -1363,7 +1364,7 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         }
 
         // Process dropped items in cone (cooking food / smelting)
-        processItemsInCone(targetLevel, coneAABB, rayStart, centerDir, tanHalf, rpm >= 128.0f);
+        processItemsInCone(targetLevel, coneAABB, rayStart, centerDir, tanHalf, rpm);
 
         // Process blocks and depots in cone
         processArchimedesBlockThermalRay(targetLevel, start, centerDir, up, right, rpm, coneAABB);
@@ -1405,6 +1406,40 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                         entity.setDeltaMovement(originalMotion);
                         entity.hurtMarked = true;
                         entity.igniteForSeconds(2 + (int) (rpmRatio * 4));
+                    }
+                }
+            }
+        }
+
+        // Cook dropped food and smelt items along the collimator needle beam
+        List<ItemEntity> items = targetLevel.getEntitiesOfClass(ItemEntity.class, beamAABB, e -> e.isAlive());
+        for (ItemEntity itemEntity : items) {
+            Vec3 toItem = itemEntity.position().subtract(rayStart);
+            double distAlong = toItem.dot(centerDir);
+            if (distAlong >= 0 && distAlong <= this.coneRange) {
+                Vec3 closestOnLine = centerDir.scale(distAlong);
+                double distToLine = toItem.subtract(closestOnLine).length();
+                if (distToLine <= 0.6) {
+                    processItemCooking(itemEntity, rpm);
+                }
+            }
+        }
+
+        // Cook items on Create Depots & Belts hit along the needle beam
+        BlockHitResult beamBlockHit = raycastBeam(targetLevel, rayStart, beamEnd);
+        double maxNeedleDist = (beamBlockHit.getType() == HitResult.Type.BLOCK) ? beamBlockHit.getLocation().distanceTo(rayStart) : this.coneRange;
+        Set<BlockPos> visitedCollimatorDepots = new HashSet<>();
+        for (double d = 0.5; d <= maxNeedleDist; d += 1.0) {
+            BlockPos p = BlockPos.containing(rayStart.add(centerDir.scale(d)));
+            BlockPos[] cands = new BlockPos[]{p, p.below()};
+            for (BlockPos cPos : cands) {
+                if (visitedCollimatorDepots.add(cPos)) {
+                    BlockState cState = targetLevel.getBlockState(cPos);
+                    if (cState.hasBlockEntity()) {
+                        TransportedItemStackHandlerBehaviour handler = BlockEntityBehaviour.get(targetLevel, cPos, TransportedItemStackHandlerBehaviour.TYPE);
+                        if (handler != null) {
+                            handler.handleProcessingOnAllItems(transported -> processTransportedCooking(transported, targetLevel, rpm));
+                        }
                     }
                 }
             }
@@ -1505,7 +1540,58 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         return samples;
     }
 
-    private void processItemsInCone(Level targetLevel, AABB aabb, Vec3 rayStart, Vec3 centerDir, double tanHalf, boolean isBlasting) {
+    public static int getCookingPassesForRpm(float rpm) {
+        float rpmRatio = Math.max(0.0f, Math.min(1.0f, rpm / 256.0f));
+        // Scales smoothly: at 0 RPM = 1 pass; at 16 RPM = 3 passes; at 128 RPM = 16 passes; at 256 RPM = 32 passes (~1s full cook)
+        return Math.max(1, (int) (1 + rpmRatio * 31));
+    }
+
+    public static void processItemCooking(ItemEntity itemEntity, float rpm) {
+        int passes = getCookingPassesForRpm(rpm);
+        boolean isBlasting = rpm >= 128.0f;
+
+        for (int pass = 0; pass < passes; pass++) {
+            if (FanProcessing.canProcess(itemEntity, AllFanProcessingTypes.SMOKING)) {
+                if (FanProcessing.applyProcessing(itemEntity, AllFanProcessingTypes.SMOKING)) {
+                    break;
+                }
+            } else if (isBlasting && FanProcessing.canProcess(itemEntity, AllFanProcessingTypes.BLASTING)) {
+                if (FanProcessing.applyProcessing(itemEntity, AllFanProcessingTypes.BLASTING)) {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+    }
+
+    public static TransportedItemStackHandlerBehaviour.TransportedResult processTransportedCooking(
+            TransportedItemStack transported, Level level, float rpm
+    ) {
+        int passes = getCookingPassesForRpm(rpm);
+        boolean isBlasting = rpm >= 128.0f;
+
+        for (int pass = 0; pass < passes; pass++) {
+            if (AllFanProcessingTypes.SMOKING.canProcess(transported.stack, level)) {
+                TransportedItemStackHandlerBehaviour.TransportedResult res =
+                        FanProcessing.applyProcessing(transported, level, AllFanProcessingTypes.SMOKING);
+                if (!res.doesNothing()) {
+                    return res;
+                }
+            } else if (isBlasting && AllFanProcessingTypes.BLASTING.canProcess(transported.stack, level)) {
+                TransportedItemStackHandlerBehaviour.TransportedResult res =
+                        FanProcessing.applyProcessing(transported, level, AllFanProcessingTypes.BLASTING);
+                if (!res.doesNothing()) {
+                    return res;
+                }
+            } else {
+                break;
+            }
+        }
+        return TransportedItemStackHandlerBehaviour.TransportedResult.doNothing();
+    }
+
+    private void processItemsInCone(Level targetLevel, AABB aabb, Vec3 rayStart, Vec3 centerDir, double tanHalf, float rpm) {
         List<ItemEntity> items = targetLevel.getEntitiesOfClass(ItemEntity.class, aabb, e -> e.isAlive());
         for (ItemEntity itemEntity : items) {
             Vec3 pos = itemEntity.position();
@@ -1515,12 +1601,7 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
                 Vec3 proj = centerDir.scale(distAlong);
                 double allowedR = Math.max(0.5, distAlong * tanHalf) + 0.5;
                 if (toPt.subtract(proj).length() <= allowedR) {
-                    // Always try smoking/cooking food first (like fan over fire)
-                    if (FanProcessing.canProcess(itemEntity, AllFanProcessingTypes.SMOKING)) {
-                        FanProcessing.applyProcessing(itemEntity, AllFanProcessingTypes.SMOKING);
-                    } else if (isBlasting && FanProcessing.canProcess(itemEntity, AllFanProcessingTypes.BLASTING)) {
-                        FanProcessing.applyProcessing(itemEntity, AllFanProcessingTypes.BLASTING);
-                    }
+                    processItemCooking(itemEntity, rpm);
                 }
             }
         }
@@ -1579,47 +1660,95 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
             sableCandidates = SableCompat.getIntersectingSubLevels(targetLevel, coneAABB);
         }
 
-        Set<BlockPos> visited = new HashSet<>();
-        Set<BlockPos> visitedDepots = new HashSet<>();
+        Set<BlockPos> visitedWorldDepots = new HashSet<>();
+        Set<BlockPos> visitedSableDepots = new HashSet<>();
+        Set<BlockPos> visitedBlocks = new HashSet<>();
         double maxDist = this.coneRange;
-        double step = 1.5;
 
         for (double[] uv : uvList) {
             Vec3 rayDir = centerDir.add(right.scale(uv[0] * tanHalf)).add(up.scale(uv[1] * tanHalf)).normalize();
-            for (double d = 1.0; d <= maxDist; d += step) {
-                Vec3 pt = start.add(rayDir.scale(d));
-                BlockPos p = BlockPos.containing(pt);
+            Vec3 curStart = start;
+            double remDist = maxDist;
 
-                // Cook food or smelt items on Create Depots & Belts (only if block has block entity!)
-                BlockPos[] depotCandidates = new BlockPos[]{p, p.below()};
-                for (BlockPos dPos : depotCandidates) {
-                    if (visitedDepots.add(dPos)) {
-                        BlockState dState = targetLevel.getBlockState(dPos);
-                        if (dState.hasBlockEntity()) {
-                            TransportedItemStackHandlerBehaviour handler = BlockEntityBehaviour.get(targetLevel, dPos, TransportedItemStackHandlerBehaviour.TYPE);
-                            if (handler != null) {
-                                handler.handleProcessingOnAllItems(transported -> {
-                                    if (AllFanProcessingTypes.SMOKING.canProcess(transported.stack, targetLevel)) {
-                                        return FanProcessing.applyProcessing(transported, targetLevel, AllFanProcessingTypes.SMOKING);
-                                    } else if (rpm >= 128.0f && AllFanProcessingTypes.BLASTING.canProcess(transported.stack, targetLevel)) {
-                                        return FanProcessing.applyProcessing(transported, targetLevel, AllFanProcessingTypes.BLASTING);
-                                    }
-                                    return TransportedItemStackHandlerBehaviour.TransportedResult.doNothing();
-                                });
+            // Penetrate up to 4 layers (e.g. leaves, bushes, ice)
+            for (int hop = 0; hop < 4 && remDist > 0.5; hop++) {
+                Vec3 rayEnd = curStart.add(rayDir.scale(remDist));
+
+                // 1. Raycast world blocks
+                BlockHitResult worldHit = targetLevel.clip(new ClipContext(
+                        curStart, rayEnd,
+                        ClipContext.Block.OUTLINE,
+                        ClipContext.Fluid.ANY,
+                        CollisionContext.empty()
+                ));
+
+                // 2. Raycast Sable sublevels
+                SableCompat.SableBlockHit sableHit = null;
+                if (sableCandidates != null && !sableCandidates.isEmpty()) {
+                    sableHit = SableCompat.raycastSubLevels(targetLevel, curStart, rayEnd, true, ClipContext.Block.OUTLINE);
+                }
+
+                double worldD = (worldHit.getType() == HitResult.Type.BLOCK) ? curStart.distanceTo(worldHit.getLocation()) : Double.MAX_VALUE;
+                double sableD = (sableHit != null) ? sableHit.worldDistance() : Double.MAX_VALUE;
+
+                if (worldD == Double.MAX_VALUE && sableD == Double.MAX_VALUE) {
+                    break;
+                }
+
+                if (sableD < worldD && sableHit != null) {
+                    Level subLevel = sableHit.subLevel().getLevel();
+                    BlockPos sPos = sableHit.plotPos();
+                    Direction sFace = sableHit.worldFace();
+
+                    // Cook items on ship depot/belt
+                    BlockPos[] dCandidates = new BlockPos[]{sPos, sPos.below()};
+                    for (BlockPos dPos : dCandidates) {
+                        if (visitedSableDepots.add(dPos)) {
+                            BlockState ds = subLevel.getBlockState(dPos);
+                            if (ds.hasBlockEntity()) {
+                                TransportedItemStackHandlerBehaviour handler = BlockEntityBehaviour.get(subLevel, dPos, TransportedItemStackHandlerBehaviour.TYPE);
+                                if (handler != null) {
+                                    handler.handleProcessingOnAllItems(transported -> processTransportedCooking(transported, subLevel, rpm));
+                                }
                             }
                         }
                     }
-                }
 
-                if (visited.add(p)) {
-                    Direction hitFace = Direction.getNearest(-rayDir.x, -rayDir.y, -rayDir.z);
-                    boolean stop = processThermalBlock(targetLevel, p, hitFace, rpm, random);
-                    if (!stop && sableCandidates != null && !sableCandidates.isEmpty()) {
-                        stop = SableCompat.processThermalAt(sableCandidates, pt, rayDir, rpm, random, visitedDepots);
+                    boolean stop = processThermalBlock(subLevel, sPos, sFace, rpm, random);
+                    if (stop) {
+                        break;
+                    }
+                    double distTraveled = sableHit.worldHitPos().distanceTo(curStart) + 0.3;
+                    remDist -= distTraveled;
+                    curStart = sableHit.worldHitPos().add(rayDir.scale(0.3));
+                } else {
+                    BlockPos wPos = worldHit.getBlockPos();
+                    Direction wFace = worldHit.getDirection();
+
+                    // Cook items on world depot/belt
+                    BlockPos[] dCandidates = new BlockPos[]{wPos, wPos.below()};
+                    for (BlockPos dPos : dCandidates) {
+                        if (visitedWorldDepots.add(dPos)) {
+                            BlockState ds = targetLevel.getBlockState(dPos);
+                            if (ds.hasBlockEntity()) {
+                                TransportedItemStackHandlerBehaviour handler = BlockEntityBehaviour.get(targetLevel, dPos, TransportedItemStackHandlerBehaviour.TYPE);
+                                if (handler != null) {
+                                    handler.handleProcessingOnAllItems(transported -> processTransportedCooking(transported, targetLevel, rpm));
+                                }
+                            }
+                        }
+                    }
+
+                    boolean stop = true;
+                    if (visitedBlocks.add(wPos)) {
+                        stop = processThermalBlock(targetLevel, wPos, wFace, rpm, random);
                     }
                     if (stop) {
                         break;
                     }
+                    double distTraveled = worldHit.getLocation().distanceTo(curStart) + 0.3;
+                    remDist -= distTraveled;
+                    curStart = worldHit.getLocation().add(rayDir.scale(0.3));
                 }
             }
         }
@@ -1667,13 +1796,17 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
             return true;
         }
 
-        // 3. Check name/tag heuristics strictly for modded wood/planks/logs/wool
+        // 3. Check name/tag heuristics strictly for modded wood/planks/logs/wool/sails
         for (var tag : st.getTags().toList()) {
             String path = tag.location().getPath();
             if (path.contains("logs") || path.contains("planks") || path.contains("wooden") ||
-                    path.contains("wool") || path.contains("thatch")) {
+                    path.contains("wool") || path.contains("thatch") || path.contains("sail")) {
                 return true;
             }
+        }
+        String id = BuiltInRegistries.BLOCK.getKey(st.getBlock()).getPath();
+        if (id.contains("sail") || id.contains("plank") || id.contains("wood")) {
+            return true;
         }
         return false;
     }
@@ -1764,19 +1897,20 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
             // 4. Leaves (Trees!)
             boolean isLeaves = st.is(BlockTags.LEAVES) || st.getBlock() instanceof net.minecraft.world.level.block.LeavesBlock;
             if (isLeaves) {
-                BlockState fireState = BaseFireBlock.getState(lvl, p);
-                if (fireState.canSurvive(lvl, p)) {
-                    lvl.setBlock(p, fireState, 3);
-                } else {
-                    igniteNeighborFace(lvl, p, hitDir);
+                igniteNeighborFace(lvl, p, hitDir);
+                if (random.nextFloat() < 0.35f) {
+                    BlockState fireState = BaseFireBlock.getState(lvl, p);
+                    if (fireState.canSurvive(lvl, p)) {
+                        lvl.setBlock(p, fireState, 3);
+                    }
                 }
                 return false; // Ray penetrates deeper into the tree canopy
             }
 
-            // 5. Solid flammable blocks: logs, planks, wool, fences, etc.
+            // 5. Solid flammable blocks: logs, planks, wool, fences, sails, etc.
             if (isFlammableBlock(lvl, p, st)) {
                 igniteNeighborFace(lvl, p, hitDir);
-                if (rpm >= 128.0f && random.nextFloat() < 0.25f) {
+                if (rpm >= 64.0f && random.nextFloat() < 0.30f) {
                     BlockState fireState = BaseFireBlock.getState(lvl, p);
                     if (fireState.canSurvive(lvl, p)) {
                         lvl.setBlock(p, fireState, 3);
@@ -1793,10 +1927,10 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
             // 6. Smelting & Mineral transformations
             if (rpm >= 200.0f) {
                 // High speed only (>= 200 RPM): Superheat stone/cobblestone into magma!
-                if (st.is(Blocks.COBBLESTONE) && random.nextFloat() < 0.15f) {
+                if ((st.is(Blocks.COBBLESTONE) || st.is(Blocks.COBBLED_DEEPSLATE)) && random.nextFloat() < 0.20f) {
                     lvl.setBlock(p, Blocks.MAGMA_BLOCK.defaultBlockState(), 3);
                     return true;
-                } else if (st.is(Blocks.STONE) && random.nextFloat() < 0.04f) {
+                } else if ((st.is(Blocks.STONE) || st.is(Blocks.ANDESITE) || st.is(Blocks.DIORITE) || st.is(Blocks.GRANITE)) && random.nextFloat() < 0.08f) {
                     lvl.setBlock(p, Blocks.MAGMA_BLOCK.defaultBlockState(), 3);
                     return true;
                 }
