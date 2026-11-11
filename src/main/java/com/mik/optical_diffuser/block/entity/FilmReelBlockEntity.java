@@ -16,6 +16,7 @@ public class FilmReelBlockEntity extends KineticBlockEntity {
 
     private String videoUrl = "";
     private long currentTimeMs = 0;
+    private boolean isPlaying = false;
     private float visualAngle = 0.0f;
     private int serverSyncTicks = 0;
     private float lastServerSpeed = 0.0f;
@@ -26,6 +27,26 @@ public class FilmReelBlockEntity extends KineticBlockEntity {
 
     public FilmReelBlockEntity(BlockPos pos, BlockState state) {
         super(ModRegistry.FILM_REEL_BE.get(), pos, state);
+    }
+
+    public boolean isPlaying() {
+        return this.isPlaying;
+    }
+
+    public void setPlaying(boolean playing) {
+        this.isPlaying = playing;
+    }
+
+    public OpticalDiffuserBlockEntity getConnectedDiffuser() {
+        if (level != null) {
+            net.minecraft.core.Direction facing = getBlockState().getValue(com.mik.optical_diffuser.block.FilmReelBlock.FACING);
+            net.minecraft.core.Direction left = com.mik.optical_diffuser.block.OpticalDiffuserBlock.getLeftDirection(facing);
+            net.minecraft.world.level.block.entity.BlockEntity be = level.getBlockEntity(getBlockPos().relative(left));
+            if (be instanceof OpticalDiffuserBlockEntity diffuser) {
+                return diffuser;
+            }
+        }
+        return null;
     }
 
     private static final java.util.Map<String, Long> GLOBAL_TIME_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
@@ -66,13 +87,9 @@ public class FilmReelBlockEntity extends KineticBlockEntity {
         if (Math.abs(getSpeed()) > 0.001f) {
             return getSpeed();
         }
-        if (level != null) {
-            net.minecraft.core.Direction facing = getBlockState().getValue(com.mik.optical_diffuser.block.FilmReelBlock.FACING);
-            net.minecraft.core.Direction left = com.mik.optical_diffuser.block.OpticalDiffuserBlock.getLeftDirection(facing);
-            net.minecraft.world.level.block.entity.BlockEntity be = level.getBlockEntity(getBlockPos().relative(left));
-            if (be instanceof OpticalDiffuserBlockEntity diffuser) {
-                return diffuser.getSpeed();
-            }
+        OpticalDiffuserBlockEntity diffuser = getConnectedDiffuser();
+        if (diffuser != null) {
+            return diffuser.getSpeed();
         }
         return 0.0f;
     }
@@ -91,8 +108,13 @@ public class FilmReelBlockEntity extends KineticBlockEntity {
                     this.visualAngle += (speed * 6.0f / 20.0f);
                 }
             } else {
-                // Authoritative server-side playback time tracking based on Create shaft RPM
-                if (Math.abs(speed) > 0.1f) {
+                OpticalDiffuserBlockEntity diffuser = getConnectedDiffuser();
+                boolean isConnectedToDiffuser = (diffuser != null);
+
+                // If connected to a diffuser, time only advances when media is loaded and actively playing
+                boolean canAdvance = !isConnectedToDiffuser || (this.isPlaying && diffuser.isLightEnabled());
+
+                if (Math.abs(speed) > 0.1f && canAdvance && (!isConnectedToDiffuser || !this.videoUrl.isEmpty())) {
                     long deltaMs = (long) ((speed / 16.0f) * 50); // 50ms per tick at 16 RPM
                     this.currentTimeMs = Math.max(0, this.currentTimeMs + deltaMs);
                     serverSyncTicks++;
@@ -118,6 +140,7 @@ public class FilmReelBlockEntity extends KineticBlockEntity {
         super.write(tag, registries, clientPacket);
         tag.putString("VideoUrl", this.videoUrl);
         tag.putLong("CurrentTimeMs", this.currentTimeMs);
+        tag.putBoolean("IsPlaying", this.isPlaying);
     }
 
     @Override
@@ -125,6 +148,7 @@ public class FilmReelBlockEntity extends KineticBlockEntity {
         super.read(tag, registries, clientPacket);
         this.videoUrl = tag.getString("VideoUrl");
         this.currentTimeMs = tag.getLong("CurrentTimeMs");
+        this.isPlaying = tag.getBoolean("IsPlaying");
         if (this.currentTimeMs == 0 && !this.videoUrl.isEmpty()) {
             long cached = getLastKnownTime(this.videoUrl);
             if (cached > 0) {

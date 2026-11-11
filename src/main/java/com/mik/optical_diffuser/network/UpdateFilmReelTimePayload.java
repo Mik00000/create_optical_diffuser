@@ -12,7 +12,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
-public record UpdateFilmReelTimePayload(BlockPos pos, long timeMs) implements CustomPacketPayload {
+public record UpdateFilmReelTimePayload(BlockPos pos, long timeMs, boolean isPlaying) implements CustomPacketPayload {
 
     public static final Type<UpdateFilmReelTimePayload> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(OpticalDiffuserMod.MOD_ID, "update_film_reel_time"));
 
@@ -21,6 +21,8 @@ public record UpdateFilmReelTimePayload(BlockPos pos, long timeMs) implements Cu
             UpdateFilmReelTimePayload::pos,
             ByteBufCodecs.VAR_LONG,
             UpdateFilmReelTimePayload::timeMs,
+            ByteBufCodecs.BOOL,
+            UpdateFilmReelTimePayload::isPlaying,
             UpdateFilmReelTimePayload::new
     );
 
@@ -38,8 +40,9 @@ public record UpdateFilmReelTimePayload(BlockPos pos, long timeMs) implements Cu
                 if (be instanceof FilmReelBlockEntity reelBe) {
                     if (payload.timeMs() >= 0 && payload.timeMs() < 86400000L) { // max 24 hours
                         reelBe.setCurrentTimeMs(payload.timeMs());
-                        reelBe.sendData();
                     }
+                    reelBe.setPlaying(payload.isPlaying());
+                    reelBe.sendData();
                 }
             }
         });

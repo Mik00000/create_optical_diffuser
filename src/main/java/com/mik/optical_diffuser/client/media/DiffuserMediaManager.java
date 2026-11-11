@@ -18,6 +18,9 @@ public class DiffuserMediaManager {
 
     private final OpticalDiffuserBlockEntity diffuser;
     private MediaPlayer player = null;
+    private org.watermedia.api.player.MRL currentMrl = null;
+    private boolean mrlReloadedOnce = false;
+    private long mrlErrorCooldownUntil = 0;
     private String currentUrl = "";
     private boolean soundEnabled = false;
     private float lastSpeed = 1.0f;
@@ -103,12 +106,34 @@ public class DiffuserMediaManager {
             if (player != null && player.playing()) {
                 player.pause(true);
             }
+            if (filmReel != null && filmReel.isPlaying()) {
+                filmReel.setPlaying(false);
+                net.neoforged.neoforge.network.PacketDistributor.sendToServer(
+                        new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs, false)
+                );
+            }
             return;
         }
 
         // Initialize media if URL changed or sound mode toggled
-        if (player == null || !url.equals(currentUrl) || sound != soundEnabled) {
+        if (!url.equals(currentUrl) || sound != soundEnabled) {
             startMedia(url, sound, savedTime);
+        } else if (player == null && currentMrl != null) {
+            tryCreatePlayer(sound);
+        }
+
+        if (player == null) {
+            // Media is still loading/buffering or unavailable: freeze playback time!
+            if (filmReel != null) {
+                filmReel.setCurrentTimeMs(this.lastRecordedTimeMs);
+                if (filmReel.isPlaying()) {
+                    filmReel.setPlaying(false);
+                    net.neoforged.neoforge.network.PacketDistributor.sendToServer(
+                            new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs, false)
+                    );
+                }
+            }
+            return;
         }
 
         if (player != null) {
@@ -136,6 +161,12 @@ public class DiffuserMediaManager {
                 if (player.playing()) {
                     player.pause(true);
                     syncTimeToReel(filmReel, this.lastRecordedTimeMs);
+                    if (filmReel != null) {
+                        filmReel.setPlaying(false);
+                        net.neoforged.neoforge.network.PacketDistributor.sendToServer(
+                                new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs, false)
+                        );
+                    }
                 }
                 OpenALPitchFixer.release(player);
             } else if (speedFactor > 0) {
@@ -230,8 +261,9 @@ public class DiffuserMediaManager {
                         this.lastRecordedTimeMs = 0;
                         syncTimeToReel(filmReel, 0);
                         if (filmReel != null) {
+                            filmReel.setPlaying(true);
                             net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-                                    new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), 0)
+                                    new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), 0, true)
                             );
                         }
                     } else if (curTime > 0) {
@@ -240,16 +272,18 @@ public class DiffuserMediaManager {
 
                         // Periodically sync time to server every 20 ticks (1s) to prevent rollback
                         if (filmReel != null && diffuser.getLevel() != null && (diffuser.getLevel().getGameTime() % 20 == 0)) {
+                            filmReel.setPlaying(true);
                             net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-                                    new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), curTime)
+                                    new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), curTime, true)
                             );
                         }
 
                         // If server drifted past end of video, reset server reel time to 0
                         if (filmReel != null && duration > 0 && filmReel.getCurrentTimeMs() >= duration) {
                             filmReel.setCurrentTimeMs(0);
+                            filmReel.setPlaying(true);
                             net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-                                    new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), 0)
+                                    new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), 0, true)
                             );
                         } else if (filmReel != null && filmReel.getCurrentTimeMs() > 0
                                 && Math.abs(curTime - filmReel.getCurrentTimeMs()) > 3500
@@ -274,6 +308,12 @@ public class DiffuserMediaManager {
                 long stepMs = (long) (Math.abs(speedFactor) * 50);
                 this.lastRecordedTimeMs = Math.max(0, this.lastRecordedTimeMs - stepMs);
                 syncTimeToReel(filmReel, this.lastRecordedTimeMs);
+                if (filmReel != null && diffuser.getLevel() != null && (diffuser.getLevel().getGameTime() % 20 == 0)) {
+                    filmReel.setPlaying(true);
+                    net.neoforged.neoforge.network.PacketDistributor.sendToServer(
+                            new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs, true)
+                    );
+                }
 
                 // Paced keyframe seek: 3 ticks (150ms) gives FFmpeg decoder time to flush & decode cleanly (~5 keyframe updates/sec)
                 if (rewindCooldown <= 0 && player.canSeek() && player.status() != MediaPlayer.Status.BUFFERING) {
@@ -411,16 +451,49 @@ public class DiffuserMediaManager {
         this.lastRecordedTimeMs = effectiveTime;
         this.pendingSeekMs = effectiveTime;
         this.seekWaitTicks = 0;
+        this.mrlReloadedOnce = false;
 
         try {
             com.mik.optical_diffuser.util.DiffuserLogger.info("Starting media player: url='{}', sound={}, resumeTime={}ms", url, sound, effectiveTime);
-            var mrl = PlayerAPI.mrl(url);
+            this.currentMrl = PlayerAPI.mrl(url);
+            tryCreatePlayer(sound);
+        } catch (Throwable t) {
+            com.mik.optical_diffuser.util.DiffuserLogger.error("Failed to start media player for url=" + url, t);
+        }
+    }
+
+    private void tryCreatePlayer(boolean sound) {
+        if (this.currentMrl == null || this.player != null) return;
+
+        var status = this.currentMrl.status();
+        if (status == org.watermedia.api.player.MRL.Status.FETCHING) {
+            return; // Still fetching in background
+        }
+
+        if (status == org.watermedia.api.player.MRL.Status.ERROR) {
+            long now = System.currentTimeMillis();
+            if (!this.mrlReloadedOnce) {
+                this.mrlReloadedOnce = true;
+                this.mrlErrorCooldownUntil = now + 4000;
+                com.mik.optical_diffuser.util.DiffuserLogger.warn("MRL encountered error, attempting recovery reload: {}", this.currentUrl);
+                this.currentMrl.reload();
+                return;
+            }
+            if (now < this.mrlErrorCooldownUntil) {
+                return;
+            }
+            this.mrlErrorCooldownUntil = now + 5000;
+            com.mik.optical_diffuser.util.DiffuserLogger.warn("MRL status ERROR for url='{}'", this.currentUrl);
+            return;
+        }
+
+        try {
             Minecraft mc = Minecraft.getInstance();
             Thread renderThread = Thread.currentThread();
 
             // Disable persistent PBO ring in GLEngine (ringCapable = false) to prevent chroma desync
             this.player = PlayerAPI.player(
-                    mrl,
+                    this.currentMrl,
                     () -> {
                         org.watermedia.api.player.GLEngine engine = PlayerAPI.glEngine(renderThread, mc);
                         try {
@@ -440,9 +513,10 @@ public class DiffuserMediaManager {
                 this.player.repeat(true);
                 this.player.start();
                 this.lastSpeed = 1.0f;
+                com.mik.optical_diffuser.util.DiffuserLogger.info("Media player successfully created for url='{}'", this.currentUrl);
             }
         } catch (Throwable t) {
-            com.mik.optical_diffuser.util.DiffuserLogger.error("Failed to start media player for url=" + url, t);
+            com.mik.optical_diffuser.util.DiffuserLogger.error("Failed to start media player for url=" + this.currentUrl, t);
         }
     }
 
@@ -493,9 +567,10 @@ public class DiffuserMediaManager {
             FilmReelBlockEntity filmReel = diffuser.getConnectedFilmReel();
             if (filmReel != null && this.lastRecordedTimeMs > 0) {
                 syncTimeToReel(filmReel, this.lastRecordedTimeMs);
+                filmReel.setPlaying(false);
                 try {
                     net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-                            new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs)
+                            new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs, false)
                     );
                 } catch (Throwable ignored) {}
             }
@@ -513,6 +588,7 @@ public class DiffuserMediaManager {
             dynamicTexture = null;
         }
         currentUrl = "";
+        currentMrl = null;
         currentMasterVolume = 0.0f;
         accumulatedReelAngle = 0.0f;
         accumulatedReverseAngle = 0.0f;
