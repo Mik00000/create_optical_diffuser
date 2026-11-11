@@ -59,10 +59,10 @@ public class CarouselRenderer {
         poseStack.pushPose();
         poseStack.mulPose(Axis.ZP.rotationDegrees(-angle));
 
-        // 1. Render Carousel Wheel Base Plate (radius 0.44 blocks)
+        // 1. Render Carousel Wheel Base Plate (radius 0.50 blocks = 16x16 texel face)
         VertexConsumer wheelConsumer = bufferSource.getBuffer(RenderType.entityCutout(CAROUSEL_WHEEL_TEXTURE));
         Matrix4f wheelMat = poseStack.last().pose();
-        float r = 0.44f;
+        float r = 0.5f;
 
         wheelConsumer.addVertex(wheelMat, -r, -r, 0.0f).setColor(255, 255, 255, 255).setUv(0.0f, 1.0f).setOverlay(packedOverlay).setLight(packedLight).setNormal(0, 0, 1);
         wheelConsumer.addVertex(wheelMat,  r, -r, 0.0f).setColor(255, 255, 255, 255).setUv(1.0f, 1.0f).setOverlay(packedOverlay).setLight(packedLight).setNormal(0, 0, 1);
@@ -72,7 +72,7 @@ public class CarouselRenderer {
         // 2. Render 4 Lens items mounted in the 4 carousel slots
         ItemStack[] lenses = be.getCarouselLenses();
         ItemRenderer itemRenderer = Minecraft.getInstance().getItemRenderer();
-        float socketRadius = 0.26f;
+        float socketRadius = 0.25f;
 
         // Slot 0: Top (0 deg)
         // Slot 1: Front (90 deg)
@@ -90,7 +90,7 @@ public class CarouselRenderer {
             float sy = (float) Math.cos(th) * socketRadius;
 
             poseStack.translate(sx, sy, 0.015);
-            poseStack.scale(0.24f, 0.24f, 0.24f);
+            poseStack.scale(0.22f, 0.22f, 0.22f);
 
             itemRenderer.renderStatic(
                     lens,
@@ -114,7 +114,7 @@ public class CarouselRenderer {
 
         float fx = socketRadius;
         float fy = 0.0f;
-        float fr = 0.09f;
+        float fr = 0.125f;
 
         frameConsumer.addVertex(frameMat, fx - fr, fy - fr, 0.025f).setColor(255, 255, 255, 240).setUv(0.0f, 1.0f).setOverlay(packedOverlay).setLight(15728880).setNormal(0, 0, 1);
         frameConsumer.addVertex(frameMat, fx + fr, fy - fr, 0.025f).setColor(255, 255, 255, 240).setUv(1.0f, 1.0f).setOverlay(packedOverlay).setLight(15728880).setNormal(0, 0, 1);

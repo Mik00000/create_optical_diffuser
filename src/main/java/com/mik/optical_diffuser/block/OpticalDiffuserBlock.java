@@ -161,7 +161,7 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
             }
         }
 
-        double socketRadius = 0.26;
+        double socketRadius = 0.25;
         float[] slotAngles = new float[]{0.0f, 90.0f, 180.0f, 270.0f};
 
         int bestSlot = -1;
@@ -178,8 +178,8 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
             }
         }
 
-        // Target slot radius: 0.18 blocks around socket center
-        if (minDistance <= 0.18) {
+        // Target slot radius: 0.16 blocks around socket center
+        if (minDistance <= 0.16) {
             return bestSlot;
         }
         return -1;
