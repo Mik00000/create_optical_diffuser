@@ -76,23 +76,39 @@ public class OpticalDiffuserRenderer implements BlockEntityRenderer<OpticalDiffu
     public OpticalDiffuserRenderer(BlockEntityRendererProvider.Context context) {
     }
 
+    public static Direction getBottomSocketDirection(Direction facing) {
+        return switch (facing) {
+            case UP -> Direction.NORTH;
+            case DOWN -> Direction.SOUTH;
+            default -> Direction.DOWN;
+        };
+    }
+
     @Override
     public void render(OpticalDiffuserBlockEntity be, float partialTicks, PoseStack poseStack, MultiBufferSource bufferSource, int packedLight, int packedOverlay) {
-        // 1. Render rotating kinetic shaft connected to the left side or bottom socket
+        // 1. Render rotating kinetic shafts connected to the left side and bottom sockets
         if (be.getLevel() != null) {
             try {
                 Direction facing = be.getBlockState().getValue(OpticalDiffuserBlock.FACING);
-                Direction left = OpticalDiffuserBlock.getLeftDirection(facing);
 
-                SuperByteBuffer shaft = CachedBuffers.partialFacing(AllPartialModels.SHAFT_HALF, be.getBlockState(), left);
-                int shaftLight = LevelRenderer.getLightColor(be.getLevel(), be.getBlockPos().relative(left));
-                KineticBlockEntityRenderer.standardKineticRotationTransform(shaft, be, shaftLight);
-                shaft.renderInto(poseStack, bufferSource.getBuffer(RenderType.solid()));
+                // Left kinetic shaft socket
+                Direction left = OpticalDiffuserBlock.getLeftDirection(facing);
+                SuperByteBuffer shaftLeft = CachedBuffers.partialFacing(AllPartialModels.SHAFT_HALF, be.getBlockState(), left);
+                int shaftLightLeft = LevelRenderer.getLightColor(be.getLevel(), be.getBlockPos().relative(left));
+                KineticBlockEntityRenderer.standardKineticRotationTransform(shaftLeft, be, shaftLightLeft);
+                shaftLeft.renderInto(poseStack, bufferSource.getBuffer(RenderType.solid()));
+
+                // Bottom kinetic shaft socket
+                Direction bottom = getBottomSocketDirection(facing);
+                SuperByteBuffer shaftBottom = CachedBuffers.partialFacing(AllPartialModels.SHAFT_HALF, be.getBlockState(), bottom);
+                int shaftLightBottom = LevelRenderer.getLightColor(be.getLevel(), be.getBlockPos().relative(bottom));
+                KineticBlockEntityRenderer.standardKineticRotationTransform(shaftBottom, be, shaftLightBottom);
+                shaftBottom.renderInto(poseStack, bufferSource.getBuffer(RenderType.solid()));
             } catch (Exception ignored) {}
         }
 
-        // 2. Carousel wheel overlay disabled to prevent covering custom block hole geometry
-        // CarouselRenderer.renderCarousel(be, partialTicks, poseStack, bufferSource, packedLight, packedOverlay);
+        // 2. Render 4-slot Lens Carousel Wheel on the left face
+        CarouselRenderer.renderCarousel(be, partialTicks, poseStack, bufferSource, packedLight, packedOverlay);
 
         // 3. Render optical beam only when active
         if (!be.isActive()) {
