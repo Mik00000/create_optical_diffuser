@@ -24,6 +24,10 @@ public class ClientSpeakerRegistry {
         ACTIVE_SPEAKERS.remove(speaker);
     }
 
+    public static void clear() {
+        ACTIVE_SPEAKERS.clear();
+    }
+
     public static List<SpeakerBlockEntity> getSpeakersForDiffuser(OpticalDiffuserBlockEntity diffuser) {
         if (diffuser == null || diffuser.getLevel() == null) return Collections.emptyList();
         BlockPos diffuserPos = diffuser.getBlockPos();

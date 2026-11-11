@@ -41,8 +41,25 @@ import org.joml.Vector4f;
 
 public class OpticalDiffuserRenderer implements BlockEntityRenderer<OpticalDiffuserBlockEntity> {
 
-    private static final int SEGMENTS = 48;
+    public static final int SEGMENTS = 32;
     private static final int RINGS = 16;
+
+    private static final float[] BASE_COS = new float[SEGMENTS + 1];
+    private static final float[] BASE_SIN = new float[SEGMENTS + 1];
+
+    static {
+        for (int j = 0; j <= SEGMENTS; j++) {
+            float th = (float) (2.0 * Math.PI * (j % SEGMENTS) / SEGMENTS);
+            BASE_COS[j] = (float) Math.cos(th);
+            BASE_SIN[j] = (float) Math.sin(th);
+        }
+    }
+
+    private static final ThreadLocal<float[]> SCRATCH_COS = ThreadLocal.withInitial(() -> new float[SEGMENTS + 1]);
+    private static final ThreadLocal<float[]> SCRATCH_SIN = ThreadLocal.withInitial(() -> new float[SEGMENTS + 1]);
+    private static final ThreadLocal<float[]> SCRATCH_SEG = ThreadLocal.withInitial(() -> new float[SEGMENTS + 1]);
+    private static final ThreadLocal<Matrix4f> SCRATCH_MAT = ThreadLocal.withInitial(Matrix4f::new);
+    private static final ThreadLocal<Vector3f> SCRATCH_CAM = ThreadLocal.withInitial(Vector3f::new);
 
     public static final RenderType SPOTLIGHT_BEAM = RenderType.create(
             "spotlight_volumetric_beam",
@@ -236,15 +253,16 @@ public class OpticalDiffuserRenderer implements BlockEntityRenderer<OpticalDiffu
 
         Matrix4f poseMat = pose.pose();
 
-        // 1. Camera position for lens flare effect only
-        Matrix4f invPose = new Matrix4f(poseMat).invert();
-        Vector3f localCamPos = new Vector3f();
+        // 1. Camera position for lens flare effect only (reusing scratch structures to prevent GC churn)
+        Matrix4f invPose = SCRATCH_MAT.get().set(poseMat).invert();
+        Vector3f localCamPos = SCRATCH_CAM.get();
+        localCamPos.set(0, 0, 0);
         invPose.transformPosition(localCamPos);
 
         float camDist = localCamPos.length();
 
         final int rings = 16;
-        final int segments = 32;
+        final int segments = SEGMENTS;
 
         DiffuserClientConfig cfg = DiffuserClientConfig.INSTANCE;
         float coreBrightness = (cfg != null) ? (float) cfg.coreBrightness.get().doubleValue() : 0.70f;
@@ -276,15 +294,14 @@ public class OpticalDiffuserRenderer implements BlockEntityRenderer<OpticalDiffu
         float vx = (camDistXY > 1e-4f) ? camX / camDistXY : 0.0f;
         float vy = (camDistXY > 1e-4f) ? camY / camDistXY : 1.0f;
 
-        // Precompute cos, sin and circumferential view-factor softening for each segment
-        float[] cosTh = new float[segments + 1];
-        float[] sinTh = new float[segments + 1];
-        float[] segFactor = new float[segments + 1];
+        // Circumferential view-factor softening for each segment (reusing static sin/cos tables and scratch arrays)
+        float[] cosTh = SCRATCH_COS.get();
+        float[] sinTh = SCRATCH_SIN.get();
+        float[] segFactor = SCRATCH_SEG.get();
 
         for (int j = 0; j <= segments; j++) {
-            float th = (float) (2.0 * Math.PI * (j % segments) / segments);
-            float c = (float) Math.cos(th);
-            float s = (float) Math.sin(th);
+            float c = BASE_COS[j];
+            float s = BASE_SIN[j];
             cosTh[j] = c * scaleU;
             sinTh[j] = s * scaleV;
 

@@ -27,14 +27,22 @@ public class DiffuserClientEffects {
 
     @SubscribeEvent
     public void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
-        DiffuserMediaManager.releaseAll();
+        clearAllClientCaches();
     }
 
     @SubscribeEvent
     public void onLevelUnload(LevelEvent.Unload event) {
         if (event.getLevel() != null && event.getLevel().isClientSide()) {
-            DiffuserMediaManager.releaseAll();
+            clearAllClientCaches();
         }
+    }
+
+    private static void clearAllClientCaches() {
+        DiffuserMediaManager.releaseAll();
+        com.mik.optical_diffuser.client.media.ClientSpeakerRegistry.clear();
+        com.mik.optical_diffuser.client.render.HologramRenderer.clearCache();
+        com.mik.optical_diffuser.compat.SableCompat.clearCache();
+        DiffuserSelectionTracker.clear();
     }
 
     @SubscribeEvent

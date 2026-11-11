@@ -23,8 +23,13 @@ public class ServerLightEventHandler {
             double ez = event.getZ();
             Vec3 entityPos = new Vec3(ex, ey, ez);
 
-            for (OpticalDiffuserBlockEntity be : OpticalDiffuserBlockEntity.ACTIVE_SERVER_DIFFUSERS) {
-                if (be == null || be.isRemoved() || !be.isActive() || be.getLevel() == null) {
+            for (java.util.Iterator<OpticalDiffuserBlockEntity> it = OpticalDiffuserBlockEntity.ACTIVE_SERVER_DIFFUSERS.iterator(); it.hasNext(); ) {
+                OpticalDiffuserBlockEntity be = it.next();
+                if (be == null || be.isRemoved() || be.getLevel() == null) {
+                    it.remove();
+                    continue;
+                }
+                if (!be.isActive()) {
                     continue;
                 }
 

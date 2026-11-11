@@ -367,10 +367,14 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof OpticalDiffuserBlockEntity diffuser) {
                 diffuser.clearIllumination();
-                for (int i = 0; i < 4; i++) {
-                    ItemStack lens = diffuser.getCarouselLens(i);
-                    if (!lens.isEmpty()) {
-                        Block.popResource(level, pos, lens);
+                // Never drop lenses if the block is being moved (Sable ship assembly/disassembly, contraptions, pistons)
+                if (!isMoving) {
+                    for (int i = 0; i < 4; i++) {
+                        ItemStack lens = diffuser.getCarouselLens(i);
+                        if (!lens.isEmpty()) {
+                            Block.popResource(level, pos, lens);
+                            diffuser.setCarouselLens(i, ItemStack.EMPTY);
+                        }
                     }
                 }
             }

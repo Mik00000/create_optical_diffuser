@@ -2031,6 +2031,12 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
     }
 
     @Override
+    public void remove() {
+        super.remove();
+        handleCleanup();
+    }
+
+    @Override
     public void destroy() {
         super.destroy();
         handleCleanup();
@@ -2049,14 +2055,11 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
     }
 
     private void handleCleanup() {
-        if (level != null) {
-            if (level.isClientSide) {
-                CLIENT_INSTANCES.remove(this);
-                com.mik.optical_diffuser.client.media.DiffuserMediaManager.remove(this);
-            } else {
-                ACTIVE_SERVER_DIFFUSERS.remove(this);
-                clearIllumination();
-            }
+        CLIENT_INSTANCES.remove(this);
+        com.mik.optical_diffuser.client.media.DiffuserMediaManager.remove(this);
+        ACTIVE_SERVER_DIFFUSERS.remove(this);
+        if (level != null && !level.isClientSide) {
+            clearIllumination();
         }
     }
 

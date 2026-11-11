@@ -18,8 +18,6 @@ import java.util.Random;
 
 public class ProjectorScreenRenderer {
 
-    private static final Random RANDOM = new Random();
-
     public static void renderScreen(OpticalDiffuserBlockEntity be, float partialTicks, PoseStack poseStack, MultiBufferSource bufferSource) {
         OpticalDiffuserBlockEntity.DiffuserModule mod = be.getActiveModule();
         boolean isProjector = (mod == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SILENT
@@ -117,7 +115,9 @@ public class ProjectorScreenRenderer {
 
         // Authentic vintage cinema shutter flicker (gentle 0.95..1.0 range, warm vintage tone)
         long gameTime = be.getLevel().getGameTime();
-        float flicker = 0.96f + (float) Math.sin(gameTime * 1.8f) * 0.03f + (RANDOM.nextFloat() - 0.5f) * 0.02f;
+        long seed = gameTime * 3129871L ^ be.getBlockPos().asLong();
+        float noise = (((seed ^ (seed >>> 16)) & 0xFFFF) / 65535.0f - 0.5f);
+        float flicker = 0.96f + (float) Math.sin(gameTime * 1.8f) * 0.03f + noise * 0.02f;
 
         float r = isSilent ? 0.94f * flicker : 1.0f * flicker;
         float g = isSilent ? 0.94f * flicker : 0.98f * flicker;

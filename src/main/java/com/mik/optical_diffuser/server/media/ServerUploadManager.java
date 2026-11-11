@@ -79,6 +79,16 @@ public class ServerUploadManager {
         if (mediaDir == null) {
             mediaDir = new File("projector_media");
             mediaDir.mkdirs();
+        } else if (mediaDir.exists()) {
+            File[] oldParts = mediaDir.listFiles((dir, name) -> name.endsWith(".part"));
+            if (oldParts != null) {
+                long now = System.currentTimeMillis();
+                for (File p : oldParts) {
+                    if (now - p.lastModified() > 300_000L) {
+                        try { p.delete(); } catch (Throwable ignored) {}
+                    }
+                }
+            }
         }
 
         UUID uploadId = UUID.randomUUID();
@@ -101,6 +111,10 @@ public class ServerUploadManager {
         }
         if (player == null || !player.getUUID().equals(session.playerUuid)) {
             throw new SecurityException("Unauthorized upload chunk.");
+        }
+
+        if (session.receivedBytes + data.length > session.totalSize) {
+            throw new IllegalArgumentException("Upload chunk exceeds advertised file size.");
         }
 
         session.outputStream.write(data);
@@ -128,12 +142,19 @@ public class ServerUploadManager {
         }
 
         File targetFile = new File(mediaDir, session.cleanFileName);
-        if (targetFile.exists()) {
-            targetFile.delete();
-        }
-        boolean renamed = session.partFile.renameTo(targetFile);
-        if (!renamed) {
-            throw new IOException("Failed to rename temporary upload file to " + targetFile.getName());
+        try {
+            java.nio.file.Files.move(
+                    session.partFile.toPath(),
+                    targetFile.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE
+            );
+        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+            java.nio.file.Files.move(
+                    session.partFile.toPath(),
+                    targetFile.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING
+            );
         }
 
         String host = DiffuserServerConfig.INSTANCE.publicHost.get();

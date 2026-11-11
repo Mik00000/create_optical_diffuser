@@ -343,6 +343,11 @@ public class SableCompat {
     private static final java.util.Map<java.util.UUID, dev.ryanhcode.sable.companion.math.Pose3dc> SUBLEVEL_INITIAL_POSES = new java.util.concurrent.ConcurrentHashMap<>();
     private static final java.util.Map<java.util.UUID, dev.ryanhcode.sable.companion.math.Pose3dc> SUBLEVEL_LAST_KNOWN_POSES = new java.util.concurrent.ConcurrentHashMap<>();
 
+    public static void clearCache() {
+        SUBLEVEL_INITIAL_POSES.clear();
+        SUBLEVEL_LAST_KNOWN_POSES.clear();
+    }
+
     public static void init() {
         if (ModList.get().isLoaded("sable")) {
             try {

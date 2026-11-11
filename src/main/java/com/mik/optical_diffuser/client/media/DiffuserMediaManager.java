@@ -175,10 +175,21 @@ public class DiffuserMediaManager {
                     player.seek(this.lastRecordedTimeMs);
                     wasRewinding = false;
                     accumulatedReverseAngle = 0.0f;
+                    if (filmReel != null) {
+                        net.neoforged.neoforge.network.PacketDistributor.sendToServer(
+                                new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs, true)
+                        );
+                    }
                 }
 
                 if (player.paused()) {
                     player.resume();
+                    if (filmReel != null && !filmReel.isPlaying()) {
+                        filmReel.setPlaying(true);
+                        net.neoforged.neoforge.network.PacketDistributor.sendToServer(
+                                new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs, true)
+                        );
+                    }
                 }
 
                 // 4 Ergonomic Speed Zones:
@@ -270,14 +281,6 @@ public class DiffuserMediaManager {
                         this.lastRecordedTimeMs = curTime;
                         syncTimeToReel(filmReel, curTime);
 
-                        // Periodically sync time to server every 20 ticks (1s) to prevent rollback
-                        if (filmReel != null && diffuser.getLevel() != null && (diffuser.getLevel().getGameTime() % 20 == 0)) {
-                            filmReel.setPlaying(true);
-                            net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-                                    new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), curTime, true)
-                            );
-                        }
-
                         // If server drifted past end of video, reset server reel time to 0
                         if (filmReel != null && duration > 0 && filmReel.getCurrentTimeMs() >= duration) {
                             filmReel.setCurrentTimeMs(0);
@@ -308,12 +311,6 @@ public class DiffuserMediaManager {
                 long stepMs = (long) (Math.abs(speedFactor) * 50);
                 this.lastRecordedTimeMs = Math.max(0, this.lastRecordedTimeMs - stepMs);
                 syncTimeToReel(filmReel, this.lastRecordedTimeMs);
-                if (filmReel != null && diffuser.getLevel() != null && (diffuser.getLevel().getGameTime() % 20 == 0)) {
-                    filmReel.setPlaying(true);
-                    net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-                            new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs, true)
-                    );
-                }
 
                 // Paced keyframe seek: 3 ticks (150ms) gives FFmpeg decoder time to flush & decode cleanly (~5 keyframe updates/sec)
                 if (rewindCooldown <= 0 && player.canSeek() && player.status() != MediaPlayer.Status.BUFFERING) {

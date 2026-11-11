@@ -86,27 +86,27 @@ public class SpeakerBlockEntity extends SmartBlockEntity implements IHaveGoggleI
     }
 
     @Override
+    public void remove() {
+        super.remove();
+        com.mik.optical_diffuser.client.media.ClientSpeakerRegistry.unregister(this);
+    }
+
+    @Override
     public void destroy() {
         super.destroy();
-        if (level != null && level.isClientSide) {
-            com.mik.optical_diffuser.client.media.ClientSpeakerRegistry.unregister(this);
-        }
+        com.mik.optical_diffuser.client.media.ClientSpeakerRegistry.unregister(this);
     }
 
     @Override
     public void invalidate() {
         super.invalidate();
-        if (level != null && level.isClientSide) {
-            com.mik.optical_diffuser.client.media.ClientSpeakerRegistry.unregister(this);
-        }
+        com.mik.optical_diffuser.client.media.ClientSpeakerRegistry.unregister(this);
     }
 
     @Override
     public void onChunkUnloaded() {
         super.onChunkUnloaded();
-        if (level != null && level.isClientSide) {
-            com.mik.optical_diffuser.client.media.ClientSpeakerRegistry.unregister(this);
-        }
+        com.mik.optical_diffuser.client.media.ClientSpeakerRegistry.unregister(this);
     }
 
     @Override

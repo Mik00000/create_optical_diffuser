@@ -59,6 +59,10 @@ public class HologramRenderer {
 
     private static final Map<BlockPos, CachedSchematic> SCHEMATIC_CACHE = new ConcurrentHashMap<>();
 
+    public static void clearCache() {
+        SCHEMATIC_CACHE.clear();
+    }
+
     public static void renderHologram(OpticalDiffuserBlockEntity be, float partialTicks, PoseStack poseStack, MultiBufferSource bufferSource) {
         if (be == null || be.getLevel() == null || !be.isActive()) return;
         if (be.getActiveModule() != OpticalDiffuserBlockEntity.DiffuserModule.HOLOGRAM) return;
