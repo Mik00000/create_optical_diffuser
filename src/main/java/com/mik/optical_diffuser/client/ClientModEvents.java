@@ -8,8 +8,11 @@ import com.mik.optical_diffuser.client.render.ModPartialModels;
 import com.mik.optical_diffuser.client.render.ModShaders;
 import com.mik.optical_diffuser.client.render.OpticalDiffuserRenderer;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import net.minecraft.client.renderer.ItemBlockRenderTypes;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.resources.ResourceLocation;
+import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.event.RegisterShadersEvent;
@@ -17,6 +20,12 @@ import net.neoforged.neoforge.client.event.RegisterShadersEvent;
 import java.io.IOException;
 
 public class ClientModEvents {
+
+    public static void clientSetup(FMLClientSetupEvent event) {
+        event.enqueueWork(() -> {
+            ItemBlockRenderTypes.setRenderLayer(ModRegistry.OPTICAL_DIFFUSER.get(), RenderType.cutoutMipped());
+        });
+    }
 
     public static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         ModPartialModels.init();

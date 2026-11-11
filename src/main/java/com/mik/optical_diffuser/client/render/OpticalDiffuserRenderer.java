@@ -77,11 +77,7 @@ public class OpticalDiffuserRenderer implements BlockEntityRenderer<OpticalDiffu
     }
 
     public static Direction getBottomSocketDirection(Direction facing) {
-        return switch (facing) {
-            case UP -> Direction.NORTH;
-            case DOWN -> Direction.SOUTH;
-            default -> Direction.DOWN;
-        };
+        return OpticalDiffuserBlock.getBottomSocketDirection(facing);
     }
 
     @Override
@@ -91,18 +87,20 @@ public class OpticalDiffuserRenderer implements BlockEntityRenderer<OpticalDiffu
             try {
                 Direction facing = be.getBlockState().getValue(OpticalDiffuserBlock.FACING);
 
-                // Left kinetic shaft socket
+                // Left kinetic shaft socket (carousel drive)
                 Direction left = OpticalDiffuserBlock.getLeftDirection(facing);
                 SuperByteBuffer shaftLeft = CachedBuffers.partialFacing(AllPartialModels.SHAFT_HALF, be.getBlockState(), left);
                 int shaftLightLeft = LevelRenderer.getLightColor(be.getLevel(), be.getBlockPos().relative(left));
-                KineticBlockEntityRenderer.standardKineticRotationTransform(shaftLeft, be, shaftLightLeft);
+                float angleLeft = KineticBlockEntityRenderer.getAngleForBe(be, be.getBlockPos(), left.getAxis());
+                KineticBlockEntityRenderer.kineticRotationTransform(shaftLeft, be, left.getAxis(), angleLeft, shaftLightLeft);
                 shaftLeft.renderInto(poseStack, bufferSource.getBuffer(RenderType.solid()));
 
-                // Bottom kinetic shaft socket
-                Direction bottom = getBottomSocketDirection(facing);
+                // Bottom kinetic shaft socket (beam rotation drive)
+                Direction bottom = OpticalDiffuserBlock.getBottomSocketDirection(facing);
                 SuperByteBuffer shaftBottom = CachedBuffers.partialFacing(AllPartialModels.SHAFT_HALF, be.getBlockState(), bottom);
                 int shaftLightBottom = LevelRenderer.getLightColor(be.getLevel(), be.getBlockPos().relative(bottom));
-                KineticBlockEntityRenderer.standardKineticRotationTransform(shaftBottom, be, shaftLightBottom);
+                float angleBottom = KineticBlockEntityRenderer.getAngleForBe(be, be.getBlockPos(), bottom.getAxis());
+                KineticBlockEntityRenderer.kineticRotationTransform(shaftBottom, be, bottom.getAxis(), angleBottom, shaftLightBottom);
                 shaftBottom.renderInto(poseStack, bufferSource.getBuffer(RenderType.solid()));
             } catch (Exception ignored) {}
         }

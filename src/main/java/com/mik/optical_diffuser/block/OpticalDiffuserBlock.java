@@ -79,12 +79,21 @@ public class OpticalDiffuserBlock extends KineticBlock implements IBE<OpticalDif
         return getLeftDirection(facing).getOpposite();
     }
 
+    public static Direction getBottomSocketDirection(Direction facing) {
+        return switch (facing) {
+            case UP -> Direction.SOUTH;
+            case DOWN -> Direction.NORTH;
+            default -> Direction.DOWN;
+        };
+    }
+
     @Override
     public boolean hasShaftTowards(LevelReader world, BlockPos pos, BlockState state, Direction face) {
         Direction facing = state.getValue(FACING);
         Direction left = getLeftDirection(facing);
-        // Kinetic shaft connects strictly to the left face (lens turret carousel drive)
-        return face == left;
+        Direction bottom = getBottomSocketDirection(facing);
+        // Kinetic shaft connects to the left face (lens carousel drive) and bottom face (beam rotation drive)
+        return face == left || face == bottom;
     }
 
     @Override

@@ -1,6 +1,7 @@
 {
   "parent": "block/block",
   "loader": "neoforge:obj",
+  "render_type": "minecraft:cutout_mipped",
   "flip_v": true,
   "model": "create_optical_diffuser:models/block/optical_diffuser.obj",
   "textures": {

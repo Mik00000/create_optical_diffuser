@@ -38,6 +38,7 @@ public class OpticalDiffuserMod {
             try {
                 org.watermedia.WaterMediaConfig.codecs.ffmpeg.hardwareAccel = false;
             } catch (Throwable ignored) {}
+            modEventBus.addListener(ClientModEvents::clientSetup);
             modEventBus.addListener(ClientModEvents::registerScreens);
             modEventBus.addListener(ClientModEvents::registerRenderers);
             modEventBus.addListener(ClientModEvents::registerShaders);
