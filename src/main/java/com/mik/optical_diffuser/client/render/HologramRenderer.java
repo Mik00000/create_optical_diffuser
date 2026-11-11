@@ -88,11 +88,13 @@ public class HologramRenderer {
         float renderTime = AnimationTickHolder.getRenderTime(be.getLevel());
         float bob = (float) Math.sin((renderTime % 78.53982f) * 0.08f) * 0.06f;
 
-        float shaftSpeed = be.getSpeed();
-        float speed = (shaftSpeed != 0.0f) ? shaftSpeed : (be.getCachedSpeed() != 0.0f ? be.getCachedSpeed() : 16.0f);
-        // 1 RPM = 6 deg/sec = 0.3 deg/tick in Minecraft (speed * 3.0f / 10.0f).
-        // Modulo 360 preserves float mantissa precision for buttery-smooth rotation.
-        float angle = ((renderTime * speed * 0.3f) % 360.0f + 360.0f) % 360.0f;
+        // Hologram rotation is driven by the bottom shaft (beam-rotation drive), not the left shaft (lens carousel).
+        // currentRotation is accumulated in tick() from getEffectiveSpinSpeed() and synced to the client via NBT.
+        // We interpolate it with the partial-tick spin speed for butter-smooth rendering.
+        float spinSpeed = be.getEffectiveSpinSpeed();
+        // 1 RPM → 6 deg/sec → 6/20 = 0.3 deg/tick
+        float angle = (be.getCurrentRotation() + spinSpeed * 0.3f * (AnimationTickHolder.getPartialTicks(be.getLevel()))) % 360.0f;
+        if (angle < 0.0f) angle += 360.0f;
 
         float lr = be.getRed() / 255.0f;
         float lg = be.getGreen() / 255.0f;
