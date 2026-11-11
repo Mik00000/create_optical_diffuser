@@ -38,6 +38,8 @@ public class OpticalDiffuserMod {
             try {
                 org.watermedia.WaterMediaConfig.codecs.ffmpeg.hardwareAccel = false;
             } catch (Throwable ignored) {}
+            // Register ponder plugin before PonderClient.init() runs in FMLClientSetupEvent
+            net.createmod.ponder.foundation.PonderIndex.addPlugin(new com.mik.optical_diffuser.ponder.DiffuserPonderPlugin());
             modEventBus.addListener(ClientModEvents::clientSetup);
             modEventBus.addListener(ClientModEvents::registerScreens);
             modEventBus.addListener(ClientModEvents::registerRenderers);
