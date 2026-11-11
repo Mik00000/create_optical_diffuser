@@ -176,16 +176,8 @@
   "create_optical_diffuser.ponder.lead_glass.text_2": "Stained glass anywhere in the 12-block scan zone — in front or behind the diffuser — tints the beam",
   "create_optical_diffuser.ponder.lead_glass.text_3": "Multiple glass colors blend subtractively: Red + Blue = Magenta. Red + Green = Yellow",
   "create_optical_diffuser.ponder.lead_glass.text_4": "Lead glass also acts as the cinema screen for projector lenses — the video maps directly onto it",
-  "create_optical_diffuser.ponder.tag.optical_diffuser": "Optical Diffuser",
-  "create_optical_diffuser.ponder.tag.optical_diffuser.description": "Learn how the Optical Diffuser receives a laser beam and reshapes it into a cone of light.",
-  "create_optical_diffuser.ponder.tag.beam_lenses": "Beam Shaping Lenses",
-  "create_optical_diffuser.ponder.tag.beam_lenses.description": "Focus the beam into a narrow long-range shaft, or fan it out for wide area coverage.",
-  "create_optical_diffuser.ponder.tag.cinema_lenses": "Cinema Lenses & Speaker",
-  "create_optical_diffuser.ponder.tag.cinema_lenses.description": "Project video onto lead glass screens and emit synchronized audio via the Speaker block.",
-  "create_optical_diffuser.ponder.tag.hologram_lens": "Hologram Lens",
-  "create_optical_diffuser.ponder.tag.hologram_lens.description": "Float spinning 3D holograms of items, blocks, or entire Create schematics in the air.",
-  "create_optical_diffuser.ponder.tag.combat_lenses": "Combat Lenses",
-  "create_optical_diffuser.ponder.tag.combat_lenses.description": "Turn the beam into a focused heat ray or a razor-sharp needle laser.",
-  "create_optical_diffuser.ponder.tag.lead_glass": "Lead Glass",
-  "create_optical_diffuser.ponder.tag.lead_glass.description": "Use Lead Glass as an optical color filter or as a cinema projection screen."
+  "create_optical_diffuser.ponder.tag.optical_diffuser": "Optical Diffuser & Optics",
+  "create_optical_diffuser.ponder.tag.optical_diffuser.description": "Learn how the Optical Diffuser receives a laser beam and reshapes it using various beam and combat lenses.",
+  "create_optical_diffuser.ponder.tag.cinema_projectors": "Cinema & Holograms",
+  "create_optical_diffuser.ponder.tag.cinema_projectors.description": "Project video onto lead glass screens, emit synchronized audio via speakers, or float spinning 3D holograms."
 }

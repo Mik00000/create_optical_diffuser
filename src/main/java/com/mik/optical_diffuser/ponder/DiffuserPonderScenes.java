@@ -50,11 +50,11 @@ public class DiffuserPonderScenes {
 
         helper.forComponents(key(ModRegistry.FOCUSING_LENS.get()))
                 .addStoryBoard("lenses/focusing",             DiffuserPonderScenes::focusingLens,
-                        e -> e.highlightTag(DiffuserPonderTags.BEAM));
+                        e -> e.highlightTag(DiffuserPonderTags.DIFFUSER));
 
         helper.forComponents(key(ModRegistry.DISPERSING_LENS.get()))
                 .addStoryBoard("lenses/dispersing",           DiffuserPonderScenes::dispersingLens,
-                        e -> e.highlightTag(DiffuserPonderTags.BEAM));
+                        e -> e.highlightTag(DiffuserPonderTags.DIFFUSER));
 
         // ── Group 3: Cinema Lenses & Speaker ─────────────────────────────────
 
@@ -78,25 +78,25 @@ public class DiffuserPonderScenes {
 
         helper.forComponents(key(ModRegistry.HOLOGRAM_LENS.get()))
                 .addStoryBoard("hologram/basics",             DiffuserPonderScenes::hologramBasics,
-                        e -> e.highlightTag(DiffuserPonderTags.HOLOGRAM))
+                        e -> e.highlightTag(DiffuserPonderTags.CINEMA))
                 .addStoryBoard("hologram/schematic",          DiffuserPonderScenes::hologramSchematic,
-                        e -> e.highlightTag(DiffuserPonderTags.HOLOGRAM));
+                        e -> e.highlightTag(DiffuserPonderTags.CINEMA));
 
         // ── Group 5: Combat Lenses ────────────────────────────────────────────
 
         helper.forComponents(key(ModRegistry.THERMAL_IGNITION_LENS.get()))
                 .addStoryBoard("combat/thermal",              DiffuserPonderScenes::thermalLens,
-                        e -> e.highlightTag(DiffuserPonderTags.COMBAT));
+                        e -> e.highlightTag(DiffuserPonderTags.DIFFUSER));
 
         helper.forComponents(key(ModRegistry.COLLIMATOR_LENS.get()))
                 .addStoryBoard("combat/collimator",           DiffuserPonderScenes::collimatorLens,
-                        e -> e.highlightTag(DiffuserPonderTags.COMBAT));
+                        e -> e.highlightTag(DiffuserPonderTags.DIFFUSER));
 
         // ── Group 6: Lead Glass ───────────────────────────────────────────────
 
         helper.forComponents(key(ModRegistry.LEAD_GLASS_ITEM.get()))
                 .addStoryBoard("lead_glass/filter_and_screen",DiffuserPonderScenes::leadGlass,
-                        e -> e.highlightTag(DiffuserPonderTags.LEAD_GLASS));
+                        e -> e.highlightTag(DiffuserPonderTags.DIFFUSER));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
