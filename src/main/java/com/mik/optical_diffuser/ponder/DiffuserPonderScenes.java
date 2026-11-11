@@ -104,11 +104,11 @@ public class DiffuserPonderScenes {
     // ─────────────────────────────────────────────────────────────────────────
     public static void whatIsIt(SceneBuilder scene, SceneBuildingUtil util) {
         scene.title("diffuser_what_is_it", "The Optical Diffuser");
-        scene.configureBasePlate(0, 0, 5);
+        scene.configureBasePlate(0, 0, 7);
         scene.showBasePlate();
 
         BlockPos diffuserPos = new BlockPos(2, 1, 2);
-        BlockPos sourcePos   = new BlockPos(2, 1, 4); // optical source behind diffuser
+        BlockPos sourcePos   = new BlockPos(2, 1, 4); // glowstone placeholder for laser source
 
         scene.world().showSection(util.select().position(sourcePos),   Direction.DOWN);
         scene.idle(10);
@@ -691,13 +691,13 @@ public class DiffuserPonderScenes {
     // ─────────────────────────────────────────────────────────────────────────
     public static void collimatorLens(SceneBuilder scene, SceneBuildingUtil util) {
         scene.title("collimator_lens", "Collimator Lens");
-        scene.configureBasePlate(0, 0, 7);
+        scene.configureBasePlate(0, 0, 9);
         scene.showBasePlate();
 
-        BlockPos diffuserPos = new BlockPos(2, 1, 6);
+        BlockPos diffuserPos = new BlockPos(2, 1, 7);
         BlockPos targetPos   = new BlockPos(2, 1, 1);
 
-        scene.world().showSection(util.select().fromTo(new BlockPos(0, 1, 0), new BlockPos(4, 1, 7)), Direction.DOWN);
+        scene.world().showSection(util.select().fromTo(new BlockPos(0, 1, 0), new BlockPos(4, 1, 8)), Direction.DOWN);
         scene.idle(15);
 
         scene.overlay().showText(55)
