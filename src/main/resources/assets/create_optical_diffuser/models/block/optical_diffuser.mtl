@@ -1,0 +1,15 @@
+# Made in Blockbench 5.2.2 - Configured for NeoForge OBJ Loader
+newmtl m_8fdc1933-bd28-5b20-79ac-c3a7c5abcf03
+map_Kd #casing
+
+newmtl m_65d5cfb9-5f84-e57c-8872-2e11710b2d5c
+map_Kd #texture
+
+newmtl m_8efa2200-7b9e-b874-50ba-bc8791f12c0a
+map_Kd #lens
+
+newmtl m_59d6a583-56b9-8395-a156-d5306859749b
+map_Kd #top
+
+newmtl m_0e4c37f2-81af-b059-9e9d-0b4f436d27c4
+map_Kd #bottom_shaft

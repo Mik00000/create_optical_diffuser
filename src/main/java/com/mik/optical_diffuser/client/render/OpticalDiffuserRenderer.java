@@ -91,8 +91,8 @@ public class OpticalDiffuserRenderer implements BlockEntityRenderer<OpticalDiffu
             } catch (Exception ignored) {}
         }
 
-        // 2. Render 4-slot Lens Carousel Wheel on the left face
-        CarouselRenderer.renderCarousel(be, partialTicks, poseStack, bufferSource, packedLight, packedOverlay);
+        // 2. Carousel wheel overlay disabled to prevent covering custom block hole geometry
+        // CarouselRenderer.renderCarousel(be, partialTicks, poseStack, bufferSource, packedLight, packedOverlay);
 
         // 3. Render optical beam only when active
         if (!be.isActive()) {
