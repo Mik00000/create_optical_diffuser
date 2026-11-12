@@ -109,7 +109,7 @@
   "create_optical_diffuser.ponder.diffuser_carousel.text_1": "The carousel on the left face holds up to 4 lenses — one per 90° slot",
   "create_optical_diffuser.ponder.diffuser_carousel.text_2": "Right-click any slot with a lens to install it. Right-click the slot again with an empty hand to retrieve it",
   "create_optical_diffuser.ponder.diffuser_carousel.text_3": "The left kinetic shaft rotates the carousel — the slot pointing forward is always active",
-  "create_optical_diffuser.ponder.diffuser_carousel.text_4": "Use a wrench on the left face to step the carousel 90° by hand without a shaft",
+  "create_optical_diffuser.ponder.diffuser_carousel.text_4": "The left kinetic shaft continuously rotates the carousel — cycling active lenses as it spins",
   "create_optical_diffuser.ponder.diffuser_carousel.text_5": "Right-click the front aperture with an empty hand to retrieve the currently active lens",
   "create_optical_diffuser.ponder.diffuser_redstone.header": "Redstone Control",
   "create_optical_diffuser.ponder.diffuser_redstone.text_1": "With no redstone signal the diffuser operates at base intensity",
@@ -179,5 +179,10 @@
   "create_optical_diffuser.ponder.tag.optical_diffuser": "Optical Diffuser & Optics",
   "create_optical_diffuser.ponder.tag.optical_diffuser.description": "Learn how the Optical Diffuser receives a laser beam and reshapes it using various beam and combat lenses.",
   "create_optical_diffuser.ponder.tag.cinema_projectors": "Cinema & Holograms",
-  "create_optical_diffuser.ponder.tag.cinema_projectors.description": "Project video onto lead glass screens, emit synchronized audio via speakers, or float spinning 3D holograms."
+  "create_optical_diffuser.ponder.tag.cinema_projectors.description": "Project video onto lead glass screens, emit synchronized audio via speakers, or float spinning 3D holograms.",
+  "create_optical_diffuser.ponder.diffuser_bottom_shaft.header": "Bottom Shaft & Beam Rotation",
+  "create_optical_diffuser.ponder.diffuser_bottom_shaft.text_1": "When receiving a laser, the diffuser emits light along its front axis",
+  "create_optical_diffuser.ponder.diffuser_bottom_shaft.text_2": "Connecting a kinetic shaft to the bottom socket spins the beam around its axis",
+  "create_optical_diffuser.ponder.diffuser_bottom_shaft.text_3": "The faster the bottom shaft turns, the faster the beam and hologram models rotate",
+  "create_optical_diffuser.ponder.diffuser_bottom_shaft.text_4": "This independent rotation controls dynamic light sweeps, polarization, and hologram spin"
 }

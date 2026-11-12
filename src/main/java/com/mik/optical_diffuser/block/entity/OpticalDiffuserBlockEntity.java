@@ -2113,6 +2113,11 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
         return spinSpeed;
     }
 
+    public void setSpinSpeed(float spinSpeed) {
+        this.spinSpeed = spinSpeed;
+        setChanged();
+    }
+
     public int getRedstoneMode() {
         return redstoneMode;
     }
