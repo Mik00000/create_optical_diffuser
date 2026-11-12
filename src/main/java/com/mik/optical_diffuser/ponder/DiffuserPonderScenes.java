@@ -136,6 +136,11 @@ public class DiffuserPonderScenes {
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
         cScene.idle(70);
 
+        cScene.world().setKineticSpeed(util.select().position(shaftPos), 0f);
+        cScene.world().setKineticSpeed(util.select().position(sourcePos), 0f);
+        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, OpticalDiffuserBlockEntity::removeBeam);
+        cScene.idle(10);
+
         cScene.overlay().showText(50)
                 .attachKeyFrame()
                 .text("Without an incoming beam the diffuser produces no light — it is a receiver, not a source")
@@ -352,8 +357,7 @@ public class DiffuserPonderScenes {
         BlockPos diffuserPos    = new BlockPos(3, 1, 1);
         BlockPos sourcePos      = new BlockPos(3, 1, 3);
         BlockPos sourceShaftPos = new BlockPos(3, 1, 4);
-        BlockPos bottomShaft    = new BlockPos(3, 0, 1);
-        BlockPos drivingCog     = new BlockPos(2, 0, 1);
+        BlockPos bottomCog      = new BlockPos(3, 0, 1);
 
         cScene.world().showSection(util.select().position(sourceShaftPos), Direction.DOWN);
         cScene.world().showSection(util.select().position(sourcePos), Direction.DOWN);
@@ -369,21 +373,16 @@ public class DiffuserPonderScenes {
                 .colored(net.createmod.ponder.api.PonderPalette.WHITE);
         cScene.idle(65);
 
-        cScene.world().showSection(util.select().position(bottomShaft), Direction.UP);
-        cScene.world().showSection(util.select().position(drivingCog), Direction.UP);
-        cScene.idle(15);
-
         cScene.overlay().showOutline(net.createmod.ponder.api.PonderPalette.BLUE, "bottom",
-                util.select().position(bottomShaft), 60);
+                util.select().position(bottomCog), 60);
         cScene.overlay().showText(60)
                 .attachKeyFrame()
-                .text("Connecting a kinetic shaft to the bottom socket spins the beam around its axis")
-                .pointAt(util.vector().topOf(bottomShaft))
+                .text("Connecting a kinetic gear or shaft to the bottom socket spins the beam around its axis")
+                .pointAt(util.vector().topOf(bottomCog))
                 .colored(net.createmod.ponder.api.PonderPalette.BLUE);
         cScene.idle(70);
 
-        cScene.world().setKineticSpeed(util.select().position(drivingCog), 32f);
-        cScene.world().setKineticSpeed(util.select().position(bottomShaft), 32f);
+        cScene.world().setKineticSpeed(util.select().position(bottomCog), 32f);
         cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> be.setSpinSpeed(32f));
         cScene.idle(15);
 
