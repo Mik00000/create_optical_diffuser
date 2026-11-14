@@ -26,6 +26,8 @@ import net.minecraft.world.entity.monster.Zombie;
 import net.createmod.ponder.api.element.ElementLink;
 import net.createmod.ponder.api.element.EntityElement;
 import com.simibubi.create.content.logistics.depot.DepotBlockEntity;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 
 /**
  * All ponder scene definitions for Create: Optical Diffuser.
@@ -1000,6 +1002,8 @@ public class DiffuserPonderScenes {
         BlockPos glassPos    = new BlockPos(2, 1, 3);
         BlockPos depotPos    = new BlockPos(1, 1, 2);
         BlockPos icePos      = new BlockPos(3, 1, 2);
+        Vec3 zombiePos       = util.vector().of(2.0, 1.0, 1.0);
+        Vec3 floorMeatPos    = util.vector().of(2.0, 1.05, 2.0);
 
         // Show machine and targets (depot, ice)
         cScene.world().showSection(util.select().position(shaftPos), Direction.DOWN);
@@ -1011,7 +1015,6 @@ public class DiffuserPonderScenes {
 
         // Put raw beef on depot and drop raw beef on floor
         cScene.world().modifyBlockEntity(depotPos, DepotBlockEntity.class, be -> be.setHeldItem(new ItemStack(Items.BEEF)));
-        Vec3 floorMeatPos = util.vector().of(2.0, 1.05, 2.0);
         ElementLink<EntityElement> floorMeat = cScene.world().createItemEntity(floorMeatPos, Vec3.ZERO, new ItemStack(Items.BEEF));
         cScene.idle(10);
 
@@ -1043,21 +1046,34 @@ public class DiffuserPonderScenes {
         cScene.effects().emitParticles(util.vector().topOf(icePos),
                 cScene.effects().simpleParticleEmitter(ParticleTypes.SPLASH, Vec3.ZERO), 1.0f, 15);
         cScene.world().setBlock(icePos, Blocks.WATER.defaultBlockState(), true);
-        cScene.idle(20);
+        cScene.idle(15);
 
-        // Spawn zombie that catches fire from microwave radiation
+        // Spawn zombie that catches fire from microwave radiation (no AI, stationary legs)
         ElementLink<EntityElement> zombie1 = cScene.world().createEntity(level -> {
             Zombie z = EntityType.ZOMBIE.create(level);
             if (z != null) {
-                z.setPos(2.0, 1.0, 1.0);
+                z.setPos(zombiePos.x, zombiePos.y, zombiePos.z);
                 z.setYRot(180f);
                 z.yRotO = 180f;
+                z.setNoAi(true);
+                z.setDeltaMovement(Vec3.ZERO);
+                z.walkAnimation.setSpeed(0.0f);
             }
             return z;
         });
-        cScene.idle(15);
-        cScene.world().modifyEntity(zombie1, e -> e.setRemainingFireTicks(100));
-        cScene.idle(40);
+        cScene.idle(10);
+        cScene.world().modifyEntity(zombie1, e -> {
+            if (e instanceof LivingEntity le) {
+                le.setRemainingFireTicks(200);
+                le.setSharedFlagOnFire(true);
+                le.handleDamageEvent(le.damageSources().inFire());
+            }
+        });
+        cScene.effects().emitParticles(zombiePos.add(0, 0.8, 0),
+                cScene.effects().simpleParticleEmitter(ParticleTypes.FLAME, new Vec3(0, 0.05, 0)), 2.0f, 30);
+        cScene.effects().emitParticles(zombiePos.add(0, 1.2, 0),
+                cScene.effects().simpleParticleEmitter(ParticleTypes.CAMPFIRE_COSY_SMOKE, new Vec3(0, 0.08, 0)), 1.0f, 10);
+        cScene.idle(50);
         cScene.world().modifyEntity(zombie1, Entity::discard);
         cScene.idle(15);
 
@@ -1076,23 +1092,43 @@ public class DiffuserPonderScenes {
         ElementLink<EntityElement> zombie2 = cScene.world().createEntity(level -> {
             Zombie z = EntityType.ZOMBIE.create(level);
             if (z != null) {
-                z.setPos(2.0, 1.0, 1.0);
+                z.setPos(zombiePos.x, zombiePos.y, zombiePos.z);
                 z.setYRot(180f);
                 z.yRotO = 180f;
+                z.setNoAi(true);
+                z.setDeltaMovement(Vec3.ZERO);
+                z.walkAnimation.setSpeed(0.0f);
             }
             return z;
         });
-        cScene.idle(25);
+        cScene.idle(15);
 
-        cScene.effects().emitParticles(util.vector().of(2.0, 1.8, 1.0),
-                cScene.effects().simpleParticleEmitter(ParticleTypes.DAMAGE_INDICATOR, Vec3.ZERO), 1.0f, 10);
+        // Apply radiation sickness, glowing, damage flash and intense particle bursts
         cScene.world().modifyEntity(zombie2, e -> {
             if (e instanceof LivingEntity le) {
-                le.hurt(le.damageSources().magic(), 100.0f);
-                le.kill();
+                le.addEffect(new MobEffectInstance(MobEffects.WITHER, 200, 1));
+                le.addEffect(new MobEffectInstance(MobEffects.GLOWING, 200, 0));
+                le.setGlowingTag(true);
+                le.handleDamageEvent(le.damageSources().magic());
             }
         });
-        cScene.idle(55);
+        cScene.effects().emitParticles(zombiePos.add(0, 1.0, 0),
+                cScene.effects().simpleParticleEmitter(ParticleTypes.WITCH, new Vec3(0, 0.1, 0)), 3.0f, 40);
+        cScene.effects().emitParticles(zombiePos.add(0, 1.2, 0),
+                cScene.effects().simpleParticleEmitter(ParticleTypes.DAMAGE_INDICATOR, new Vec3(0, 0.15, 0)), 2.0f, 25);
+        cScene.idle(30);
+
+        // Lethal death animation
+        cScene.world().modifyEntity(zombie2, e -> {
+            if (e instanceof LivingEntity le) {
+                le.handleEntityEvent((byte) 3);
+            }
+        });
+        cScene.effects().emitParticles(zombiePos.add(0, 0.8, 0),
+                cScene.effects().simpleParticleEmitter(ParticleTypes.POOF, new Vec3(0, 0.05, 0)), 2.0f, 25);
+        cScene.idle(35);
+        cScene.world().modifyEntity(zombie2, Entity::discard);
+        cScene.idle(15);
 
         // Phase 3: Lead Glass Shielding
         cScene.world().showSection(util.select().position(glassPos), Direction.DOWN);
@@ -1110,9 +1146,12 @@ public class DiffuserPonderScenes {
         ElementLink<EntityElement> zombie3 = cScene.world().createEntity(level -> {
             Zombie z = EntityType.ZOMBIE.create(level);
             if (z != null) {
-                z.setPos(2.0, 1.0, 1.0);
+                z.setPos(zombiePos.x, zombiePos.y, zombiePos.z);
                 z.setYRot(180f);
                 z.yRotO = 180f;
+                z.setNoAi(true);
+                z.setDeltaMovement(Vec3.ZERO);
+                z.walkAnimation.setSpeed(0.0f);
             }
             return z;
         });
