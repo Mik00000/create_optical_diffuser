@@ -14,7 +14,18 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.monster.Zombie;
+import net.createmod.ponder.api.element.ElementLink;
+import net.createmod.ponder.api.element.EntityElement;
+import com.simibubi.create.content.logistics.depot.DepotBlockEntity;
 
 /**
  * All ponder scene definitions for Create: Optical Diffuser.
@@ -980,42 +991,108 @@ public class DiffuserPonderScenes {
     public static void leadGlassShielding(SceneBuilder scene, SceneBuildingUtil util) {
         CreateSceneBuilder cScene = new CreateSceneBuilder(scene);
         cScene.title("lead_glass_shielding", "Lead Glass — Radiation Shielding");
-        cScene.configureBasePlate(0, 0, 5);
+        cScene.configureBasePlate(0, 0, 7);
         cScene.showBasePlate();
 
-        BlockPos diffuserPos = new BlockPos(2, 1, 1);
-        BlockPos glassPos    = new BlockPos(2, 1, 2);
-        BlockPos sourcePos   = new BlockPos(2, 1, 3);
-        BlockPos shaftPos    = new BlockPos(2, 1, 4);
+        BlockPos shaftPos    = new BlockPos(2, 1, 6);
+        BlockPos sourcePos   = new BlockPos(2, 1, 5);
+        BlockPos diffuserPos = new BlockPos(2, 1, 4);
+        BlockPos glassPos    = new BlockPos(2, 1, 3);
+        BlockPos depotPos    = new BlockPos(1, 1, 2);
+        BlockPos icePos      = new BlockPos(3, 1, 2);
 
+        // Show machine and targets (depot, ice)
         cScene.world().showSection(util.select().position(shaftPos), Direction.DOWN);
         cScene.world().showSection(util.select().position(sourcePos), Direction.DOWN);
         cScene.world().showSection(util.select().position(diffuserPos), Direction.DOWN);
+        cScene.world().showSection(util.select().position(depotPos), Direction.DOWN);
+        cScene.world().showSection(util.select().position(icePos), Direction.DOWN);
         cScene.idle(10);
 
-        // Phase 1: Low RPM (Microwave)
-        lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 200, 100), 16f);
+        // Put raw beef on depot and drop raw beef on floor
+        cScene.world().modifyBlockEntity(depotPos, DepotBlockEntity.class, be -> be.setHeldItem(new ItemStack(Items.BEEF)));
+        Vec3 floorMeatPos = util.vector().of(2.0, 1.05, 2.0);
+        ElementLink<EntityElement> floorMeat = cScene.world().createItemEntity(floorMeatPos, Vec3.ZERO, new ItemStack(Items.BEEF));
+        cScene.idle(10);
+
+        // Phase 1: Low RPM (Microwave: 8–32 RPM, white beam)
+        lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 255, 255), 16f);
         cScene.world().setKineticSpeed(util.select().position(shaftPos), 16f);
         cScene.idle(15);
 
-        cScene.overlay().showText(60)
+        cScene.overlay().showText(75)
                 .attachKeyFrame()
                 .text("At low source speeds (8–32 RPM), the diffuser emits microwaves which cook food, melt snow and ice, and ignite mobs")
                 .pointAt(util.vector().topOf(diffuserPos))
                 .colored(net.createmod.ponder.api.PonderPalette.WHITE);
-        cScene.idle(70);
+        cScene.idle(20);
 
-        // Phase 2: High RPM (Gamma Radiation)
-        lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(160, 50, 255), 256f);
+        // Cook food on depot and floor
+        cScene.effects().emitParticles(util.vector().topOf(depotPos),
+                cScene.effects().simpleParticleEmitter(ParticleTypes.SMOKE, Vec3.ZERO), 1.0f, 15);
+        cScene.effects().emitParticles(floorMeatPos,
+                cScene.effects().simpleParticleEmitter(ParticleTypes.SMOKE, Vec3.ZERO), 1.0f, 15);
+        cScene.world().modifyBlockEntity(depotPos, DepotBlockEntity.class, be -> be.setHeldItem(new ItemStack(Items.COOKED_BEEF)));
+        cScene.world().modifyEntity(floorMeat, e -> {
+            if (e instanceof ItemEntity ie) {
+                ie.setItem(new ItemStack(Items.COOKED_BEEF));
+            }
+        });
+
+        // Melt ice
+        cScene.effects().emitParticles(util.vector().topOf(icePos),
+                cScene.effects().simpleParticleEmitter(ParticleTypes.SPLASH, Vec3.ZERO), 1.0f, 15);
+        cScene.world().setBlock(icePos, Blocks.WATER.defaultBlockState(), true);
+        cScene.idle(20);
+
+        // Spawn zombie that catches fire from microwave radiation
+        ElementLink<EntityElement> zombie1 = cScene.world().createEntity(level -> {
+            Zombie z = EntityType.ZOMBIE.create(level);
+            if (z != null) {
+                z.setPos(2.0, 1.0, 1.0);
+                z.setYRot(180f);
+                z.yRotO = 180f;
+            }
+            return z;
+        });
+        cScene.idle(15);
+        cScene.world().modifyEntity(zombie1, e -> e.setRemainingFireTicks(100));
+        cScene.idle(40);
+        cScene.world().modifyEntity(zombie1, Entity::discard);
+        cScene.idle(15);
+
+        // Phase 2: High RPM (Gamma Radiation: >128 RPM, white beam)
+        lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 255, 255), 256f);
         cScene.world().setKineticSpeed(util.select().position(shaftPos), 256f);
         cScene.idle(15);
 
-        cScene.overlay().showText(65)
+        cScene.overlay().showText(75)
                 .attachKeyFrame()
                 .text("At high speeds (>128 RPM), it emits lethal Gamma radiation inflicting Wither, Weakness, and heavy radiation damage")
                 .pointAt(util.vector().blockSurface(diffuserPos, Direction.NORTH))
                 .colored(net.createmod.ponder.api.PonderPalette.RED);
-        cScene.idle(75);
+
+        // Spawn zombie in lethal gamma radiation
+        ElementLink<EntityElement> zombie2 = cScene.world().createEntity(level -> {
+            Zombie z = EntityType.ZOMBIE.create(level);
+            if (z != null) {
+                z.setPos(2.0, 1.0, 1.0);
+                z.setYRot(180f);
+                z.yRotO = 180f;
+            }
+            return z;
+        });
+        cScene.idle(25);
+
+        cScene.effects().emitParticles(util.vector().of(2.0, 1.8, 1.0),
+                cScene.effects().simpleParticleEmitter(ParticleTypes.DAMAGE_INDICATOR, Vec3.ZERO), 1.0f, 10);
+        cScene.world().modifyEntity(zombie2, e -> {
+            if (e instanceof LivingEntity le) {
+                le.hurt(le.damageSources().magic(), 100.0f);
+                le.kill();
+            }
+        });
+        cScene.idle(55);
 
         // Phase 3: Lead Glass Shielding
         cScene.world().showSection(util.select().position(glassPos), Direction.DOWN);
@@ -1028,6 +1105,17 @@ public class DiffuserPonderScenes {
                 .text("Placing Lead Glass in the beam path completely blocks harmful Gamma radiation, rendering the cone safe for personnel")
                 .pointAt(util.vector().topOf(glassPos))
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
+
+        // Spawn unharmed mob behind lead glass shield
+        ElementLink<EntityElement> zombie3 = cScene.world().createEntity(level -> {
+            Zombie z = EntityType.ZOMBIE.create(level);
+            if (z != null) {
+                z.setPos(2.0, 1.0, 1.0);
+                z.setYRot(180f);
+                z.yRotO = 180f;
+            }
+            return z;
+        });
         cScene.idle(75);
 
         cScene.overlay().showText(50)
@@ -1059,7 +1147,7 @@ public class DiffuserPonderScenes {
 
         cScene.overlay().showText(65)
                 .attachKeyFrame()
-                .text("Lead Glass features seamless connected textures (Fusion CTM), joining into large panoramic windowpanes without internal seams")
+                .text("Lead Glass features seamless connected textures, joining into large panoramic windowpanes without internal seams")
                 .pointAt(util.vector().blockSurface(new BlockPos(2, 2, 2), Direction.SOUTH))
                 .colored(net.createmod.ponder.api.PonderPalette.WHITE);
         cScene.idle(75);

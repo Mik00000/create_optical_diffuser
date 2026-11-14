@@ -177,7 +177,7 @@
   "create_optical_diffuser.ponder.lead_glass_shielding.text_3": "Placing Lead Glass in the beam path completely blocks harmful Gamma radiation, rendering the cone safe for personnel",
   "create_optical_diffuser.ponder.lead_glass_shielding.text_4": "Visible light continues to pass through, allowing safe illumination without radiation hazards",
   "create_optical_diffuser.ponder.lead_glass_decor.header": "Lead Glass — Connected Windows",
-  "create_optical_diffuser.ponder.lead_glass_decor.text_1": "Lead Glass features seamless connected textures (Fusion CTM), joining into large panoramic windowpanes without internal seams",
+  "create_optical_diffuser.ponder.lead_glass_decor.text_1": "Lead Glass features seamless connected textures, joining into large panoramic windowpanes without internal seams",
   "create_optical_diffuser.ponder.lead_glass_decor.text_2": "Ideal for airship observation bridges, radiation containment chambers, and laboratory viewing ports",
   "create_optical_diffuser.ponder.tag.optical_diffuser": "Optical Diffuser & Optics",
   "create_optical_diffuser.ponder.tag.optical_diffuser.description": "Learn how the Optical Diffuser receives a laser beam and reshapes it using various beam and combat lenses.",
