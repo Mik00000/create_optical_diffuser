@@ -976,12 +976,12 @@ public class DiffuserPonderScenes {
         cScene.configureBasePlate(0, 0, 7);
         cScene.showBasePlate();
 
-        BlockPos diffuserPos = new BlockPos(2, 1, 3);
-        BlockPos sourcePos   = new BlockPos(2, 1, 5);
-        BlockPos shaftPos    = new BlockPos(2, 1, 6);
-        BlockPos icePos      = new BlockPos(2, 1, 1);
-        BlockPos depotPos    = new BlockPos(3, 1, 2);
-        Vec3 zombiePos       = util.vector().topOf(util.grid().at(1, 0, 2));
+        BlockPos diffuserPos = new BlockPos(3, 1, 3);
+        BlockPos sourcePos   = new BlockPos(3, 1, 5);
+        BlockPos shaftPos    = new BlockPos(3, 1, 6);
+        BlockPos icePos      = new BlockPos(3, 1, 1);
+        BlockPos depotPos    = new BlockPos(4, 1, 0);
+        Vec3 zombiePos       = util.vector().topOf(util.grid().at(2, 0, 0));
 
         cScene.world().showSection(util.select().position(shaftPos), Direction.DOWN);
         cScene.world().showSection(util.select().position(sourcePos), Direction.DOWN);
@@ -1004,8 +1004,8 @@ public class DiffuserPonderScenes {
                 cScene.effects().simpleParticleEmitter(ParticleTypes.FLAME, Vec3.ZERO), 1.0f, 10);
         cScene.idle(15);
 
-        // Turn on thermal heat ray beam
-        lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 120, 50), 64f);
+        // Turn on thermal heat ray beam (standard white laser beam color)
+        lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 255, 255), 64f);
         cScene.world().setKineticSpeed(util.select().position(shaftPos), 64f);
         cScene.idle(20);
 
@@ -1082,7 +1082,7 @@ public class DiffuserPonderScenes {
         cScene.overlay().showText(85)
                 .attachKeyFrame()
                 .text("Entities inside the heat cone ignite and suffer continuous burn damage")
-                .pointAt(util.vector().topOf(util.grid().at(1, 1, 2)))
+                .pointAt(zombiePos.add(0, 1.0, 0))
                 .colored(net.createmod.ponder.api.PonderPalette.RED);
 
         // Continuous realistic fire: on fire flag + damage flinches
@@ -1132,10 +1132,10 @@ public class DiffuserPonderScenes {
         cScene.configureBasePlate(0, 0, 7);
         cScene.showBasePlate();
 
-        BlockPos diffuserPos = new BlockPos(2, 1, 3);
-        BlockPos sourcePos   = new BlockPos(2, 1, 5);
-        BlockPos shaftPos    = new BlockPos(2, 1, 6);
-        Vec3 wardenPos       = util.vector().topOf(util.grid().at(2, 0, 1));
+        BlockPos diffuserPos = new BlockPos(3, 1, 3);
+        BlockPos sourcePos   = new BlockPos(3, 1, 5);
+        BlockPos shaftPos    = new BlockPos(3, 1, 6);
+        Vec3 wardenPos       = util.vector().topOf(util.grid().at(3, 0, 1));
 
         cScene.world().showSection(util.select().position(shaftPos), Direction.DOWN);
         cScene.world().showSection(util.select().position(sourcePos), Direction.DOWN);
