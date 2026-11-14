@@ -23,6 +23,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Zombie;
+import net.minecraft.world.entity.monster.warden.Warden;
 import net.createmod.ponder.api.element.ElementLink;
 import net.createmod.ponder.api.element.EntityElement;
 import com.simibubi.create.content.logistics.depot.DepotBlockEntity;
@@ -971,7 +972,7 @@ public class DiffuserPonderScenes {
     // ─────────────────────────────────────────────────────────────────────────
     public static void thermalLens(SceneBuilder scene, SceneBuildingUtil util) {
         CreateSceneBuilder cScene = new CreateSceneBuilder(scene);
-        cScene.title("thermal_ignition_lens", "Thermal Ignition Lens");
+        cScene.title("thermal_ignition_lens", "Thermal Ignition Lens — Heat Ray");
         cScene.configureBasePlate(0, 0, 7);
         cScene.showBasePlate();
 
@@ -979,51 +980,145 @@ public class DiffuserPonderScenes {
         BlockPos sourcePos   = new BlockPos(2, 1, 5);
         BlockPos shaftPos    = new BlockPos(2, 1, 6);
         BlockPos icePos      = new BlockPos(2, 1, 1);
+        BlockPos depotPos    = new BlockPos(3, 1, 2);
+        Vec3 zombiePos       = util.vector().topOf(util.grid().at(1, 0, 2));
 
         cScene.world().showSection(util.select().position(shaftPos), Direction.DOWN);
         cScene.world().showSection(util.select().position(sourcePos), Direction.DOWN);
         cScene.world().showSection(util.select().position(diffuserPos), Direction.DOWN);
         cScene.world().showSection(util.select().position(icePos), Direction.DOWN);
-        lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 120, 50), 64f);
-        cScene.world().setKineticSpeed(util.select().position(shaftPos), 64f);
+        cScene.world().showSection(util.select().position(depotPos), Direction.DOWN);
+
+        // Put raw beef on depot
+        cScene.world().modifyBlockEntity(depotPos, DepotBlockEntity.class, be -> be.setHeldItem(new ItemStack(Items.BEEF)));
+        cScene.idle(15);
+
+        // Install Thermal Ignition Lens into active front slot (slot 1) with item click overlay
+        cScene.overlay().showControls(util.vector().blockSurface(diffuserPos, Direction.NORTH), Pointing.DOWN, 25)
+                .rightClick().withItem(new ItemStack(ModRegistry.THERMAL_IGNITION_LENS.get()));
+        cScene.idle(10);
         cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
             be.setCarouselLens(1, new ItemStack(ModRegistry.THERMAL_IGNITION_LENS.get()));
         });
+        cScene.effects().emitParticles(util.vector().blockSurface(diffuserPos, Direction.NORTH),
+                cScene.effects().simpleParticleEmitter(ParticleTypes.FLAME, Vec3.ZERO), 1.0f, 10);
+        cScene.idle(15);
+
+        // Turn on thermal heat ray beam
+        lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 120, 50), 64f);
+        cScene.world().setKineticSpeed(util.select().position(shaftPos), 64f);
         cScene.idle(20);
 
         cScene.overlay().showText(75)
                 .attachKeyFrame()
-                .text("The Thermal Ignition Lens converts the beam into a focused heat ray")
+                .text("The Thermal Ignition Lens converts the beam into an Archimedes heat ray (28° cone)")
                 .pointAt(util.vector().topOf(diffuserPos))
                 .colored(net.createmod.ponder.api.PonderPalette.RED);
         cScene.idle(85);
 
-        cScene.overlay().showText(75)
-                .attachKeyFrame()
-                .text("Entities inside the cone are set on fire. Fire duration and damage scale with shaft RPM")
-                .pointAt(util.vector().topOf(new BlockPos(2, 1, 2)))
-                .colored(net.createmod.ponder.api.PonderPalette.RED);
-        cScene.idle(85);
+        // Ice melts into water
+        cScene.effects().emitParticles(util.vector().topOf(icePos),
+                cScene.effects().simpleParticleEmitter(ParticleTypes.SPLASH, Vec3.ZERO), 1.0f, 15);
+        cScene.world().setBlock(icePos, Blocks.WATER.defaultBlockState(), true);
 
-        cScene.overlay().showText(75)
+        // Raw beef on depot cooks into cooked steak
+        cScene.effects().emitParticles(util.vector().topOf(depotPos),
+                cScene.effects().particleEmitterWithinBlockSpace(ParticleTypes.SMOKE, new Vec3(0, 0.05, 0)), 1.0f, 8);
+        cScene.world().modifyBlockEntity(depotPos, DepotBlockEntity.class, be -> be.setHeldItem(new ItemStack(Items.COOKED_BEEF)));
+        cScene.idle(15);
+
+        cScene.overlay().showText(80)
                 .attachKeyFrame()
-                .text("Ice melts. Snow evaporates. Flammable blocks catch fire on sustained exposure")
+                .text("Ice and snow melt immediately, and foods on Depots or Belts are roasted")
                 .pointAt(util.vector().topOf(icePos))
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
-        cScene.idle(85);
+        cScene.idle(90);
 
-        cScene.overlay().showText(75)
-                .attachKeyFrame()
-                .text("Items on belts or depots inside the cone are cooked — using Create's Fan Blasting/Smoking pipeline. High RPM blasts; low RPM smokes")
-                .pointAt(util.vector().topOf(new BlockPos(3, 1, 2)));
-        cScene.idle(85);
+        // Spawn a zombie in the heat cone
+        ElementLink<EntityElement> zombie = cScene.world().createEntity(level -> {
+            Zombie z = new Zombie(EntityType.ZOMBIE, level) {
+                @Override
+                public boolean isAlive() {
+                    return !this.isRemoved();
+                }
 
-        cScene.overlay().showText(70)
+                @Override
+                public void tick() {
+                    super.tick();
+                    this.setNoGravity(true);
+                    this.setDeltaMovement(Vec3.ZERO);
+                    this.setPos(zombiePos.x, zombiePos.y, zombiePos.z);
+                    this.walkAnimation.setSpeed(0.0f);
+                    this.walkAnimation.position(0.0f);
+                    this.yBodyRot = 180f;
+                    this.yBodyRotO = 180f;
+                    this.yHeadRot = 180f;
+                    this.yHeadRotO = 180f;
+                    if (this.deathTime > 0 && this.deathTime < 20) {
+                        this.deathTime++;
+                    }
+                }
+            };
+            z.setPos(zombiePos.x, zombiePos.y, zombiePos.z);
+            z.xo = zombiePos.x;
+            z.yo = zombiePos.y;
+            z.zo = zombiePos.z;
+            z.setYRot(180f);
+            z.yRotO = 180f;
+            z.yBodyRot = 180f;
+            z.yBodyRotO = 180f;
+            z.yHeadRot = 180f;
+            z.yHeadRotO = 180f;
+            z.setNoAi(true);
+            z.setNoGravity(true);
+            z.setDeltaMovement(Vec3.ZERO);
+            z.setOnGround(true);
+            z.walkAnimation.setSpeed(0.0f);
+            z.setHealth(6.0f);
+            return z;
+        });
+        cScene.idle(15);
+
+        cScene.overlay().showText(85)
                 .attachKeyFrame()
-                .text("Redstone narrows the cone from 28° to 12° — tighter focus for precision targeting")
-                .pointAt(util.vector().topOf(diffuserPos))
-                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
-        cScene.idle(80);
+                .text("Entities inside the heat cone ignite and suffer continuous burn damage")
+                .pointAt(util.vector().topOf(util.grid().at(1, 1, 2)))
+                .colored(net.createmod.ponder.api.PonderPalette.RED);
+
+        // Continuous realistic fire: on fire flag + damage flinches
+        cScene.world().modifyEntity(zombie, e -> {
+            if (e instanceof LivingEntity le) {
+                le.setRemainingFireTicks(300);
+                le.setSharedFlagOnFire(true);
+                le.handleDamageEvent(le.damageSources().inFire());
+            }
+        });
+        cScene.effects().emitParticles(zombiePos.add(0, 0.5, 0),
+                cScene.effects().particleEmitterWithinBlockSpace(ParticleTypes.SMOKE, new Vec3(0, 0.05, 0)), 1.0f, 6);
+        cScene.idle(25);
+
+        cScene.world().modifyEntity(zombie, e -> {
+            if (e instanceof LivingEntity le) {
+                le.handleDamageEvent(le.damageSources().inFire());
+            }
+        });
+        cScene.effects().emitParticles(zombiePos.add(0, 0.5, 0),
+                cScene.effects().particleEmitterWithinBlockSpace(ParticleTypes.SMOKE, new Vec3(0, 0.05, 0)), 1.0f, 6);
+        cScene.idle(25);
+
+        // Fatal hit: smooth vanilla 20-tick death tilt and poof
+        cScene.world().modifyEntity(zombie, e -> {
+            if (e instanceof LivingEntity le) {
+                le.handleDamageEvent(le.damageSources().inFire());
+                le.handleEntityEvent((byte) 3);
+                le.deathTime = 1;
+            }
+        });
+        cScene.idle(20);
+        cScene.effects().emitParticles(zombiePos.add(0, 0.2, 0),
+                cScene.effects().particleEmitterWithinBlockSpace(ParticleTypes.POOF, new Vec3(0, 0.05, 0)), 1.5f, 15);
+        cScene.world().modifyEntity(zombie, Entity::discard);
+        cScene.idle(25);
 
         cScene.markAsFinished();
     }
@@ -1033,53 +1128,163 @@ public class DiffuserPonderScenes {
     // ─────────────────────────────────────────────────────────────────────────
     public static void collimatorLens(SceneBuilder scene, SceneBuildingUtil util) {
         CreateSceneBuilder cScene = new CreateSceneBuilder(scene);
-        cScene.title("collimator_lens", "Collimator Lens");
+        cScene.title("collimator_lens", "Collimator Lens — Needle Laser");
         cScene.configureBasePlate(0, 0, 7);
         cScene.showBasePlate();
 
         BlockPos diffuserPos = new BlockPos(2, 1, 3);
         BlockPos sourcePos   = new BlockPos(2, 1, 5);
         BlockPos shaftPos    = new BlockPos(2, 1, 6);
-        BlockPos targetPos   = new BlockPos(2, 1, 1);
+        Vec3 bystanderPos    = util.vector().topOf(util.grid().at(1, 0, 1));
+        Vec3 wardenPos       = util.vector().topOf(util.grid().at(2, 0, 1));
 
         cScene.world().showSection(util.select().position(shaftPos), Direction.DOWN);
         cScene.world().showSection(util.select().position(sourcePos), Direction.DOWN);
         cScene.world().showSection(util.select().position(diffuserPos), Direction.DOWN);
-        cScene.world().showSection(util.select().position(targetPos), Direction.DOWN);
-        lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 255, 255), 64f);
-        cScene.world().setKineticSpeed(util.select().position(shaftPos), 64f);
+        cScene.idle(15);
+
+        // Install Collimator Lens into active front slot (slot 1) with item click overlay
+        cScene.overlay().showControls(util.vector().blockSurface(diffuserPos, Direction.NORTH), Pointing.DOWN, 25)
+                .rightClick().withItem(new ItemStack(ModRegistry.COLLIMATOR_LENS.get()));
+        cScene.idle(10);
         cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
             be.setCarouselLens(1, new ItemStack(ModRegistry.COLLIMATOR_LENS.get()));
         });
+        cScene.effects().emitParticles(util.vector().blockSurface(diffuserPos, Direction.NORTH),
+                cScene.effects().simpleParticleEmitter(ParticleTypes.CRIT, Vec3.ZERO), 1.0f, 10);
+        cScene.idle(15);
+
+        // Turn on Needle Beam at 256 RPM (max speed)
+        lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 255, 255), 256f);
+        cScene.world().setKineticSpeed(util.select().position(shaftPos), 256f);
         cScene.idle(20);
 
         cScene.overlay().showText(75)
                 .attachKeyFrame()
-                .text("The Collimator Lens produces a razor-sharp 2° needle beam — far narrower than any cone lens")
+                .text("The Collimator Lens focuses light into an ultra-sharp 2.0° needle laser")
                 .pointAt(util.vector().topOf(diffuserPos))
                 .colored(net.createmod.ponder.api.PonderPalette.WHITE);
         cScene.idle(85);
 
-        cScene.overlay().showText(75)
-                .attachKeyFrame()
-                .text("Range is dramatically extended — up to 96 blocks at high RPM. Ideal for long corridors or precision strikes")
-                .pointAt(util.vector().topOf(new BlockPos(2, 1, 2)))
-                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
-        cScene.idle(85);
+        // Spawn a bystander zombie 1 block to the side
+        ElementLink<EntityElement> bystander = cScene.world().createEntity(level -> {
+            Zombie z = EntityType.ZOMBIE.create(level);
+            if (z != null) {
+                z.setPos(bystanderPos.x, bystanderPos.y, bystanderPos.z);
+                z.xo = bystanderPos.x;
+                z.yo = bystanderPos.y;
+                z.zo = bystanderPos.z;
+                z.setYRot(180f);
+                z.yRotO = 180f;
+                z.yBodyRot = 180f;
+                z.yBodyRotO = 180f;
+                z.setNoAi(true);
+                z.setNoGravity(true);
+                z.setDeltaMovement(Vec3.ZERO);
+                z.setOnGround(true);
+                z.walkAnimation.setSpeed(0.0f);
+            }
+            return z;
+        });
+        cScene.idle(15);
 
-        cScene.overlay().showText(75)
+        cScene.overlay().showText(85)
                 .attachKeyFrame()
-                .text("The needle strikes a single narrow point. Entities beside the target remain unaffected")
-                .pointAt(util.vector().topOf(targetPos))
+                .text("Extreme precision: the needle strikes only what is directly on its axis — bystanders beside it remain untouched")
+                .pointAt(bystanderPos.add(0, 1.0, 0))
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
-        cScene.idle(85);
+        cScene.idle(95);
 
-        cScene.overlay().showText(70)
+        // Discard bystander
+        cScene.world().modifyEntity(bystander, Entity::discard);
+        cScene.idle(15);
+
+        // Spawn Warden directly in the laser path at (2, 0, 1)
+        ElementLink<EntityElement> warden = cScene.world().createEntity(level -> {
+            Warden w = new Warden(EntityType.WARDEN, level) {
+                @Override
+                public boolean isAlive() {
+                    return !this.isRemoved();
+                }
+
+                @Override
+                public void tick() {
+                    super.tick();
+                    this.setNoGravity(true);
+                    this.setDeltaMovement(Vec3.ZERO);
+                    this.setPos(wardenPos.x, wardenPos.y, wardenPos.z);
+                    this.walkAnimation.setSpeed(0.0f);
+                    this.walkAnimation.position(0.0f);
+                    this.yBodyRot = 180f;
+                    this.yBodyRotO = 180f;
+                    this.yHeadRot = 180f;
+                    this.yHeadRotO = 180f;
+                    if (this.deathTime > 0 && this.deathTime < 20) {
+                        this.deathTime++;
+                    }
+                }
+            };
+            w.setPos(wardenPos.x, wardenPos.y, wardenPos.z);
+            w.xo = wardenPos.x;
+            w.yo = wardenPos.y;
+            w.zo = wardenPos.z;
+            w.setYRot(180f);
+            w.yRotO = 180f;
+            w.yBodyRot = 180f;
+            w.yBodyRotO = 180f;
+            w.yHeadRot = 180f;
+            w.yHeadRotO = 180f;
+            w.setNoAi(true);
+            w.setNoGravity(true);
+            w.setDeltaMovement(Vec3.ZERO);
+            w.setOnGround(true);
+            w.walkAnimation.setSpeed(0.0f);
+            w.setHealth(500.0f);
+            return w;
+        });
+        cScene.idle(20);
+
+        cScene.overlay().showText(100)
                 .attachKeyFrame()
-                .text("Redstone sharpens it further — at signal 14 the beam is under 1° wide")
-                .pointAt(util.vector().topOf(diffuserPos))
+                .text("At 256 RPM, it deals 16.5 damage every 4 ticks and ignores immunity frames — melting a Warden (500 HP) in 6 seconds!")
+                .pointAt(wardenPos.add(0, 2.0, 0))
                 .colored(net.createmod.ponder.api.PonderPalette.RED);
-        cScene.idle(80);
+        cScene.idle(20);
+
+        // Loop of damage pulses exactly matching game logic:
+        // Every 4 ticks, Warden takes 16.5 damage (total 30 hits = 120 ticks = 6.0 seconds)
+        for (int hit = 1; hit <= 29; hit++) {
+            cScene.world().modifyEntity(warden, e -> {
+                if (e instanceof LivingEntity le) {
+                    le.invulnerableTime = 0;
+                    le.handleDamageEvent(le.damageSources().magic());
+                    le.setHealth(Math.max(1.0f, le.getHealth() - 16.5f));
+                }
+            });
+            cScene.effects().emitParticles(wardenPos.add(0, 1.5, 0),
+                    cScene.effects().simpleParticleEmitter(ParticleTypes.CRIT, new Vec3(0.15, 0.15, 0.15)), 1.0f, 4);
+            cScene.idle(4);
+        }
+
+        // Fatal 30th hit: triggers death animation
+        cScene.world().modifyEntity(warden, e -> {
+            if (e instanceof LivingEntity le) {
+                le.invulnerableTime = 0;
+                le.handleDamageEvent(le.damageSources().magic());
+                le.handleEntityEvent((byte) 3);
+                le.deathTime = 1;
+                le.setHealth(0.0f);
+            }
+        });
+        cScene.idle(20); // Exact vanilla death animation duration
+
+        // Poof + sculk soul burst on death
+        cScene.effects().emitParticles(wardenPos.add(0, 1.0, 0),
+                cScene.effects().particleEmitterWithinBlockSpace(ParticleTypes.POOF, new Vec3(0, 0.1, 0)), 2.0f, 25);
+        cScene.effects().emitParticles(wardenPos.add(0, 1.0, 0),
+                cScene.effects().simpleParticleEmitter(ParticleTypes.SCULK_SOUL, new Vec3(0, 0.15, 0)), 1.5f, 20);
+        cScene.world().modifyEntity(warden, Entity::discard);
+        cScene.idle(30);
 
         cScene.markAsFinished();
     }

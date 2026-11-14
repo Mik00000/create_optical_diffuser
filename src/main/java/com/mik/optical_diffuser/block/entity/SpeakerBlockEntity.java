@@ -81,32 +81,52 @@ public class SpeakerBlockEntity extends SmartBlockEntity implements IHaveGoggleI
     public void onLoad() {
         super.onLoad();
         if (level != null && level.isClientSide) {
-            com.mik.optical_diffuser.client.media.ClientSpeakerRegistry.register(this);
+            ClientSpeakerHelper.register(this);
         }
     }
 
     @Override
     public void remove() {
         super.remove();
-        com.mik.optical_diffuser.client.media.ClientSpeakerRegistry.unregister(this);
+        cleanupClient();
     }
 
     @Override
     public void destroy() {
         super.destroy();
-        com.mik.optical_diffuser.client.media.ClientSpeakerRegistry.unregister(this);
+        cleanupClient();
     }
 
     @Override
     public void invalidate() {
         super.invalidate();
-        com.mik.optical_diffuser.client.media.ClientSpeakerRegistry.unregister(this);
+        cleanupClient();
     }
 
     @Override
     public void onChunkUnloaded() {
         super.onChunkUnloaded();
-        com.mik.optical_diffuser.client.media.ClientSpeakerRegistry.unregister(this);
+        cleanupClient();
+    }
+
+    private void cleanupClient() {
+        if (level != null) {
+            if (level.isClientSide) {
+                ClientSpeakerHelper.unregister(this);
+            }
+        } else if (net.neoforged.fml.loading.FMLEnvironment.dist == net.neoforged.api.distmarker.Dist.CLIENT) {
+            ClientSpeakerHelper.unregister(this);
+        }
+    }
+
+    private static class ClientSpeakerHelper {
+        private static void register(SpeakerBlockEntity speaker) {
+            com.mik.optical_diffuser.client.media.ClientSpeakerRegistry.register(speaker);
+        }
+
+        private static void unregister(SpeakerBlockEntity speaker) {
+            com.mik.optical_diffuser.client.media.ClientSpeakerRegistry.unregister(speaker);
+        }
     }
 
     @Override

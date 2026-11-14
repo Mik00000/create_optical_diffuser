@@ -721,7 +721,7 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
             if (this.isActive() && level.getGameTime() % 2 == 0) {
                 updateObstacleGrid();
             }
-            com.mik.optical_diffuser.client.media.DiffuserMediaManager.get(this).tick();
+            ClientMediaHelper.tick(this);
         }
 
         if (level != null && !level.isClientSide) {
@@ -2055,11 +2055,27 @@ public class OpticalDiffuserBlockEntity extends KineticBlockEntity {
     }
 
     private void handleCleanup() {
-        CLIENT_INSTANCES.remove(this);
-        com.mik.optical_diffuser.client.media.DiffuserMediaManager.remove(this);
-        ACTIVE_SERVER_DIFFUSERS.remove(this);
-        if (level != null && !level.isClientSide) {
+        if (level != null && level.isClientSide) {
+            ClientMediaHelper.remove(this);
+        } else if (level != null && !level.isClientSide) {
+            ACTIVE_SERVER_DIFFUSERS.remove(this);
             clearIllumination();
+        } else {
+            ACTIVE_SERVER_DIFFUSERS.remove(this);
+            if (net.neoforged.fml.loading.FMLEnvironment.dist == net.neoforged.api.distmarker.Dist.CLIENT) {
+                ClientMediaHelper.remove(this);
+            }
+        }
+    }
+
+    private static class ClientMediaHelper {
+        private static void tick(OpticalDiffuserBlockEntity be) {
+            com.mik.optical_diffuser.client.media.DiffuserMediaManager.get(be).tick();
+        }
+
+        private static void remove(OpticalDiffuserBlockEntity be) {
+            CLIENT_INSTANCES.remove(be);
+            com.mik.optical_diffuser.client.media.DiffuserMediaManager.remove(be);
         }
     }
 
