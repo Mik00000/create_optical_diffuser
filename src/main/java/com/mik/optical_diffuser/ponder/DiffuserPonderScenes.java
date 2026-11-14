@@ -7,6 +7,7 @@ import com.simibubi.create.foundation.ponder.CreateSceneBuilder;
 import net.createmod.ponder.api.registration.PonderSceneRegistrationHelper;
 import net.createmod.ponder.api.scene.SceneBuilder;
 import net.createmod.ponder.api.scene.SceneBuildingUtil;
+import net.createmod.ponder.api.scene.Selection;
 import net.lpcamors.optical.blocks.optical_source.BeamHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -16,7 +17,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Blocks;
 
 /**
- * All 16 ponder scene definitions for Create: Optical Diffuser.
+ * All ponder scene definitions for Create: Optical Diffuser.
  * Each text instruction is registered with attachKeyFrame() for timeline navigation.
  */
 public class DiffuserPonderScenes {
@@ -29,12 +30,20 @@ public class DiffuserPonderScenes {
 
     private static void lightDiffuser(CreateSceneBuilder cScene, SceneBuildingUtil util, BlockPos sourcePos, BlockPos diffuserPos, Vec3i color, float speed) {
         cScene.world().setKineticSpeed(util.select().position(sourcePos), speed);
+        BeamHelper.BeamType type = BeamHelper.BeamType.getTypeBySpeed(speed);
         cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
-            be.setBeam(new BeamHelper.BeamProperties.Builder(BeamHelper.BeamProperties.BASE)
-                    .direction(Direction.NORTH)
-                    .intensity(speed > 0 ? speed : 16f)
-                    .color(color != null ? color : new Vec3i(255, 255, 255))
-                    .build());
+            be.setBeam(new BeamHelper.BeamProperties(
+                    speed > 0 ? speed : 16f,
+                    Direction.NORTH,
+                    type,
+                    BeamHelper.BeamPolarization.RANDOM,
+                    color != null ? color : new Vec3i(255, 255, 255),
+                    java.util.List.of(),
+                    false,
+                    false,
+                    false,
+                    false
+            ));
         });
     }
 
@@ -71,7 +80,9 @@ public class DiffuserPonderScenes {
                         e -> e.highlightTag(DiffuserPonderTags.DIFFUSER));
 
         helper.forComponents(key(ModRegistry.LEAD_GLASS_ITEM.get()))
-                .addStoryBoard("lead_glass/filter_and_screen",DiffuserPonderScenes::leadGlass,
+                .addStoryBoard("lead_glass/radiation_shielding",DiffuserPonderScenes::leadGlassShielding,
+                        e -> e.highlightTag(DiffuserPonderTags.DIFFUSER))
+                .addStoryBoard("lead_glass/decor",              DiffuserPonderScenes::leadGlassDecor,
                         e -> e.highlightTag(DiffuserPonderTags.DIFFUSER));
 
         // ── Group 2: Cinema Projectors & Holograms ───────────────────────────
@@ -582,7 +593,7 @@ public class DiffuserPonderScenes {
 
         cScene.overlay().showText(60)
                 .attachKeyFrame()
-                .text("Hold the Silent Projector Lens and right-click one corner of a lead glass screen, then Shift+Right-click the opposite corner")
+                .text("Hold the Silent Projector Lens and right-click one corner of a screen wall, then Shift+Right-click the opposite corner")
                 .pointAt(util.vector().blockSurface(screenStart, Direction.EAST))
                 .colored(net.createmod.ponder.api.PonderPalette.WHITE);
         cScene.idle(70);
@@ -964,63 +975,101 @@ public class DiffuserPonderScenes {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Scene 6.1 — Lead Glass
+    // Scene 6.1 — Lead Glass: Radiation Shielding
     // ─────────────────────────────────────────────────────────────────────────
-    public static void leadGlass(SceneBuilder scene, SceneBuildingUtil util) {
+    public static void leadGlassShielding(SceneBuilder scene, SceneBuildingUtil util) {
         CreateSceneBuilder cScene = new CreateSceneBuilder(scene);
-        cScene.title("lead_glass", "Lead Glass — Filter & Screen");
+        cScene.title("lead_glass_shielding", "Lead Glass — Radiation Shielding");
         cScene.configureBasePlate(0, 0, 5);
         cScene.showBasePlate();
 
-        BlockPos diffuserPos = new BlockPos(2, 1, 2);
+        BlockPos diffuserPos = new BlockPos(2, 1, 1);
+        BlockPos glassPos    = new BlockPos(2, 1, 2);
         BlockPos sourcePos   = new BlockPos(2, 1, 3);
         BlockPos shaftPos    = new BlockPos(2, 1, 4);
-        BlockPos glassWall   = new BlockPos(2, 1, 0);
 
-        cScene.world().showSection(util.select().fromTo(new BlockPos(1, 1, 0), new BlockPos(3, 2, 0)), Direction.DOWN);
         cScene.world().showSection(util.select().position(shaftPos), Direction.DOWN);
         cScene.world().showSection(util.select().position(sourcePos), Direction.DOWN);
         cScene.world().showSection(util.select().position(diffuserPos), Direction.DOWN);
-        lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 255, 255), 64f);
-        cScene.world().setKineticSpeed(util.select().position(shaftPos), 64f);
+        cScene.idle(10);
+
+        // Phase 1: Low RPM (Microwave)
+        lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 200, 100), 16f);
+        cScene.world().setKineticSpeed(util.select().position(shaftPos), 16f);
         cScene.idle(15);
 
-        cScene.overlay().showText(55)
+        cScene.overlay().showText(60)
                 .attachKeyFrame()
-                .text("Lead Glass placed in the beam path serves a dual purpose — it is both an optical filter and a cinema screen")
+                .text("At low source speeds (8–32 RPM), the diffuser emits microwaves which cook food, melt snow and ice, and ignite mobs")
                 .pointAt(util.vector().topOf(diffuserPos))
                 .colored(net.createmod.ponder.api.PonderPalette.WHITE);
-        cScene.idle(65);
+        cScene.idle(70);
 
-        cScene.world().setBlock(new BlockPos(2, 1, 1), Blocks.RED_STAINED_GLASS.defaultBlockState(), true);
-        cScene.world().showSection(util.select().position(new BlockPos(2, 1, 1)), Direction.DOWN);
-        lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 50, 50), 64f);
-        cScene.idle(10);
+        // Phase 2: High RPM (Gamma Radiation)
+        lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(160, 50, 255), 256f);
+        cScene.world().setKineticSpeed(util.select().position(shaftPos), 256f);
+        cScene.idle(15);
 
-        cScene.overlay().showText(55)
+        cScene.overlay().showText(65)
                 .attachKeyFrame()
-                .text("Stained glass anywhere in the 12-block scan zone — in front or behind the diffuser — tints the beam")
-                .pointAt(util.vector().blockSurface(new BlockPos(2, 1, 1), Direction.UP))
+                .text("At high speeds (>128 RPM), it emits lethal Gamma radiation inflicting Wither, Weakness, and heavy radiation damage")
+                .pointAt(util.vector().blockSurface(diffuserPos, Direction.NORTH))
                 .colored(net.createmod.ponder.api.PonderPalette.RED);
-        cScene.idle(65);
+        cScene.idle(75);
 
-        cScene.world().setBlock(new BlockPos(2, 2, 1), Blocks.BLUE_STAINED_GLASS.defaultBlockState(), true);
-        cScene.world().showSection(util.select().position(new BlockPos(2, 2, 1)), Direction.DOWN);
-        lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(180, 50, 255), 64f);
-        cScene.idle(10);
+        // Phase 3: Lead Glass Shielding
+        cScene.world().showSection(util.select().position(glassPos), Direction.DOWN);
+        cScene.idle(15);
 
-        cScene.overlay().showText(55)
+        cScene.overlay().showOutline(net.createmod.ponder.api.PonderPalette.GREEN, "glass",
+                util.select().position(glassPos), 60);
+        cScene.overlay().showText(65)
                 .attachKeyFrame()
-                .text("Multiple glass colors blend subtractively: Red + Blue = Magenta. Red + Green = Yellow")
-                .pointAt(util.vector().blockSurface(new BlockPos(2, 2, 1), Direction.UP))
-                .colored(net.createmod.ponder.api.PonderPalette.BLUE);
-        cScene.idle(65);
+                .text("Placing Lead Glass in the beam path completely blocks harmful Gamma radiation, rendering the cone safe for personnel")
+                .pointAt(util.vector().topOf(glassPos))
+                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
+        cScene.idle(75);
 
         cScene.overlay().showText(50)
                 .attachKeyFrame()
-                .text("Lead glass also acts as the cinema screen for projector lenses — the video maps directly onto it")
-                .pointAt(util.vector().blockSurface(glassWall, Direction.SOUTH));
+                .text("Visible light continues to pass through, allowing safe illumination without radiation hazards")
+                .pointAt(util.vector().blockSurface(diffuserPos, Direction.NORTH));
         cScene.idle(60);
+
+        cScene.markAsFinished();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Scene 6.2 — Lead Glass: Connected Windows & Decor
+    // ─────────────────────────────────────────────────────────────────────────
+    public static void leadGlassDecor(SceneBuilder scene, SceneBuildingUtil util) {
+        CreateSceneBuilder cScene = new CreateSceneBuilder(scene);
+        cScene.title("lead_glass_decor", "Lead Glass — Connected Windows");
+        cScene.configureBasePlate(0, 0, 5);
+        cScene.showBasePlate();
+
+        Selection frame = util.select().fromTo(new BlockPos(0, 1, 2), new BlockPos(4, 3, 2))
+                .substract(util.select().fromTo(new BlockPos(1, 1, 2), new BlockPos(3, 2, 2)));
+        Selection window = util.select().fromTo(new BlockPos(1, 1, 2), new BlockPos(3, 2, 2));
+
+        cScene.world().showSection(frame, Direction.DOWN);
+        cScene.idle(15);
+        cScene.world().showSection(window, Direction.DOWN);
+        cScene.idle(20);
+
+        cScene.overlay().showText(65)
+                .attachKeyFrame()
+                .text("Lead Glass features seamless connected textures (Fusion CTM), joining into large panoramic windowpanes without internal seams")
+                .pointAt(util.vector().blockSurface(new BlockPos(2, 2, 2), Direction.SOUTH))
+                .colored(net.createmod.ponder.api.PonderPalette.WHITE);
+        cScene.idle(75);
+
+        cScene.overlay().showText(60)
+                .attachKeyFrame()
+                .text("Ideal for airship observation bridges, radiation containment chambers, and laboratory viewing ports")
+                .pointAt(util.vector().blockSurface(new BlockPos(2, 1, 2), Direction.SOUTH))
+                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
+        cScene.idle(70);
 
         cScene.markAsFinished();
     }
