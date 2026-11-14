@@ -3,6 +3,7 @@ package com.mik.optical_diffuser.ponder;
 import com.mik.optical_diffuser.ModRegistry;
 import com.mik.optical_diffuser.OpticalDiffuserMod;
 import com.mik.optical_diffuser.block.entity.OpticalDiffuserBlockEntity;
+import com.mik.optical_diffuser.item.HologramLensItem;
 import com.simibubi.create.foundation.ponder.CreateSceneBuilder;
 import net.createmod.ponder.api.registration.PonderSceneRegistrationHelper;
 import net.createmod.ponder.api.scene.SceneBuilder;
@@ -859,60 +860,181 @@ public class DiffuserPonderScenes {
     public static void hologramBasics(SceneBuilder scene, SceneBuildingUtil util) {
         CreateSceneBuilder cScene = new CreateSceneBuilder(scene);
         cScene.title("hologram_lens_basics", "Hologram Lens");
-        cScene.configureBasePlate(0, 0, 5);
+        cScene.configureBasePlate(0, 0, 7);
         cScene.showBasePlate();
 
-        BlockPos diffuserPos = new BlockPos(2, 1, 1);
-        BlockPos sourcePos   = new BlockPos(2, 1, 3);
-        BlockPos shaftPos    = new BlockPos(2, 1, 4);
-        BlockPos bottomShaft = new BlockPos(2, 0, 1);
+        BlockPos diffuserPos  = new BlockPos(3, 2, 3);
+        BlockPos mirrorPos    = new BlockPos(3, 1, 3);
+        BlockPos spinShaftPos = new BlockPos(3, 2, 4);
+        BlockPos sourcePos    = new BlockPos(3, 1, 5);
+        BlockPos shaftPos     = new BlockPos(3, 1, 6);
 
         cScene.world().showSection(util.select().position(shaftPos), Direction.DOWN);
         cScene.world().showSection(util.select().position(sourcePos), Direction.DOWN);
+        cScene.world().showSection(util.select().position(mirrorPos), Direction.DOWN);
         cScene.world().showSection(util.select().position(diffuserPos), Direction.DOWN);
-        cScene.world().showSection(util.select().position(bottomShaft), Direction.UP);
+        cScene.world().showSection(util.select().position(spinShaftPos), Direction.DOWN);
+
         lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 255, 255), 64f);
         cScene.world().setKineticSpeed(util.select().position(shaftPos), 64f);
-        cScene.world().setKineticSpeed(util.select().position(bottomShaft), 24f);
+        cScene.world().setKineticSpeed(util.select().position(spinShaftPos), 24f);
+
+        // Diffuser starts with Hologram Lens installed, default gyro
         cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
-            be.setCarouselLens(1, new ItemStack(ModRegistry.HOLOGRAM_LENS.get()));
+            ItemStack lens = new ItemStack(ModRegistry.HOLOGRAM_LENS.get());
+            HologramLensItem.setFocalDistance(lens, 2);
+            HologramLensItem.setHoloScale(lens, 1.0f);
+            be.setCarouselLens(1, lens);
             be.setSpinSpeed(24f);
         });
-        cScene.idle(20);
+        cScene.idle(25);
 
-        cScene.overlay().showText(75)
+        // Text 1: Default navigational gyro
+        cScene.overlay().showText(85)
                 .attachKeyFrame()
                 .text("Without an imprinted target the Hologram Lens projects a navigational gyroscope. Its spin is driven by the bottom shaft")
-                .pointAt(util.vector().topOf(diffuserPos))
+                .pointAt(util.vector().topOf(diffuserPos).add(0, 2.0, 0))
                 .colored(net.createmod.ponder.api.PonderPalette.WHITE);
-        cScene.idle(85);
+        cScene.idle(95);
 
-        cScene.overlay().showText(75)
+        // Text 2: Imprint target (Grass Block)
+        cScene.overlay().showText(85)
                 .attachKeyFrame()
                 .text("To set a target: hold any item in your offhand and right-click the lens in your hotbar. The hologram switches to that object")
                 .pointAt(util.vector().topOf(diffuserPos))
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
-        cScene.idle(85);
+        cScene.idle(20);
 
-        cScene.overlay().showText(75)
-                .attachKeyFrame()
-                .text("With nothing in offhand, right-click the lens to cycle the projection distance: 2 → 4 → 6 → … → 32 blocks")
-                .pointAt(util.vector().topOf(diffuserPos))
-                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
-        cScene.idle(85);
+        // Show player right-clicking with Grass Block
+        cScene.overlay().showControls(util.vector().topOf(diffuserPos), Pointing.DOWN, 35)
+                .rightClick().withItem(new ItemStack(Items.GRASS_BLOCK));
+        cScene.idle(15);
 
-        cScene.overlay().showText(70)
-                .attachKeyFrame()
-                .text("Right-click while the lens is in your offhand to cycle scale: 0.5× → 1× → 1.5× → 2× → 3×")
-                .pointAt(util.vector().topOf(diffuserPos));
+        // Transform into 3D Grass Block!
+        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
+            ItemStack lens = be.getActiveLens();
+            HologramLensItem.setHoloTarget(lens, new ItemStack(Items.GRASS_BLOCK), be.getLevel().registryAccess());
+            HologramLensItem.setFocalDistance(lens, 2);
+            HologramLensItem.setHoloScale(lens, 1.0f);
+            be.setCarouselLens(1, lens);
+        });
+        cScene.effects().emitParticles(util.vector().topOf(diffuserPos).add(0, 2.5, 0),
+                cScene.effects().simpleParticleEmitter(ParticleTypes.END_ROD, Vec3.ZERO), 1.0f, 15);
         cScene.idle(80);
 
-        cScene.overlay().showText(70)
+        // Text 3: Cycle projection distance (2 -> 4 -> 6 -> 2)
+        cScene.overlay().showText(90)
+                .attachKeyFrame()
+                .text("With nothing in offhand, right-click the lens to cycle the projection distance: 2 → 4 → 6 → … → 32 blocks")
+                .pointAt(util.vector().topOf(diffuserPos).add(0, 2.5, 0))
+                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
+        cScene.idle(25);
+
+        // Player right clicks lens: distance -> 4
+        cScene.overlay().showControls(util.vector().topOf(diffuserPos), Pointing.DOWN, 25).rightClick();
+        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
+            ItemStack lens = be.getActiveLens();
+            HologramLensItem.setFocalDistance(lens, 4);
+            be.setCarouselLens(1, lens);
+        });
+        cScene.idle(35);
+
+        // Player right clicks lens: distance -> 6
+        cScene.overlay().showControls(util.vector().topOf(diffuserPos), Pointing.DOWN, 25).rightClick();
+        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
+            ItemStack lens = be.getActiveLens();
+            HologramLensItem.setFocalDistance(lens, 6);
+            be.setCarouselLens(1, lens);
+        });
+        cScene.idle(40);
+
+        // Return distance -> 2
+        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
+            ItemStack lens = be.getActiveLens();
+            HologramLensItem.setFocalDistance(lens, 2);
+            be.setCarouselLens(1, lens);
+        });
+        cScene.idle(25);
+
+        // Text 4: Cycle scale (0.5x -> 1.0x -> 1.5x -> 2.0x -> 1.0x)
+        cScene.overlay().showText(90)
+                .attachKeyFrame()
+                .text("Right-click while the lens is in your offhand to cycle scale: 0.5× → 1× → 1.5× → 2× → 3×")
+                .pointAt(util.vector().topOf(diffuserPos).add(0, 2.5, 0));
+        cScene.idle(25);
+
+        // Scale -> 0.5x
+        cScene.overlay().showControls(util.vector().topOf(diffuserPos), Pointing.DOWN, 20).rightClick().whileSneaking();
+        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
+            ItemStack lens = be.getActiveLens();
+            HologramLensItem.setHoloScale(lens, 0.5f);
+            be.setCarouselLens(1, lens);
+        });
+        cScene.idle(25);
+
+        // Scale -> 1.5x
+        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
+            ItemStack lens = be.getActiveLens();
+            HologramLensItem.setHoloScale(lens, 1.5f);
+            be.setCarouselLens(1, lens);
+        });
+        cScene.idle(25);
+
+        // Scale -> 2.0x
+        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
+            ItemStack lens = be.getActiveLens();
+            HologramLensItem.setHoloScale(lens, 2.0f);
+            be.setCarouselLens(1, lens);
+        });
+        cScene.idle(35);
+
+        // Reset scale -> 1.0x
+        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
+            ItemStack lens = be.getActiveLens();
+            HologramLensItem.setHoloScale(lens, 1.0f);
+            be.setCarouselLens(1, lens);
+        });
+        cScene.idle(20);
+
+        // Imprint Create Schematic!
+        cScene.overlay().showText(85)
+                .attachKeyFrame()
+                .text("Schematics can also be imprinted, projecting a complete rotating 3D mechanical model")
+                .pointAt(util.vector().topOf(diffuserPos).add(0, 2.5, 0))
+                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
+        cScene.idle(20);
+
+        cScene.overlay().showControls(util.vector().topOf(diffuserPos), Pointing.DOWN, 35)
+                .rightClick().withItem(com.simibubi.create.AllItems.SCHEMATIC.asStack());
+        cScene.idle(15);
+
+        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
+            ItemStack lens = be.getActiveLens();
+            HologramLensItem.setHoloTarget(lens, com.simibubi.create.AllItems.SCHEMATIC.asStack(), be.getLevel().registryAccess());
+            HologramLensItem.setFocalDistance(lens, 2);
+            HologramLensItem.setHoloScale(lens, 1.0f);
+            be.setCarouselLens(1, lens);
+        });
+        cScene.effects().emitParticles(util.vector().topOf(diffuserPos).add(0, 2.5, 0),
+                cScene.effects().simpleParticleEmitter(ParticleTypes.ENCHANT, Vec3.ZERO), 1.0f, 15);
+        cScene.idle(80);
+
+        // Text 6: Clear target — returns to gyroscope
+        cScene.overlay().showText(75)
                 .attachKeyFrame()
                 .text("Hold an item in offhand and right-click the lens again to clear the target — the gyroscope returns")
                 .pointAt(util.vector().topOf(diffuserPos))
                 .colored(net.createmod.ponder.api.PonderPalette.RED);
-        cScene.idle(80);
+        cScene.idle(20);
+
+        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
+            ItemStack lens = be.getActiveLens();
+            HologramLensItem.setHoloTarget(lens, ItemStack.EMPTY, be.getLevel().registryAccess());
+            be.setCarouselLens(1, lens);
+        });
+        cScene.effects().emitParticles(util.vector().topOf(diffuserPos).add(0, 2.5, 0),
+                cScene.effects().simpleParticleEmitter(ParticleTypes.POOF, Vec3.ZERO), 1.0f, 10);
+        cScene.idle(75);
 
         cScene.markAsFinished();
     }
@@ -926,20 +1048,28 @@ public class DiffuserPonderScenes {
         cScene.configureBasePlate(0, 0, 7);
         cScene.showBasePlate();
 
-        BlockPos diffuserPos = new BlockPos(3, 1, 2);
-        BlockPos sourcePos   = new BlockPos(3, 1, 4);
-        BlockPos shaftPos    = new BlockPos(3, 1, 5);
-        BlockPos bottomShaft = new BlockPos(3, 0, 2);
+        BlockPos diffuserPos  = new BlockPos(3, 2, 3);
+        BlockPos mirrorPos    = new BlockPos(3, 1, 3);
+        BlockPos spinShaftPos = new BlockPos(3, 2, 4);
+        BlockPos sourcePos    = new BlockPos(3, 1, 5);
+        BlockPos shaftPos     = new BlockPos(3, 1, 6);
 
         cScene.world().showSection(util.select().position(shaftPos), Direction.DOWN);
         cScene.world().showSection(util.select().position(sourcePos), Direction.DOWN);
+        cScene.world().showSection(util.select().position(mirrorPos), Direction.DOWN);
         cScene.world().showSection(util.select().position(diffuserPos), Direction.DOWN);
-        cScene.world().showSection(util.select().position(bottomShaft), Direction.UP);
+        cScene.world().showSection(util.select().position(spinShaftPos), Direction.DOWN);
+
         lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 255, 255), 64f);
         cScene.world().setKineticSpeed(util.select().position(shaftPos), 64f);
-        cScene.world().setKineticSpeed(util.select().position(bottomShaft), 16f);
+        cScene.world().setKineticSpeed(util.select().position(spinShaftPos), 16f);
+
         cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
-            be.setCarouselLens(1, new ItemStack(ModRegistry.HOLOGRAM_LENS.get()));
+            ItemStack lens = new ItemStack(ModRegistry.HOLOGRAM_LENS.get());
+            HologramLensItem.setHoloTarget(lens, com.simibubi.create.AllItems.SCHEMATIC.asStack(), be.getLevel().registryAccess());
+            HologramLensItem.setFocalDistance(lens, 2);
+            HologramLensItem.setHoloScale(lens, 1.0f);
+            be.setCarouselLens(1, lens);
             be.setSpinSpeed(16f);
         });
         cScene.idle(20);
@@ -947,21 +1077,25 @@ public class DiffuserPonderScenes {
         cScene.overlay().showText(75)
                 .attachKeyFrame()
                 .text("Imprint a Create Schematic onto the Hologram Lens to project a rotating 3D preview of the entire structure")
-                .pointAt(util.vector().topOf(diffuserPos))
+                .pointAt(util.vector().topOf(diffuserPos).add(0, 2.5, 0))
                 .colored(net.createmod.ponder.api.PonderPalette.WHITE);
         cScene.idle(85);
 
         cScene.overlay().showText(75)
                 .attachKeyFrame()
                 .text("The structure rotates continuously — driven by the bottom shaft. Useful for planning builds mid-construction")
-                .pointAt(util.vector().topOf(diffuserPos))
+                .pointAt(util.vector().topOf(diffuserPos).add(0, 2.5, 0))
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
         cScene.idle(85);
 
         cScene.overlay().showText(70)
                 .attachKeyFrame()
                 .text("Bottom shaft speed directly controls hologram rotation speed — connect a faster source for faster spin")
-                .pointAt(util.vector().centerOf(diffuserPos));
+                .pointAt(util.vector().topOf(spinShaftPos));
+
+        // Speed up rotation: 16 -> 64 RPM!
+        cScene.world().setKineticSpeed(util.select().position(spinShaftPos), 64f);
+        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> be.setSpinSpeed(64f));
         cScene.idle(80);
 
         cScene.markAsFinished();

@@ -27,8 +27,11 @@ import net.minecraft.core.Vec3i;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtAccounter;
+import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
@@ -190,6 +193,20 @@ public class HologramRenderer {
 
         try {
             StructureTemplate template = SchematicItem.loadSchematic(level, schematicStack);
+            if (template == null || template.getSize().equals(Vec3i.ZERO)) {
+                try {
+                    var opt = Minecraft.getInstance().getResourceManager().getResource(
+                            ResourceLocation.fromNamespaceAndPath("create_optical_diffuser", "structures/demo_structure.nbt")
+                    );
+                    if (opt.isPresent()) {
+                        try (var is = opt.get().open()) {
+                            CompoundTag tag = NbtIo.readCompressed(is, NbtAccounter.unlimitedHeap());
+                            template = new StructureTemplate();
+                            template.load(level.holderLookup(Registries.BLOCK), tag);
+                        }
+                    }
+                } catch (Throwable ignored) {}
+            }
             if (template == null || template.getSize().equals(Vec3i.ZERO)) return null;
 
             // Anchor at BlockPos.ZERO ensures relative coordinates in SchematicRenderer match blockEntities!
@@ -373,7 +390,7 @@ public class HologramRenderer {
                 15728880,
                 OverlayTexture.NO_OVERLAY,
                 ModelData.EMPTY,
-                RenderType.translucent()
+                null
         );
 
         poseStack.popPose();
