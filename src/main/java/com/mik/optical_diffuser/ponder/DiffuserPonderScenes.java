@@ -28,6 +28,7 @@ import net.createmod.ponder.api.element.EntityElement;
 import com.simibubi.create.content.logistics.depot.DepotBlockEntity;
 import com.simibubi.create.content.redstone.analogLever.AnalogLeverBlockEntity;
 import com.simibubi.create.content.redstone.nixieTube.NixieTubeBlockEntity;
+import net.createmod.catnip.math.Pointing;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -69,9 +70,21 @@ public class DiffuserPonderScenes {
 
     private static void setPonderSignal(CreateSceneBuilder cScene, SceneBuildingUtil util,
                                         BlockPos leverPos, BlockPos nixiePos, BlockPos diffuserPos, int signal) {
+        cScene.effects().indicateRedstone(leverPos);
+        cScene.world().modifyBlockEntityNBT(util.select().position(leverPos), AnalogLeverBlockEntity.class,
+                tag -> tag.putInt("State", signal), true);
         cScene.world().modifyBlockEntity(leverPos, AnalogLeverBlockEntity.class, be -> {
             while (be.getState() < signal) be.changeState(false);
             while (be.getState() > signal) be.changeState(true);
+            try {
+                java.lang.reflect.Field f = AnalogLeverBlockEntity.class.getDeclaredField("clientState");
+                f.setAccessible(true);
+                net.createmod.catnip.animation.LerpedFloat lf = (net.createmod.catnip.animation.LerpedFloat) f.get(be);
+                if (lf != null) {
+                    lf.setValue(signal);
+                }
+            } catch (Exception ignored) {}
+            be.notifyUpdate();
         });
         cScene.world().modifyBlockEntity(nixiePos, NixieTubeBlockEntity.class, be -> {
             be.updateRedstoneStrength(signal);
@@ -473,9 +486,12 @@ public class DiffuserPonderScenes {
                 .colored(net.createmod.ponder.api.PonderPalette.WHITE);
         cScene.idle(85);
 
-        // Install Focusing Lens directly into front slot
+        // Install Focusing Lens directly into the active front slot (slot 1)
+        cScene.overlay().showControls(util.vector().blockSurface(diffuserPos, Direction.NORTH), Pointing.DOWN, 25)
+                .rightClick().withItem(new ItemStack(ModRegistry.FOCUSING_LENS.get()));
+        cScene.idle(10);
         cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
-            be.setCarouselLens(0, new ItemStack(ModRegistry.FOCUSING_LENS.get()));
+            be.setCarouselLens(1, new ItemStack(ModRegistry.FOCUSING_LENS.get()));
             be.onRedstonePowerChanged(0);
         });
         cScene.effects().emitParticles(util.vector().blockSurface(diffuserPos, Direction.NORTH),
@@ -491,10 +507,14 @@ public class DiffuserPonderScenes {
 
         cScene.overlay().showText(90)
                 .attachKeyFrame()
-                .text("Modulating redstone signal (0 to 14) dynamically tightens the beam from 45° down to 8°")
+                .text("Right-click the Analog Lever to increase redstone power, tightening the spotlight down to 8°")
                 .pointAt(util.vector().topOf(leverPos))
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
         cScene.idle(30);
+
+        // Show player right-clicking the lever to step up signal
+        cScene.overlay().showControls(util.vector().topOf(leverPos), Pointing.DOWN, 80).rightClick();
+        cScene.idle(10);
 
         // Slowly step signal UP: 0 -> 3 -> 6 -> 9 -> 12 -> 14
         int[] upSignals = {3, 6, 9, 12, 14};
@@ -503,6 +523,10 @@ public class DiffuserPonderScenes {
             cScene.idle(16);
         }
         cScene.idle(40);
+
+        // Show player shift-right-clicking the lever to step down signal
+        cScene.overlay().showControls(util.vector().topOf(leverPos), Pointing.DOWN, 65).rightClick().whileSneaking();
+        cScene.idle(10);
 
         // Slowly step signal DOWN: 14 -> 10 -> 6 -> 2 -> 0
         int[] downSignals = {10, 6, 2, 0};
@@ -555,9 +579,12 @@ public class DiffuserPonderScenes {
         setPonderSignal(cScene, util, leverPos, nixiePos, diffuserPos, 0);
         cScene.idle(20);
 
-        // Install Dispersing Lens
+        // Install Dispersing Lens into active front slot (slot 1)
+        cScene.overlay().showControls(util.vector().blockSurface(diffuserPos, Direction.NORTH), Pointing.DOWN, 25)
+                .rightClick().withItem(new ItemStack(ModRegistry.DISPERSING_LENS.get()));
+        cScene.idle(10);
         cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
-            be.setCarouselLens(0, new ItemStack(ModRegistry.DISPERSING_LENS.get()));
+            be.setCarouselLens(1, new ItemStack(ModRegistry.DISPERSING_LENS.get()));
             be.onRedstonePowerChanged(0);
         });
         cScene.effects().emitParticles(util.vector().blockSurface(diffuserPos, Direction.NORTH),
@@ -578,6 +605,10 @@ public class DiffuserPonderScenes {
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
         cScene.idle(30);
 
+        // Show player right-clicking the lever
+        cScene.overlay().showControls(util.vector().topOf(leverPos), Pointing.DOWN, 80).rightClick();
+        cScene.idle(10);
+
         // Step signal UP: 0 -> 3 -> 6 -> 9 -> 12 -> 14
         int[] upSignals = {3, 6, 9, 12, 14};
         for (int sig : upSignals) {
@@ -585,6 +616,10 @@ public class DiffuserPonderScenes {
             cScene.idle(16);
         }
         cScene.idle(40);
+
+        // Show player shift-right-clicking the lever
+        cScene.overlay().showControls(util.vector().topOf(leverPos), Pointing.DOWN, 65).rightClick().whileSneaking();
+        cScene.idle(10);
 
         // Step signal DOWN: 14 -> 10 -> 6 -> 2 -> 0
         int[] downSignals = {10, 6, 2, 0};
@@ -674,7 +709,7 @@ public class DiffuserPonderScenes {
         cScene.idle(90);
 
         cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
-            be.setCarouselLens(0, new ItemStack(ModRegistry.SILENT_PROJECTOR_LENS.get()));
+            be.setCarouselLens(1, new ItemStack(ModRegistry.SILENT_PROJECTOR_LENS.get()));
         });
         cScene.idle(15);
 
@@ -736,7 +771,7 @@ public class DiffuserPonderScenes {
         lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 255, 255), 64f);
         cScene.world().setKineticSpeed(util.select().position(shaftPos), 64f);
         cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
-            be.setCarouselLens(0, new ItemStack(ModRegistry.SOUND_PROJECTOR_LENS.get()));
+            be.setCarouselLens(1, new ItemStack(ModRegistry.SOUND_PROJECTOR_LENS.get()));
         });
         cScene.idle(20);
 
@@ -839,7 +874,7 @@ public class DiffuserPonderScenes {
         cScene.world().setKineticSpeed(util.select().position(shaftPos), 64f);
         cScene.world().setKineticSpeed(util.select().position(bottomShaft), 24f);
         cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
-            be.setCarouselLens(0, new ItemStack(ModRegistry.HOLOGRAM_LENS.get()));
+            be.setCarouselLens(1, new ItemStack(ModRegistry.HOLOGRAM_LENS.get()));
             be.setSpinSpeed(24f);
         });
         cScene.idle(20);
@@ -903,7 +938,7 @@ public class DiffuserPonderScenes {
         cScene.world().setKineticSpeed(util.select().position(shaftPos), 64f);
         cScene.world().setKineticSpeed(util.select().position(bottomShaft), 16f);
         cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
-            be.setCarouselLens(0, new ItemStack(ModRegistry.HOLOGRAM_LENS.get()));
+            be.setCarouselLens(1, new ItemStack(ModRegistry.HOLOGRAM_LENS.get()));
             be.setSpinSpeed(16f);
         });
         cScene.idle(20);
@@ -952,7 +987,7 @@ public class DiffuserPonderScenes {
         lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 120, 50), 64f);
         cScene.world().setKineticSpeed(util.select().position(shaftPos), 64f);
         cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
-            be.setCarouselLens(0, new ItemStack(ModRegistry.THERMAL_IGNITION_LENS.get()));
+            be.setCarouselLens(1, new ItemStack(ModRegistry.THERMAL_IGNITION_LENS.get()));
         });
         cScene.idle(20);
 
@@ -1014,7 +1049,7 @@ public class DiffuserPonderScenes {
         lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 255, 255), 64f);
         cScene.world().setKineticSpeed(util.select().position(shaftPos), 64f);
         cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
-            be.setCarouselLens(0, new ItemStack(ModRegistry.COLLIMATOR_LENS.get()));
+            be.setCarouselLens(1, new ItemStack(ModRegistry.COLLIMATOR_LENS.get()));
         });
         cScene.idle(20);
 
@@ -1116,24 +1151,47 @@ public class DiffuserPonderScenes {
         cScene.world().setBlock(icePos, Blocks.WATER.defaultBlockState(), true);
         cScene.idle(20);
 
-        // Spawn zombie that catches fire from microwave radiation (stationary legs, no AI)
+        // Spawn zombie that catches fire from microwave radiation (stationary legs, no AI, custom death animation)
         ElementLink<EntityElement> zombie1 = cScene.world().createEntity(level -> {
-            Zombie z = EntityType.ZOMBIE.create(level);
-            if (z != null) {
-                z.setPos(zombiePos.x, zombiePos.y, zombiePos.z);
-                z.xo = zombiePos.x;
-                z.yo = zombiePos.y;
-                z.zo = zombiePos.z;
-                z.setYRot(180f);
-                z.yRotO = 180f;
-                z.yBodyRot = 180f;
-                z.yBodyRotO = 180f;
-                z.setNoAi(true);
-                z.setNoGravity(true);
-                z.setDeltaMovement(Vec3.ZERO);
-                z.setOnGround(true);
-                z.walkAnimation.setSpeed(0.0f);
-            }
+            Zombie z = new Zombie(EntityType.ZOMBIE, level) {
+                @Override
+                public boolean isAlive() {
+                    return !this.isRemoved();
+                }
+
+                @Override
+                public void tick() {
+                    super.tick();
+                    this.setNoGravity(true);
+                    this.setDeltaMovement(Vec3.ZERO);
+                    this.setPos(zombiePos.x, zombiePos.y, zombiePos.z);
+                    this.walkAnimation.setSpeed(0.0f);
+                    this.walkAnimation.position(0.0f);
+                    this.yBodyRot = 180f;
+                    this.yBodyRotO = 180f;
+                    this.yHeadRot = 180f;
+                    this.yHeadRotO = 180f;
+                    if (this.deathTime > 0 && this.deathTime < 20) {
+                        this.deathTime++;
+                    }
+                }
+            };
+            z.setPos(zombiePos.x, zombiePos.y, zombiePos.z);
+            z.xo = zombiePos.x;
+            z.yo = zombiePos.y;
+            z.zo = zombiePos.z;
+            z.setYRot(180f);
+            z.yRotO = 180f;
+            z.yBodyRot = 180f;
+            z.yBodyRotO = 180f;
+            z.yHeadRot = 180f;
+            z.yHeadRotO = 180f;
+            z.setNoAi(true);
+            z.setNoGravity(true);
+            z.setDeltaMovement(Vec3.ZERO);
+            z.setOnGround(true);
+            z.walkAnimation.setSpeed(0.0f);
+            z.setHealth(6.0f);
             return z;
         });
         cScene.idle(15);
@@ -1159,12 +1217,17 @@ public class DiffuserPonderScenes {
                 cScene.effects().particleEmitterWithinBlockSpace(ParticleTypes.SMOKE, new Vec3(0, 0.05, 0)), 1.0f, 6);
         cScene.idle(25);
 
+        // Pulse 3: Fatal fire damage and smooth death fall
         cScene.world().modifyEntity(zombie1, e -> {
             if (e instanceof LivingEntity le) {
                 le.handleDamageEvent(le.damageSources().inFire());
+                le.handleEntityEvent((byte) 3);
+                le.deathTime = 1;
             }
         });
-        cScene.idle(25);
+        cScene.idle(20);
+        cScene.effects().emitParticles(zombiePos.add(0, 0.2, 0),
+                cScene.effects().particleEmitterWithinBlockSpace(ParticleTypes.POOF, new Vec3(0, 0.05, 0)), 1.5f, 15);
         cScene.world().modifyEntity(zombie1, Entity::discard);
         cScene.idle(15);
 
@@ -1255,10 +1318,9 @@ public class DiffuserPonderScenes {
                 le.deathTime = 1;
             }
         });
-        cScene.idle(35); // 20 ticks for smooth 90° fall + 15 ticks lying on floor
+        cScene.idle(20);
         cScene.effects().emitParticles(zombiePos.add(0, 0.2, 0),
                 cScene.effects().particleEmitterWithinBlockSpace(ParticleTypes.POOF, new Vec3(0, 0.05, 0)), 1.5f, 15);
-        cScene.idle(10);
         cScene.world().modifyEntity(zombie2, Entity::discard);
         cScene.idle(15);
 
