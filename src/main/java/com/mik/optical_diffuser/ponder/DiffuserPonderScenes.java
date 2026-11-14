@@ -1135,7 +1135,6 @@ public class DiffuserPonderScenes {
         BlockPos diffuserPos = new BlockPos(2, 1, 3);
         BlockPos sourcePos   = new BlockPos(2, 1, 5);
         BlockPos shaftPos    = new BlockPos(2, 1, 6);
-        Vec3 bystanderPos    = util.vector().topOf(util.grid().at(1, 0, 1));
         Vec3 wardenPos       = util.vector().topOf(util.grid().at(2, 0, 1));
 
         cScene.world().showSection(util.select().position(shaftPos), Direction.DOWN);
@@ -1161,43 +1160,10 @@ public class DiffuserPonderScenes {
 
         cScene.overlay().showText(75)
                 .attachKeyFrame()
-                .text("The Collimator Lens focuses light into an ultra-sharp 2.0° needle laser")
+                .text("The Collimator Lens focuses light into an ultra-sharp 2.0° needle laser with extreme range")
                 .pointAt(util.vector().topOf(diffuserPos))
                 .colored(net.createmod.ponder.api.PonderPalette.WHITE);
         cScene.idle(85);
-
-        // Spawn a bystander zombie 1 block to the side
-        ElementLink<EntityElement> bystander = cScene.world().createEntity(level -> {
-            Zombie z = EntityType.ZOMBIE.create(level);
-            if (z != null) {
-                z.setPos(bystanderPos.x, bystanderPos.y, bystanderPos.z);
-                z.xo = bystanderPos.x;
-                z.yo = bystanderPos.y;
-                z.zo = bystanderPos.z;
-                z.setYRot(180f);
-                z.yRotO = 180f;
-                z.yBodyRot = 180f;
-                z.yBodyRotO = 180f;
-                z.setNoAi(true);
-                z.setNoGravity(true);
-                z.setDeltaMovement(Vec3.ZERO);
-                z.setOnGround(true);
-                z.walkAnimation.setSpeed(0.0f);
-            }
-            return z;
-        });
-        cScene.idle(15);
-
-        cScene.overlay().showText(85)
-                .attachKeyFrame()
-                .text("Extreme precision: the needle strikes only what is directly on its axis — bystanders beside it remain untouched")
-                .pointAt(bystanderPos.add(0, 1.0, 0))
-                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
-        cScene.idle(95);
-
-        // Discard bystander
-        cScene.world().modifyEntity(bystander, Entity::discard);
-        cScene.idle(15);
 
         // Spawn Warden directly in the laser path at (2, 0, 1)
         ElementLink<EntityElement> warden = cScene.world().createEntity(level -> {
@@ -1246,7 +1212,7 @@ public class DiffuserPonderScenes {
 
         cScene.overlay().showText(100)
                 .attachKeyFrame()
-                .text("At 256 RPM, it deals 16.5 damage every 4 ticks and ignores immunity frames — melting a Warden (500 HP) in 6 seconds!")
+                .text("At 256 RPM, it deals 16.5 damage every 4 ticks ignoring immunity frames — melting a Warden (500 HP) in 6 seconds!")
                 .pointAt(wardenPos.add(0, 2.0, 0))
                 .colored(net.createmod.ponder.api.PonderPalette.RED);
         cScene.idle(20);
