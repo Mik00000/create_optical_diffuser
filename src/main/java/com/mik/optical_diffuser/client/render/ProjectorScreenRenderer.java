@@ -10,6 +10,7 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
@@ -44,7 +45,15 @@ public class ProjectorScreenRenderer {
         DiffuserMediaManager media = DiffuserMediaManager.get(be);
         net.minecraft.resources.ResourceLocation texLoc = media.getTextureLocation();
         if (texLoc == null) {
-            return;
+            // In Ponder level, fall back to built-in test cinema frame so the screen is never blank
+            if (be.getLevel() instanceof net.createmod.ponder.api.level.PonderLevel) {
+                texLoc = ResourceLocation.fromNamespaceAndPath(
+                        com.mik.optical_diffuser.OpticalDiffuserMod.MOD_ID,
+                        "textures/misc/ponder_cinema_test.png"
+                );
+            } else {
+                return;
+            }
         }
 
         BlockPos p1 = coords.pos1;

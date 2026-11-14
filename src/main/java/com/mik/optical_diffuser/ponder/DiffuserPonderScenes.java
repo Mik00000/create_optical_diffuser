@@ -4,6 +4,7 @@ import com.mik.optical_diffuser.ModRegistry;
 import com.mik.optical_diffuser.OpticalDiffuserMod;
 import com.mik.optical_diffuser.block.entity.OpticalDiffuserBlockEntity;
 import com.mik.optical_diffuser.item.HologramLensItem;
+import com.mik.optical_diffuser.item.ProjectorLensItem;
 import com.simibubi.create.foundation.ponder.CreateSceneBuilder;
 import net.createmod.ponder.api.registration.PonderSceneRegistrationHelper;
 import net.createmod.ponder.api.scene.SceneBuilder;
@@ -686,15 +687,15 @@ public class DiffuserPonderScenes {
     public static void silentProjector(SceneBuilder scene, SceneBuildingUtil util) {
         CreateSceneBuilder cScene = new CreateSceneBuilder(scene);
         cScene.title("silent_projector_lens", "Silent Projector Lens");
-        cScene.configureBasePlate(0, 0, 7);
+        cScene.configureBasePlate(0, 0, 9);
         cScene.showBasePlate();
 
-        BlockPos diffuserPos = new BlockPos(3, 1, 2);
-        BlockPos reelPos     = new BlockPos(4, 1, 2);
-        BlockPos sourcePos   = new BlockPos(3, 1, 4);
-        BlockPos shaftPos    = new BlockPos(3, 1, 5);
-        BlockPos screenStart = new BlockPos(1, 1, 0);
-        BlockPos screenEnd   = new BlockPos(5, 3, 0);
+        BlockPos shaftPos    = new BlockPos(4, 1, 1);
+        BlockPos sourcePos   = new BlockPos(4, 1, 2);
+        BlockPos diffuserPos = new BlockPos(4, 1, 4);
+        BlockPos reelPos     = new BlockPos(3, 1, 4);
+        BlockPos screenStart = new BlockPos(2, 1, 8);
+        BlockPos screenEnd   = new BlockPos(6, 3, 8);
 
         cScene.world().showSection(util.select().fromTo(screenStart, screenEnd), Direction.DOWN);
         cScene.idle(15);
@@ -708,19 +709,23 @@ public class DiffuserPonderScenes {
         cScene.overlay().showText(80)
                 .attachKeyFrame()
                 .text("Hold the Silent Projector Lens and right-click one corner of a screen wall, then Shift+Right-click the opposite corner")
-                .pointAt(util.vector().blockSurface(screenStart, Direction.EAST))
+                .pointAt(util.vector().blockSurface(screenStart, Direction.NORTH))
                 .colored(net.createmod.ponder.api.PonderPalette.WHITE);
         cScene.idle(90);
 
+        ItemStack configuredLens = new ItemStack(ModRegistry.SILENT_PROJECTOR_LENS.get());
+        ProjectorLensItem.setPos1(configuredLens, screenStart);
+        ProjectorLensItem.setPos2(configuredLens, screenEnd);
+
         cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
-            be.setCarouselLens(1, new ItemStack(ModRegistry.SILENT_PROJECTOR_LENS.get()));
+            be.setCarouselLens(1, configuredLens);
         });
         cScene.idle(15);
 
         cScene.overlay().showText(75)
                 .attachKeyFrame()
                 .text("Insert the configured lens into the carousel. The lens now knows which screen to project onto")
-                .pointAt(util.vector().blockSurface(diffuserPos, Direction.WEST))
+                .pointAt(util.vector().blockSurface(diffuserPos, Direction.EAST))
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
         cScene.idle(85);
 
@@ -730,21 +735,21 @@ public class DiffuserPonderScenes {
         cScene.overlay().showText(75)
                 .attachKeyFrame()
                 .text("Place a Film Reel block on the right side of the diffuser, or insert a Film Reel item into the internal slot")
-                .pointAt(util.vector().blockSurface(reelPos, Direction.EAST))
+                .pointAt(util.vector().blockSurface(reelPos, Direction.UP))
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
         cScene.idle(85);
 
         cScene.overlay().showText(75)
                 .attachKeyFrame()
                 .text("With an incoming laser and a media source, video plays on the screen. No audio output")
-                .pointAt(util.vector().topOf(diffuserPos))
+                .pointAt(util.vector().centerOf(new BlockPos(4, 2, 8)))
                 .colored(net.createmod.ponder.api.PonderPalette.WHITE);
         cScene.idle(85);
 
         cScene.overlay().showText(70)
                 .attachKeyFrame()
                 .text("Left shaft RPM controls playback speed. Stop the shaft to pause; reverse it to rewind")
-                .pointAt(util.vector().blockSurface(diffuserPos, Direction.WEST));
+                .pointAt(util.vector().blockSurface(diffuserPos, Direction.EAST));
         cScene.idle(80);
 
         cScene.markAsFinished();
@@ -756,16 +761,16 @@ public class DiffuserPonderScenes {
     public static void soundProjector(SceneBuilder scene, SceneBuildingUtil util) {
         CreateSceneBuilder cScene = new CreateSceneBuilder(scene);
         cScene.title("sound_projector_lens", "Sound Projector Lens");
-        cScene.configureBasePlate(0, 0, 7);
+        cScene.configureBasePlate(0, 0, 9);
         cScene.showBasePlate();
 
-        BlockPos diffuserPos = new BlockPos(3, 1, 2);
-        BlockPos speakerPos  = new BlockPos(0, 1, 2);
-        BlockPos reelPos     = new BlockPos(4, 1, 2);
-        BlockPos sourcePos   = new BlockPos(3, 1, 4);
-        BlockPos shaftPos    = new BlockPos(3, 1, 5);
-        BlockPos screenStart = new BlockPos(1, 1, 0);
-        BlockPos screenEnd   = new BlockPos(5, 3, 0);
+        BlockPos shaftPos    = new BlockPos(4, 1, 1);
+        BlockPos sourcePos   = new BlockPos(4, 1, 2);
+        BlockPos diffuserPos = new BlockPos(4, 1, 4);
+        BlockPos reelPos     = new BlockPos(3, 1, 4);
+        BlockPos speakerPos  = new BlockPos(7, 1, 6);
+        BlockPos screenStart = new BlockPos(2, 1, 8);
+        BlockPos screenEnd   = new BlockPos(6, 3, 8);
 
         cScene.world().showSection(util.select().fromTo(screenStart, screenEnd), Direction.DOWN);
         cScene.world().showSection(util.select().position(shaftPos), Direction.DOWN);
@@ -774,15 +779,20 @@ public class DiffuserPonderScenes {
         cScene.world().showSection(util.select().position(reelPos), Direction.DOWN);
         lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 255, 255), 64f);
         cScene.world().setKineticSpeed(util.select().position(shaftPos), 64f);
+
+        ItemStack configuredLens = new ItemStack(ModRegistry.SOUND_PROJECTOR_LENS.get());
+        ProjectorLensItem.setPos1(configuredLens, screenStart);
+        ProjectorLensItem.setPos2(configuredLens, screenEnd);
+
         cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
-            be.setCarouselLens(1, new ItemStack(ModRegistry.SOUND_PROJECTOR_LENS.get()));
+            be.setCarouselLens(1, configuredLens);
         });
         cScene.idle(20);
 
         cScene.overlay().showText(75)
                 .attachKeyFrame()
                 .text("The Sound Projector Lens works identically to the silent version — with audio output enabled")
-                .pointAt(util.vector().blockSurface(diffuserPos, Direction.WEST))
+                .pointAt(util.vector().blockSurface(diffuserPos, Direction.EAST))
                 .colored(net.createmod.ponder.api.PonderPalette.WHITE);
         cScene.idle(85);
 
