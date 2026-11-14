@@ -42,6 +42,10 @@ public class DiffuserPonderScenes {
     }
 
     private static void lightDiffuser(CreateSceneBuilder cScene, SceneBuildingUtil util, BlockPos sourcePos, BlockPos diffuserPos, Vec3i color, float speed) {
+        lightDiffuser(cScene, util, sourcePos, diffuserPos, color, speed, BeamHelper.BeamPolarization.RANDOM);
+    }
+
+    private static void lightDiffuser(CreateSceneBuilder cScene, SceneBuildingUtil util, BlockPos sourcePos, BlockPos diffuserPos, Vec3i color, float speed, BeamHelper.BeamPolarization polarization) {
         cScene.world().setKineticSpeed(util.select().position(sourcePos), speed);
         BeamHelper.BeamType type = BeamHelper.BeamType.getTypeBySpeed(speed);
         cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
@@ -49,7 +53,7 @@ public class DiffuserPonderScenes {
                     speed > 0 ? speed : 16f,
                     Direction.NORTH,
                     type,
-                    BeamHelper.BeamPolarization.RANDOM,
+                    polarization,
                     color != null ? color : new Vec3i(255, 255, 255),
                     java.util.List.of(),
                     false,
@@ -71,17 +75,11 @@ public class DiffuserPonderScenes {
                         e -> e.highlightTag(DiffuserPonderTags.DIFFUSER))
                 .addStoryBoard("diffuser/carousel",           DiffuserPonderScenes::carousel,
                         e -> e.highlightTag(DiffuserPonderTags.DIFFUSER))
-                .addStoryBoard("diffuser/redstone_control",   DiffuserPonderScenes::redstoneControl,
-                        e -> e.highlightTag(DiffuserPonderTags.DIFFUSER))
                 .addStoryBoard("diffuser/dual_shafts",        DiffuserPonderScenes::bottomShaftRotation,
                         e -> e.highlightTag(DiffuserPonderTags.DIFFUSER));
 
-        helper.forComponents(key(ModRegistry.FOCUSING_LENS.get()))
-                .addStoryBoard("lenses/focusing",             DiffuserPonderScenes::focusingLens,
-                        e -> e.highlightTag(DiffuserPonderTags.DIFFUSER));
-
-        helper.forComponents(key(ModRegistry.DISPERSING_LENS.get()))
-                .addStoryBoard("lenses/dispersing",           DiffuserPonderScenes::dispersingLens,
+        helper.forComponents(key(ModRegistry.FOCUSING_LENS.get()), key(ModRegistry.DISPERSING_LENS.get()))
+                .addStoryBoard("lenses/beam_shaping",         DiffuserPonderScenes::beamShapingLenses,
                         e -> e.highlightTag(DiffuserPonderTags.DIFFUSER));
 
         helper.forComponents(key(ModRegistry.THERMAL_IGNITION_LENS.get()))
@@ -135,6 +133,7 @@ public class DiffuserPonderScenes {
         BlockPos diffuserPos = new BlockPos(2, 1, 1);
         BlockPos sourcePos   = new BlockPos(2, 1, 3);
         BlockPos shaftPos    = new BlockPos(2, 1, 4);
+        BlockPos leverPos    = new BlockPos(3, 1, 1);
 
         cScene.world().showSection(util.select().position(shaftPos),   Direction.DOWN);
         cScene.world().showSection(util.select().position(sourcePos),   Direction.DOWN);
@@ -160,6 +159,32 @@ public class DiffuserPonderScenes {
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
         cScene.idle(70);
 
+        // Emergency Shut-off via Level 15 Redstone
+        cScene.world().showSection(util.select().position(leverPos), Direction.DOWN);
+        cScene.idle(15);
+
+        cScene.overlay().showText(65)
+                .attachKeyFrame()
+                .text("A maximum redstone signal (level 15) immediately shuts off the diffuser as an emergency stop")
+                .pointAt(util.vector().topOf(leverPos))
+                .colored(net.createmod.ponder.api.PonderPalette.RED);
+        cScene.idle(20);
+
+        cScene.world().toggleRedstonePower(util.select().position(leverPos));
+        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> be.onRedstonePowerChanged(15));
+        cScene.idle(45);
+
+        cScene.overlay().showText(55)
+                .attachKeyFrame()
+                .text("Without lenses, signals 0–14 do not affect the beam; only signal 15 disables it")
+                .pointAt(util.vector().topOf(diffuserPos));
+        cScene.idle(20);
+
+        cScene.world().toggleRedstonePower(util.select().position(leverPos));
+        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> be.onRedstonePowerChanged(0));
+        cScene.idle(45);
+
+        // No input laser = no light
         cScene.world().setKineticSpeed(util.select().position(shaftPos), 0f);
         cScene.world().setKineticSpeed(util.select().position(sourcePos), 0f);
         cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, OpticalDiffuserBlockEntity::removeBeam);
@@ -314,63 +339,7 @@ public class DiffuserPonderScenes {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Scene 1.4 — Redstone Control
-    // ─────────────────────────────────────────────────────────────────────────
-    public static void redstoneControl(SceneBuilder scene, SceneBuildingUtil util) {
-        CreateSceneBuilder cScene = new CreateSceneBuilder(scene);
-        cScene.title("diffuser_redstone", "Redstone Control");
-        cScene.configureBasePlate(0, 0, 5);
-        cScene.showBasePlate();
-
-        BlockPos diffuserPos = new BlockPos(2, 1, 1);
-        BlockPos leverPos    = new BlockPos(3, 1, 1);
-        BlockPos sourcePos   = new BlockPos(2, 1, 3);
-        BlockPos shaftPos    = new BlockPos(2, 1, 4);
-
-        cScene.world().showSection(util.select().position(shaftPos), Direction.DOWN);
-        cScene.world().showSection(util.select().position(sourcePos), Direction.DOWN);
-        cScene.world().showSection(util.select().position(diffuserPos), Direction.DOWN);
-        cScene.world().showSection(util.select().position(leverPos), Direction.DOWN);
-        lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 255, 255), 64f);
-        cScene.world().setKineticSpeed(util.select().position(shaftPos), 64f);
-        cScene.idle(15);
-
-        cScene.overlay().showText(55)
-                .attachKeyFrame()
-                .text("With no redstone signal the diffuser operates at base intensity")
-                .pointAt(util.vector().topOf(diffuserPos))
-                .colored(net.createmod.ponder.api.PonderPalette.WHITE);
-        cScene.idle(65);
-
-        cScene.world().toggleRedstonePower(util.select().position(leverPos));
-        cScene.idle(5);
-
-        cScene.overlay().showText(60)
-                .attachKeyFrame()
-                .text("Signal 1–11 scales beam intensity from 10% to 100%")
-                .pointAt(util.vector().topOf(leverPos))
-                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
-        cScene.idle(70);
-
-        cScene.overlay().showText(55)
-                .attachKeyFrame()
-                .text("Signals 12–14 overdrive the beam — wider cone and longer reach")
-                .pointAt(util.vector().topOf(diffuserPos))
-                .colored(net.createmod.ponder.api.PonderPalette.RED);
-        cScene.idle(65);
-
-        cScene.overlay().showText(55)
-                .attachKeyFrame()
-                .text("Signal 15 kills the beam completely — except for cinema and hologram modes, which ignore it")
-                .pointAt(util.vector().topOf(diffuserPos))
-                .colored(net.createmod.ponder.api.PonderPalette.RED);
-        cScene.idle(65);
-
-        cScene.markAsFinished();
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Scene 1.5 — Bottom Shaft & Beam Rotation
+    // Scene 1.4 — Bottom Shaft & Beam Rotation
     // ─────────────────────────────────────────────────────────────────────────
     public static void bottomShaftRotation(SceneBuilder scene, SceneBuildingUtil util) {
         CreateSceneBuilder cScene = new CreateSceneBuilder(scene);
@@ -378,30 +347,43 @@ public class DiffuserPonderScenes {
         cScene.configureBasePlate(0, 0, 5);
         cScene.showBasePlate();
 
-        BlockPos diffuserPos    = new BlockPos(3, 1, 1);
-        BlockPos sourcePos      = new BlockPos(3, 1, 3);
-        BlockPos sourceShaftPos = new BlockPos(3, 1, 4);
-        BlockPos bottomCog      = new BlockPos(3, 0, 1);
+        BlockPos diffuserPos    = new BlockPos(0, 1, 1);
+        BlockPos sourcePos      = new BlockPos(0, 1, 3);
+        BlockPos sourceShaftPos = new BlockPos(0, 1, 4);
+        BlockPos bottomCog      = new BlockPos(0, 0, 1);
 
         cScene.world().showSection(util.select().position(sourceShaftPos), Direction.DOWN);
         cScene.world().showSection(util.select().position(sourcePos), Direction.DOWN);
         cScene.world().showSection(util.select().position(diffuserPos), Direction.DOWN);
-        lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 255, 255), 64f);
+        lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 255, 255), 64f, BeamHelper.BeamPolarization.RANDOM);
         cScene.world().setKineticSpeed(util.select().position(sourceShaftPos), 64f);
         cScene.idle(15);
 
         cScene.overlay().showText(55)
                 .attachKeyFrame()
-                .text("When receiving a laser, the diffuser emits light along its front axis")
+                .text("By default the diffuser casts a round conical beam")
                 .pointAt(util.vector().topOf(diffuserPos))
                 .colored(net.createmod.ponder.api.PonderPalette.WHITE);
         cScene.idle(65);
 
+        // Switch to Horizontal Polarization
+        lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 255, 255), 64f, BeamHelper.BeamPolarization.HORIZONTAL);
+        cScene.idle(10);
+
+        cScene.overlay().showText(65)
+                .attachKeyFrame()
+                .text("Changing beam polarization at the Optical Source flattens the cone into a wide horizontal fan")
+                .pointAt(util.vector().topOf(sourcePos))
+                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
+        cScene.idle(75);
+
+        cScene.world().showSection(util.select().position(bottomCog), Direction.UP);
+        cScene.idle(10);
         cScene.overlay().showOutline(net.createmod.ponder.api.PonderPalette.BLUE, "bottom",
                 util.select().position(bottomCog), 60);
         cScene.overlay().showText(60)
                 .attachKeyFrame()
-                .text("Connecting a kinetic gear or shaft to the bottom socket spins the beam around its axis")
+                .text("Connecting rotational power to the bottom socket spins the beam around its axis")
                 .pointAt(util.vector().topOf(bottomCog))
                 .colored(net.createmod.ponder.api.PonderPalette.BLUE);
         cScene.idle(70);
@@ -410,89 +392,28 @@ public class DiffuserPonderScenes {
         cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> be.setSpinSpeed(32f));
         cScene.idle(15);
 
-        cScene.overlay().showText(60)
+        cScene.overlay().showText(65)
                 .attachKeyFrame()
-                .text("The faster the bottom shaft turns, the faster the beam and hologram models rotate")
+                .text("With horizontal polarization, the rotating fan sweeps around like a lighthouse")
                 .pointAt(util.vector().topOf(diffuserPos))
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
-        cScene.idle(70);
+        cScene.idle(75);
 
-        cScene.overlay().showText(50)
+        cScene.overlay().showText(60)
                 .attachKeyFrame()
-                .text("This independent rotation controls dynamic light sweeps, polarization, and hologram spin")
+                .text("Rotation speed is proportional to bottom shaft RPM — ideal for searchlights and lighthouses")
                 .pointAt(util.vector().topOf(diffuserPos));
-        cScene.idle(60);
+        cScene.idle(70);
 
         cScene.markAsFinished();
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Scene 2.1 — Focusing Lens
+    // Scene 2.1 — Beam Shaping: Focusing & Dispersing Lenses
     // ─────────────────────────────────────────────────────────────────────────
-    public static void focusingLens(SceneBuilder scene, SceneBuildingUtil util) {
+    public static void beamShapingLenses(SceneBuilder scene, SceneBuildingUtil util) {
         CreateSceneBuilder cScene = new CreateSceneBuilder(scene);
-        cScene.title("focusing_lens", "Focusing Lens");
-        cScene.configureBasePlate(0, 0, 5);
-        cScene.showBasePlate();
-
-        BlockPos diffuserPos = new BlockPos(2, 1, 1);
-        BlockPos sourcePos   = new BlockPos(2, 1, 3);
-        BlockPos shaftPos    = new BlockPos(2, 1, 4);
-        BlockPos cogPos      = new BlockPos(1, 1, 1);
-
-        cScene.world().showSection(util.select().position(shaftPos), Direction.DOWN);
-        cScene.world().showSection(util.select().position(sourcePos), Direction.DOWN);
-        cScene.world().showSection(util.select().position(diffuserPos), Direction.DOWN);
-        lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 255, 255), 64f);
-        cScene.world().setKineticSpeed(util.select().position(shaftPos), 64f);
-        cScene.idle(15);
-
-        cScene.overlay().showText(55)
-                .attachKeyFrame()
-                .text("By default the diffuser casts a broad 35° spotlight cone")
-                .pointAt(util.vector().topOf(diffuserPos))
-                .colored(net.createmod.ponder.api.PonderPalette.WHITE);
-        cScene.idle(65);
-
-        cScene.world().showSection(util.select().position(cogPos), Direction.DOWN);
-        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
-            be.setCarouselLens(0, new ItemStack(ModRegistry.FOCUSING_LENS.get()));
-        });
-        cScene.idle(10);
-
-        cScene.overlay().showText(60)
-                .attachKeyFrame()
-                .text("Insert a Focusing Lens — it narrows the cone based on shaft RPM, from 45° at rest down to 8° at speed")
-                .pointAt(util.vector().blockSurface(diffuserPos, Direction.WEST))
-                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
-        cScene.idle(70);
-
-        cScene.world().setKineticSpeed(util.select().position(cogPos), 48f);
-        cScene.world().setKineticSpeed(util.select().position(diffuserPos), 48f);
-        cScene.idle(15);
-
-        cScene.overlay().showText(55)
-                .attachKeyFrame()
-                .text("Higher RPM = tighter beam, reaching further. Up to 64 blocks with a visible laser")
-                .pointAt(util.vector().topOf(diffuserPos))
-                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
-        cScene.idle(65);
-
-        cScene.overlay().showText(50)
-                .attachKeyFrame()
-                .text("A redstone signal compounds the effect — sharpening the cone even tighter on top of shaft speed")
-                .pointAt(util.vector().topOf(diffuserPos));
-        cScene.idle(60);
-
-        cScene.markAsFinished();
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Scene 2.2 — Dispersing Lens
-    // ─────────────────────────────────────────────────────────────────────────
-    public static void dispersingLens(SceneBuilder scene, SceneBuildingUtil util) {
-        CreateSceneBuilder cScene = new CreateSceneBuilder(scene);
-        cScene.title("dispersing_lens", "Dispersing Lens");
+        cScene.title("lenses_beam_shaping", "Beam Shaping: Focusing & Dispersing");
         cScene.configureBasePlate(0, 0, 7);
         cScene.showBasePlate();
 
@@ -500,37 +421,81 @@ public class DiffuserPonderScenes {
         BlockPos sourcePos   = new BlockPos(3, 1, 4);
         BlockPos shaftPos    = new BlockPos(3, 1, 5);
         BlockPos cogPos      = new BlockPos(2, 1, 2);
+        BlockPos leverPos    = new BlockPos(4, 1, 2);
 
         cScene.world().showSection(util.select().position(shaftPos), Direction.DOWN);
         cScene.world().showSection(util.select().position(sourcePos), Direction.DOWN);
         cScene.world().showSection(util.select().position(diffuserPos), Direction.DOWN);
         cScene.world().showSection(util.select().position(cogPos), Direction.DOWN);
+        cScene.world().showSection(util.select().position(leverPos), Direction.DOWN);
         lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 255, 255), 64f);
         cScene.world().setKineticSpeed(util.select().position(shaftPos), 64f);
-        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
-            be.setCarouselLens(0, new ItemStack(ModRegistry.DISPERSING_LENS.get()));
-        });
         cScene.idle(15);
-
-        cScene.overlay().showText(60)
-                .attachKeyFrame()
-                .text("The Dispersing Lens fans the beam wide — from 20° at rest up to 70° at full redstone power")
-                .pointAt(util.vector().topOf(diffuserPos))
-                .colored(net.createmod.ponder.api.PonderPalette.WHITE);
-        cScene.idle(70);
 
         cScene.overlay().showText(55)
                 .attachKeyFrame()
-                .text("Coverage is maximized at the cost of range — ideal for large-area lighting: farms, warehouses, landing pads")
+                .text("By default the diffuser casts a standard 35° light cone")
                 .pointAt(util.vector().topOf(diffuserPos))
-                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
+                .colored(net.createmod.ponder.api.PonderPalette.WHITE);
         cScene.idle(65);
 
-        cScene.overlay().showText(50)
+        // Part 1: Focusing Lens
+        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
+            be.setCarouselLens(0, new ItemStack(ModRegistry.FOCUSING_LENS.get()));
+        });
+        cScene.world().setKineticSpeed(util.select().position(cogPos), 48f);
+        cScene.world().setKineticSpeed(util.select().position(diffuserPos), 48f);
+        cScene.idle(10);
+
+        cScene.overlay().showText(65)
                 .attachKeyFrame()
-                .text("Redstone signal 1–14 progressively widens the cone. Higher signal = wider fan")
-                .pointAt(util.vector().topOf(diffuserPos));
-        cScene.idle(60);
+                .text("The Focusing Lens narrows the beam into a spotlight — down from 45° to 8° as shaft speed increases")
+                .pointAt(util.vector().blockSurface(diffuserPos, Direction.WEST))
+                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
+        cScene.idle(75);
+
+        cScene.world().toggleRedstonePower(util.select().position(leverPos));
+        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> be.onRedstonePowerChanged(14));
+        cScene.idle(10);
+
+        cScene.overlay().showText(60)
+                .attachKeyFrame()
+                .text("A redstone signal compounds the effect, focusing the beam even tighter for extreme range")
+                .pointAt(util.vector().topOf(leverPos))
+                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
+        cScene.idle(70);
+
+        cScene.world().toggleRedstonePower(util.select().position(leverPos));
+        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> be.onRedstonePowerChanged(0));
+        cScene.idle(15);
+
+        // Part 2: Dispersing Lens
+        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
+            be.setCarouselLens(0, new ItemStack(ModRegistry.DISPERSING_LENS.get()));
+        });
+        cScene.idle(10);
+
+        cScene.overlay().showText(65)
+                .attachKeyFrame()
+                .text("Swapping to a Dispersing Lens fans the beam out into a wide floodlight (from 20° up to 70°)")
+                .pointAt(util.vector().topOf(diffuserPos))
+                .colored(net.createmod.ponder.api.PonderPalette.WHITE);
+        cScene.idle(75);
+
+        cScene.world().toggleRedstonePower(util.select().position(leverPos));
+        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> be.onRedstonePowerChanged(14));
+        cScene.idle(10);
+
+        cScene.overlay().showText(65)
+                .attachKeyFrame()
+                .text("Redstone signal 1–14 widens the cone up to 70° — maximizing coverage for large halls and fields")
+                .pointAt(util.vector().topOf(leverPos))
+                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
+        cScene.idle(75);
+
+        cScene.world().toggleRedstonePower(util.select().position(leverPos));
+        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> be.onRedstonePowerChanged(0));
+        cScene.idle(15);
 
         cScene.markAsFinished();
     }
@@ -1157,16 +1122,17 @@ public class DiffuserPonderScenes {
                 cScene.effects().particleEmitterWithinBlockSpace(ParticleTypes.WITCH, new Vec3(0, 0.05, 0)), 1.5f, 10);
         cScene.idle(20);
 
-        // Pulse 3: Fatal damage and death collapse
+        // Pulse 3: Fatal damage and death collapse (exact vanilla fall animation)
         cScene.world().modifyEntity(zombie2, e -> {
             if (e instanceof LivingEntity le) {
                 le.handleDamageEvent(le.damageSources().magic());
                 le.handleEntityEvent((byte) 3);
             }
         });
-        cScene.effects().emitParticles(zombiePos.add(0, 0.5, 0),
-                cScene.effects().particleEmitterWithinBlockSpace(ParticleTypes.POOF, new Vec3(0, 0.05, 0)), 1.5f, 12);
-        cScene.idle(45); // Extended time so death animation and fallen corpse are clearly visible
+        cScene.idle(20); // 20 ticks for entity to smoothly tilt 90° onto the floor
+        cScene.effects().emitParticles(zombiePos.add(0, 0.2, 0),
+                cScene.effects().particleEmitterWithinBlockSpace(ParticleTypes.POOF, new Vec3(0, 0.05, 0)), 1.5f, 15);
+        cScene.idle(10);
         cScene.world().modifyEntity(zombie2, Entity::discard);
         cScene.idle(10);
 
