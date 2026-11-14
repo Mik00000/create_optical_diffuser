@@ -694,6 +694,8 @@ public class DiffuserPonderScenes {
         BlockPos sourcePos   = new BlockPos(4, 1, 2);
         BlockPos diffuserPos = new BlockPos(4, 1, 4);
         BlockPos reelPos     = new BlockPos(3, 1, 4);
+        BlockPos reelShaft1  = new BlockPos(2, 1, 4);
+        BlockPos reelShaft2  = new BlockPos(1, 1, 4);
         BlockPos screenStart = new BlockPos(2, 1, 8);
         BlockPos screenEnd   = new BlockPos(6, 3, 8);
 
@@ -739,18 +741,43 @@ public class DiffuserPonderScenes {
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
         cScene.idle(85);
 
+        cScene.world().showSection(util.select().fromTo(reelShaft2, reelShaft1), Direction.DOWN);
+        cScene.idle(10);
+        cScene.world().setKineticSpeed(util.select().fromTo(reelShaft2, reelPos), 16f);
+
         cScene.overlay().showText(75)
                 .attachKeyFrame()
-                .text("With an incoming laser and a media source, video plays on the screen. No audio output")
+                .text("With an incoming laser and a spinning Film Reel, vintage animation plays smoothly on the screen")
                 .pointAt(util.vector().centerOf(new BlockPos(4, 2, 8)))
                 .colored(net.createmod.ponder.api.PonderPalette.WHITE);
         cScene.idle(85);
 
+        // Demonstrate acceleration
+        cScene.world().setKineticSpeed(util.select().fromTo(reelShaft2, reelPos), 64f);
         cScene.overlay().showText(70)
                 .attachKeyFrame()
-                .text("Left shaft RPM controls playback speed. Stop the shaft to pause; reverse it to rewind")
-                .pointAt(util.vector().blockSurface(diffuserPos, Direction.EAST));
+                .text("Higher RPM speeds up playback. Speed is directly proportional to the Film Reel rotation")
+                .pointAt(util.vector().blockSurface(reelShaft1, Direction.UP))
+                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
         cScene.idle(80);
+
+        // Demonstrate pause
+        cScene.world().setKineticSpeed(util.select().fromTo(reelShaft2, reelPos), 0f);
+        cScene.overlay().showText(60)
+                .attachKeyFrame()
+                .text("Stop the kinetic shaft to freeze and pause playback")
+                .pointAt(util.vector().centerOf(new BlockPos(4, 2, 8)))
+                .colored(net.createmod.ponder.api.PonderPalette.RED);
+        cScene.idle(70);
+
+        // Demonstrate reverse/rewind
+        cScene.world().setKineticSpeed(util.select().fromTo(reelShaft2, reelPos), -32f);
+        cScene.overlay().showText(75)
+                .attachKeyFrame()
+                .text("Reverse rotation direction to rewind the film backwards")
+                .pointAt(util.vector().blockSurface(reelPos, Direction.UP))
+                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
+        cScene.idle(85);
 
         cScene.markAsFinished();
     }
@@ -768,6 +795,8 @@ public class DiffuserPonderScenes {
         BlockPos sourcePos   = new BlockPos(4, 1, 2);
         BlockPos diffuserPos = new BlockPos(4, 1, 4);
         BlockPos reelPos     = new BlockPos(3, 1, 4);
+        BlockPos reelShaft1  = new BlockPos(2, 1, 4);
+        BlockPos reelShaft2  = new BlockPos(1, 1, 4);
         BlockPos speakerPos  = new BlockPos(7, 1, 6);
         BlockPos screenStart = new BlockPos(2, 1, 8);
         BlockPos screenEnd   = new BlockPos(6, 3, 8);
@@ -777,8 +806,10 @@ public class DiffuserPonderScenes {
         cScene.world().showSection(util.select().position(sourcePos), Direction.DOWN);
         cScene.world().showSection(util.select().position(diffuserPos), Direction.DOWN);
         cScene.world().showSection(util.select().position(reelPos), Direction.DOWN);
+        cScene.world().showSection(util.select().fromTo(reelShaft2, reelShaft1), Direction.DOWN);
         lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 255, 255), 64f);
         cScene.world().setKineticSpeed(util.select().position(shaftPos), 64f);
+        cScene.world().setKineticSpeed(util.select().fromTo(reelShaft2, reelPos), 16f);
 
         ItemStack configuredLens = new ItemStack(ModRegistry.SOUND_PROJECTOR_LENS.get());
         ProjectorLensItem.setPos1(configuredLens, screenStart);

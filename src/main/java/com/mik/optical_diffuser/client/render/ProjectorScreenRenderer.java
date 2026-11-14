@@ -45,11 +45,19 @@ public class ProjectorScreenRenderer {
         DiffuserMediaManager media = DiffuserMediaManager.get(be);
         net.minecraft.resources.ResourceLocation texLoc = media.getTextureLocation();
         if (texLoc == null) {
-            // In Ponder level, fall back to built-in test cinema frame so the screen is never blank
+            // In Ponder level, fall back to built-in animated Steamboat Willie cinema frames
             if (be.getLevel() instanceof net.createmod.ponder.api.level.PonderLevel) {
+                com.mik.optical_diffuser.block.entity.FilmReelBlockEntity connectedReel = be.getConnectedFilmReel();
+                int frameIdx = 0;
+                if (connectedReel != null) {
+                    float angle = connectedReel.getVisualAngle();
+                    // Each 15 degrees of reel rotation advances 1 frame (24 frames per 360 deg)
+                    int rawF = (int) Math.floor(angle / 15.0f);
+                    frameIdx = Math.floorMod(rawF, 24);
+                }
                 texLoc = ResourceLocation.fromNamespaceAndPath(
                         com.mik.optical_diffuser.OpticalDiffuserMod.MOD_ID,
-                        "textures/misc/ponder_cinema_test.png"
+                        "textures/misc/cinema/steamboat_" + frameIdx + ".png"
                 );
             } else {
                 return;
