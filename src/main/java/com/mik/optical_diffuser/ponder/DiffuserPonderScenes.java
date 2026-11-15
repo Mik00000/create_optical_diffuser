@@ -842,25 +842,21 @@ public class DiffuserPonderScenes {
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
         cScene.idle(85);
 
-        // Play muffled Caramelldansen sound from speaker position!
-        try {
-            net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-            if (mc != null && mc.getSoundManager() != null) {
-                mc.getSoundManager().play(
-                        net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(
-                                ModRegistry.CARAMELLDANSEN_SOUND.get(),
-                                1.0f,
-                                0.35f
-                        )
-                );
-            }
-        } catch (Throwable ignored) {}
-
         cScene.overlay().showText(85)
                 .attachKeyFrame()
                 .text("Audio emits directly from the Speaker — with spatial positioning and authentic acoustics")
                 .pointAt(util.vector().topOf(speakerPos))
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
+
+        cScene.addInstruction(new net.createmod.ponder.foundation.instruction.TickingInstruction(false, 90) {
+            @Override
+            public void tick(net.createmod.ponder.foundation.PonderScene scene) {
+                if (remainingTicks == totalTicks) {
+                    PonderSoundHelper.playMuffledCaramelldansen();
+                }
+                super.tick(scene);
+            }
+        });
 
         // Emit musical notes from the speaker
         for (int i = 0; i < 4; i++) {

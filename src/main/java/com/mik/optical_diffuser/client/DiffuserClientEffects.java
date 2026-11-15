@@ -43,6 +43,7 @@ public class DiffuserClientEffects {
         com.mik.optical_diffuser.client.render.HologramRenderer.clearCache();
         com.mik.optical_diffuser.compat.SableCompat.clearCache();
         DiffuserSelectionTracker.clear();
+        com.mik.optical_diffuser.ponder.PonderSoundHelper.stopMuffledCaramelldansen();
     }
 
     @SubscribeEvent
