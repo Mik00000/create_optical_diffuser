@@ -798,11 +798,13 @@ public class DiffuserPonderScenes {
         BlockPos reelShaft1   = new BlockPos(2, 1, 4);
         BlockPos reelShaft2   = new BlockPos(1, 1, 4);
         BlockPos speakerPos   = new BlockPos(7, 1, 5);
-        BlockPos linkPos      = new BlockPos(3, 2, 4);
-        BlockPos nixieStand1  = new BlockPos(1, 1, 2);
-        BlockPos nixieTube1   = new BlockPos(1, 2, 2);
-        BlockPos nixieStand2  = new BlockPos(2, 1, 2);
-        BlockPos nixieTube2   = new BlockPos(2, 2, 2);
+        BlockPos linkPos      = new BlockPos(4, 2, 4);
+        BlockPos boardStand1  = new BlockPos(1, 1, 2);
+        BlockPos boardStand2  = new BlockPos(2, 1, 2);
+        BlockPos board1       = new BlockPos(1, 2, 2);
+        BlockPos board2       = new BlockPos(2, 2, 2);
+        BlockPos nixieTube1   = new BlockPos(1, 1, 3);
+        BlockPos nixieTube2   = new BlockPos(2, 1, 3);
         BlockPos screenStart  = new BlockPos(2, 1, 8);
         BlockPos screenEnd    = new BlockPos(6, 3, 8);
 
@@ -848,14 +850,8 @@ public class DiffuserPonderScenes {
                 .pointAt(util.vector().topOf(speakerPos))
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
 
-        cScene.addInstruction(new net.createmod.ponder.foundation.instruction.TickingInstruction(false, 90) {
-            @Override
-            public void tick(net.createmod.ponder.foundation.PonderScene scene) {
-                if (remainingTicks == totalTicks) {
-                    PonderSoundHelper.playMuffledCaramelldansen();
-                }
-                super.tick(scene);
-            }
+        cScene.addInstruction(sceneInst -> {
+            PonderSoundHelper.playMuffledCaramelldansen();
         });
 
         // Emit musical notes from the speaker
@@ -870,14 +866,19 @@ public class DiffuserPonderScenes {
         }
         cScene.idle(10);
 
-        // Show Display Link and Nixie Tubes
-        cScene.world().showSection(util.select().fromTo(nixieStand1, nixieTube2), Direction.DOWN);
+        // Show Display Link, Display Board, and Nixie Tubes
+        cScene.world().showSection(util.select().fromTo(boardStand1, board2), Direction.DOWN);
+        cScene.world().showSection(util.select().fromTo(nixieTube1, nixieTube2), Direction.DOWN);
         cScene.world().showSection(util.select().position(linkPos), Direction.DOWN);
         cScene.idle(15);
 
         cScene.world().flashDisplayLink(linkPos);
+        cScene.world().setDisplayBoardText(board1, 0, net.minecraft.network.chat.Component.literal("Caramelldansen"));
+        cScene.world().setDisplayBoardText(board1, 1, net.minecraft.network.chat.Component.literal("00:44  [PLAY]"));
+        cScene.world().setDisplayBoardText(board2, 0, net.minecraft.network.chat.Component.literal("Caramelldansen"));
+        cScene.world().setDisplayBoardText(board2, 1, net.minecraft.network.chat.Component.literal("00:44  [PLAY]"));
         cScene.world().modifyBlockEntity(nixieTube1, com.simibubi.create.content.redstone.nixieTube.NixieTubeBlockEntity.class, be -> {
-            be.displayCustomText("00:15", 1);
+            be.displayCustomText("00:44", 1);
         });
         cScene.world().modifyBlockEntity(nixieTube2, com.simibubi.create.content.redstone.nixieTube.NixieTubeBlockEntity.class, be -> {
             be.displayCustomText("PLAY", 1);
@@ -885,10 +886,14 @@ public class DiffuserPonderScenes {
 
         cScene.overlay().showText(75)
                 .attachKeyFrame()
-                .text("Attach a Display Link to the Film Reel to output playback time and media info onto Nixie Tubes or Display Boards")
+                .text("Attach a Display Link directly to the Optical Diffuser to transmit media info to Display Boards and Nixie Tubes")
                 .pointAt(util.vector().blockSurface(linkPos, Direction.UP))
                 .colored(net.createmod.ponder.api.PonderPalette.WHITE);
         cScene.idle(85);
+
+        cScene.addInstruction(sceneInst -> {
+            PonderSoundHelper.stopMuffledCaramelldansen();
+        });
 
         cScene.markAsFinished();
     }

@@ -48,20 +48,20 @@ public class ProjectorScreenRenderer {
             // In Ponder level, fall back to built-in animated cinema frames
             if (be.getLevel() instanceof net.createmod.ponder.api.level.PonderLevel) {
                 com.mik.optical_diffuser.block.entity.FilmReelBlockEntity connectedReel = be.getConnectedFilmReel();
-                int frameIdx = 0;
-                if (connectedReel != null) {
-                    float angle = connectedReel.getVisualAngle();
-                    // Each 15 degrees of reel rotation advances 1 frame (24 frames per 360 deg)
-                    int rawF = (int) Math.floor(angle / 15.0f);
-                    frameIdx = Math.floorMod(rawF, 24);
-                }
+                float angle = (connectedReel != null) ? connectedReel.getVisualAngle() : 0.0f;
                 boolean isSound = (mod == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SOUND);
                 if (isSound) {
+                    // Each 6 degrees of reel rotation advances 1 frame (16 fps at 16 RPM, 64 frames = 4.0s cycle)
+                    int rawF = (int) Math.floor(angle / 6.0f);
+                    int frameIdx = Math.floorMod(rawF, 64);
                     texLoc = ResourceLocation.fromNamespaceAndPath(
                             com.mik.optical_diffuser.OpticalDiffuserMod.MOD_ID,
                             "textures/misc/cinema/caramell/caramell_" + frameIdx + ".png"
                     );
                 } else {
+                    // Each 15 degrees advances 1 frame (24 frames per 360 deg)
+                    int rawF = (int) Math.floor(angle / 15.0f);
+                    int frameIdx = Math.floorMod(rawF, 24);
                     texLoc = ResourceLocation.fromNamespaceAndPath(
                             com.mik.optical_diffuser.OpticalDiffuserMod.MOD_ID,
                             "textures/misc/cinema/steamboat_" + frameIdx + ".png"
