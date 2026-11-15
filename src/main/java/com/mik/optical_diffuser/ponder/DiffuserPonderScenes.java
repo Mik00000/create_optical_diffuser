@@ -890,17 +890,76 @@ public class DiffuserPonderScenes {
                 .pointAt(util.vector().blockSurface(linkPos, Direction.UP))
                 .colored(net.createmod.ponder.api.PonderPalette.WHITE);
 
-        // Dynamic time increments during the scene
-        int currentSec = 48;
-        for (int i = 0; i < 8; i++) {
-            cScene.idle(20);
-            currentSec++;
-            String secStr = String.format("%02d", currentSec);
-            updateProjectorDisplay(cScene, boardController, nixieTube1, nixieTube2, "00:" + secStr);
+        // Continuous playback instruction that ticks indefinitely (both during and after the scene)
+        cScene.addInstruction(new ProjectorDisplayTickerInstruction(boardController, nixieTube1, nixieTube2));
+
+        cScene.idle(160);
+        cScene.markAsFinished();
+    }
+
+    public static class ProjectorDisplayTickerInstruction extends net.createmod.ponder.foundation.instruction.PonderInstruction {
+        private final BlockPos boardController;
+        private final BlockPos nixie1;
+        private final BlockPos nixie2;
+        private int currentSec = 48;
+        private int tickCounter = 0;
+
+        public ProjectorDisplayTickerInstruction(BlockPos boardController, BlockPos nixie1, BlockPos nixie2) {
+            this.boardController = boardController;
+            this.nixie1 = nixie1;
+            this.nixie2 = nixie2;
         }
 
-        cScene.idle(20);
-        cScene.markAsFinished();
+        @Override
+        public boolean isBlocking() {
+            return false;
+        }
+
+        @Override
+        public boolean isComplete() {
+            return false;
+        }
+
+        @Override
+        public void reset(net.createmod.ponder.foundation.PonderScene scene) {
+            this.currentSec = 48;
+            this.tickCounter = 0;
+        }
+
+        @Override
+        public void tick(net.createmod.ponder.foundation.PonderScene scene) {
+            tickCounter++;
+            if (tickCounter % 20 == 0) {
+                currentSec++;
+                if (currentSec > 66) { // 66 seconds = 01:06, loops back to 44 = 00:44
+                    currentSec = 44;
+                }
+                int min = currentSec / 60;
+                int sec = currentSec % 60;
+                String timeStr = String.format("%02d:%02d", min, sec);
+                String fullDigits = String.format("%02d%02d", min, sec);
+                String json = "{\"text\":\"" + fullDigits + "\"}";
+
+                net.createmod.ponder.api.level.PonderLevel level = scene.getWorld();
+                if (level != null) {
+                    net.minecraft.world.level.block.entity.BlockEntity beBoard = level.getBlockEntity(boardController);
+                    if (beBoard instanceof com.simibubi.create.content.trains.display.FlapDisplayBlockEntity flap) {
+                        flap.applyTextManually(0, net.minecraft.network.chat.Component.literal("CARAMELLDANSEN"));
+                        flap.applyTextManually(1, net.minecraft.network.chat.Component.literal(" " + timeStr + " [PLAY] "));
+                    }
+                    net.minecraft.world.level.block.entity.BlockEntity beNixie1 = level.getBlockEntity(nixie1);
+                    if (beNixie1 instanceof com.simibubi.create.content.redstone.nixieTube.NixieTubeBlockEntity n1) {
+                        n1.displayCustomText(json, 0);
+                        n1.updateDisplayedStrings();
+                    }
+                    net.minecraft.world.level.block.entity.BlockEntity beNixie2 = level.getBlockEntity(nixie2);
+                    if (beNixie2 instanceof com.simibubi.create.content.redstone.nixieTube.NixieTubeBlockEntity n2) {
+                        n2.displayCustomText(json, 1);
+                        n2.updateDisplayedStrings();
+                    }
+                }
+            }
+        }
     }
 
     private static void updateProjectorDisplay(CreateSceneBuilder cScene, BlockPos boardController, BlockPos nixie1, BlockPos nixie2, String timeStr) {

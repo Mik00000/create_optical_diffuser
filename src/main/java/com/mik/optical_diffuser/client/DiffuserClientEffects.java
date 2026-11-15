@@ -49,6 +49,17 @@ public class DiffuserClientEffects {
     @SubscribeEvent
     public void onClientTick(net.neoforged.neoforge.client.event.ClientTickEvent.Post event) {
         Minecraft mc = Minecraft.getInstance();
+
+        // If Caramelldansen audio is playing but user is no longer watching the sound_projector Ponder scene, stop immediately:
+        if (com.mik.optical_diffuser.ponder.PonderSoundHelper.isPlaying()) {
+            if (!(mc.screen instanceof net.createmod.ponder.foundation.ui.PonderUI ponderUI
+                    && ponderUI.getActiveScene() != null
+                    && ponderUI.getActiveScene().getId() != null
+                    && ponderUI.getActiveScene().getId().getPath().contains("sound_projector"))) {
+                com.mik.optical_diffuser.ponder.PonderSoundHelper.stopCaramelldansen();
+            }
+        }
+
         if (mc.level == null || mc.player == null) return;
 
         Level level = mc.level;

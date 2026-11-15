@@ -37,6 +37,20 @@ public class ModRegistry {
             )
     );
 
+    public static final DeferredHolder<net.minecraft.sounds.SoundEvent, net.minecraft.sounds.SoundEvent> CARAMELLDANSEN_DISTANT_SOUND = SOUND_EVENTS.register(
+            "ponder_caramelldansen_distant",
+            () -> net.minecraft.sounds.SoundEvent.createVariableRangeEvent(
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(OpticalDiffuserMod.MOD_ID, "ponder_caramelldansen_distant")
+            )
+    );
+
+    public static final DeferredHolder<net.minecraft.sounds.SoundEvent, net.minecraft.sounds.SoundEvent> CARAMELLDANSEN_SPEAKER_SOUND = SOUND_EVENTS.register(
+            "ponder_caramelldansen_speaker",
+            () -> net.minecraft.sounds.SoundEvent.createVariableRangeEvent(
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(OpticalDiffuserMod.MOD_ID, "ponder_caramelldansen_speaker")
+            )
+    );
+
     public static final DeferredBlock<OpticalDiffuserBlock> OPTICAL_DIFFUSER = BLOCKS.register("optical_diffuser",
             () -> new OpticalDiffuserBlock(BlockBehaviour.Properties.of()
                     .mapColor(MapColor.COLOR_GRAY)
