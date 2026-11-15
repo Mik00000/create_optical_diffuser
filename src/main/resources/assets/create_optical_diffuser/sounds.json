@@ -1,0 +1,12 @@
+{
+  "ponder_caramelldansen": {
+    "category": "record",
+    "subtitle": "subtitles.create_optical_diffuser.caramelldansen",
+    "sounds": [
+      {
+        "name": "create_optical_diffuser:caramelldansen_muffled",
+        "stream": true
+      }
+    ]
+  }
+}

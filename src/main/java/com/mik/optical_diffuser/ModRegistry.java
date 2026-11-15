@@ -28,6 +28,14 @@ public class ModRegistry {
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITY_TYPES = DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, OpticalDiffuserMod.MOD_ID);
     public static final DeferredRegister<MenuType<?>> MENUS = DeferredRegister.create(Registries.MENU, OpticalDiffuserMod.MOD_ID);
     public static final DeferredRegister<net.minecraft.world.item.crafting.RecipeSerializer<?>> RECIPE_SERIALIZERS = DeferredRegister.create(Registries.RECIPE_SERIALIZER, OpticalDiffuserMod.MOD_ID);
+    public static final DeferredRegister<net.minecraft.sounds.SoundEvent> SOUND_EVENTS = DeferredRegister.create(Registries.SOUND_EVENT, OpticalDiffuserMod.MOD_ID);
+
+    public static final DeferredHolder<net.minecraft.sounds.SoundEvent, net.minecraft.sounds.SoundEvent> CARAMELLDANSEN_SOUND = SOUND_EVENTS.register(
+            "ponder_caramelldansen",
+            () -> net.minecraft.sounds.SoundEvent.createVariableRangeEvent(
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(OpticalDiffuserMod.MOD_ID, "ponder_caramelldansen")
+            )
+    );
 
     public static final DeferredBlock<OpticalDiffuserBlock> OPTICAL_DIFFUSER = BLOCKS.register("optical_diffuser",
             () -> new OpticalDiffuserBlock(BlockBehaviour.Properties.of()

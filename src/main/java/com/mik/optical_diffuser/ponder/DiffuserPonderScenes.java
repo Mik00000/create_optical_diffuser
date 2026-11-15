@@ -791,15 +791,20 @@ public class DiffuserPonderScenes {
         cScene.configureBasePlate(0, 0, 9);
         cScene.showBasePlate();
 
-        BlockPos shaftPos    = new BlockPos(4, 1, 1);
-        BlockPos sourcePos   = new BlockPos(4, 1, 2);
-        BlockPos diffuserPos = new BlockPos(4, 1, 4);
-        BlockPos reelPos     = new BlockPos(3, 1, 4);
-        BlockPos reelShaft1  = new BlockPos(2, 1, 4);
-        BlockPos reelShaft2  = new BlockPos(1, 1, 4);
-        BlockPos speakerPos  = new BlockPos(7, 1, 6);
-        BlockPos screenStart = new BlockPos(2, 1, 8);
-        BlockPos screenEnd   = new BlockPos(6, 3, 8);
+        BlockPos shaftPos     = new BlockPos(4, 1, 1);
+        BlockPos sourcePos    = new BlockPos(4, 1, 2);
+        BlockPos diffuserPos  = new BlockPos(4, 1, 4);
+        BlockPos reelPos      = new BlockPos(3, 1, 4);
+        BlockPos reelShaft1   = new BlockPos(2, 1, 4);
+        BlockPos reelShaft2   = new BlockPos(1, 1, 4);
+        BlockPos speakerPos   = new BlockPos(7, 1, 5);
+        BlockPos linkPos      = new BlockPos(3, 2, 4);
+        BlockPos nixieStand1  = new BlockPos(1, 1, 2);
+        BlockPos nixieTube1   = new BlockPos(1, 2, 2);
+        BlockPos nixieStand2  = new BlockPos(2, 1, 2);
+        BlockPos nixieTube2   = new BlockPos(2, 2, 2);
+        BlockPos screenStart  = new BlockPos(2, 1, 8);
+        BlockPos screenEnd    = new BlockPos(6, 3, 8);
 
         cScene.world().showSection(util.select().fromTo(screenStart, screenEnd), Direction.DOWN);
         cScene.world().showSection(util.select().position(shaftPos), Direction.DOWN);
@@ -822,8 +827,8 @@ public class DiffuserPonderScenes {
 
         cScene.overlay().showText(75)
                 .attachKeyFrame()
-                .text("The Sound Projector Lens works identically to the silent version — with audio output enabled")
-                .pointAt(util.vector().blockSurface(diffuserPos, Direction.EAST))
+                .text("Soundtrack Cinema Lens projects vivid full-colour animations and synchronizes spatial audio")
+                .pointAt(util.vector().centerOf(new BlockPos(4, 2, 8)))
                 .colored(net.createmod.ponder.api.PonderPalette.WHITE);
         cScene.idle(85);
 
@@ -837,18 +842,57 @@ public class DiffuserPonderScenes {
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
         cScene.idle(85);
 
-        cScene.overlay().showText(80)
+        // Play muffled Caramelldansen sound from speaker position!
+        try {
+            net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+            if (mc != null && mc.getSoundManager() != null) {
+                mc.getSoundManager().play(
+                        net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(
+                                ModRegistry.CARAMELLDANSEN_SOUND.get(),
+                                1.0f,
+                                0.35f
+                        )
+                );
+            }
+        } catch (Throwable ignored) {}
+
+        cScene.overlay().showText(85)
                 .attachKeyFrame()
-                .text("Video plays on screen. Audio emits from the Speaker — spatially positioned for an immersive cinema setup")
+                .text("Audio emits directly from the Speaker — with spatial positioning and authentic acoustics")
                 .pointAt(util.vector().topOf(speakerPos))
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
-        cScene.idle(90);
 
-        cScene.overlay().showText(70)
+        // Emit musical notes from the speaker
+        for (int i = 0; i < 4; i++) {
+            cScene.effects().emitParticles(
+                    util.vector().topOf(speakerPos).add(0, 0.2, 0),
+                    cScene.effects().simpleParticleEmitter(ParticleTypes.NOTE, new Vec3(0, 0.1, 0)),
+                    1,
+                    1
+            );
+            cScene.idle(20);
+        }
+        cScene.idle(10);
+
+        // Show Display Link and Nixie Tubes
+        cScene.world().showSection(util.select().fromTo(nixieStand1, nixieTube2), Direction.DOWN);
+        cScene.world().showSection(util.select().position(linkPos), Direction.DOWN);
+        cScene.idle(15);
+
+        cScene.world().flashDisplayLink(linkPos);
+        cScene.world().modifyBlockEntity(nixieTube1, com.simibubi.create.content.redstone.nixieTube.NixieTubeBlockEntity.class, be -> {
+            be.displayCustomText("00:15", 1);
+        });
+        cScene.world().modifyBlockEntity(nixieTube2, com.simibubi.create.content.redstone.nixieTube.NixieTubeBlockEntity.class, be -> {
+            be.displayCustomText("PLAY", 1);
+        });
+
+        cScene.overlay().showText(75)
                 .attachKeyFrame()
-                .text("Attach a Display Link to the Film Reel block to show filename and playback state on a Nixie Tube or Train Display")
-                .pointAt(util.vector().topOf(diffuserPos));
-        cScene.idle(80);
+                .text("Attach a Display Link to the Film Reel to output playback time and media info onto Nixie Tubes or Display Boards")
+                .pointAt(util.vector().blockSurface(linkPos, Direction.UP))
+                .colored(net.createmod.ponder.api.PonderPalette.WHITE);
+        cScene.idle(85);
 
         cScene.markAsFinished();
     }

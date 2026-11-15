@@ -45,7 +45,7 @@ public class ProjectorScreenRenderer {
         DiffuserMediaManager media = DiffuserMediaManager.get(be);
         net.minecraft.resources.ResourceLocation texLoc = media.getTextureLocation();
         if (texLoc == null) {
-            // In Ponder level, fall back to built-in animated Steamboat Willie cinema frames
+            // In Ponder level, fall back to built-in animated cinema frames
             if (be.getLevel() instanceof net.createmod.ponder.api.level.PonderLevel) {
                 com.mik.optical_diffuser.block.entity.FilmReelBlockEntity connectedReel = be.getConnectedFilmReel();
                 int frameIdx = 0;
@@ -55,10 +55,18 @@ public class ProjectorScreenRenderer {
                     int rawF = (int) Math.floor(angle / 15.0f);
                     frameIdx = Math.floorMod(rawF, 24);
                 }
-                texLoc = ResourceLocation.fromNamespaceAndPath(
-                        com.mik.optical_diffuser.OpticalDiffuserMod.MOD_ID,
-                        "textures/misc/cinema/steamboat_" + frameIdx + ".png"
-                );
+                boolean isSound = (mod == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SOUND);
+                if (isSound) {
+                    texLoc = ResourceLocation.fromNamespaceAndPath(
+                            com.mik.optical_diffuser.OpticalDiffuserMod.MOD_ID,
+                            "textures/misc/cinema/caramell/caramell_" + frameIdx + ".png"
+                    );
+                } else {
+                    texLoc = ResourceLocation.fromNamespaceAndPath(
+                            com.mik.optical_diffuser.OpticalDiffuserMod.MOD_ID,
+                            "textures/misc/cinema/steamboat_" + frameIdx + ".png"
+                    );
+                }
             } else {
                 return;
             }
