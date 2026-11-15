@@ -51,9 +51,9 @@ public class ProjectorScreenRenderer {
                 float angle = (connectedReel != null) ? connectedReel.getVisualAngle() : 0.0f;
                 boolean isSound = (mod == OpticalDiffuserBlockEntity.DiffuserModule.PROJECTOR_SOUND);
                 if (isSound) {
-                    // Each 6 degrees of reel rotation advances 1 frame (16 fps at 16 RPM, 64 frames = 4.0s cycle)
+                    // Each 6 degrees of reel rotation advances 1 frame (16 fps at 16 RPM, 352 frames = 22.0s full cycle)
                     int rawF = (int) Math.floor(angle / 6.0f);
-                    int frameIdx = Math.floorMod(rawF, 64);
+                    int frameIdx = Math.floorMod(rawF, 352);
                     texLoc = ResourceLocation.fromNamespaceAndPath(
                             com.mik.optical_diffuser.OpticalDiffuserMod.MOD_ID,
                             "textures/misc/cinema/caramell/caramell_" + frameIdx + ".png"

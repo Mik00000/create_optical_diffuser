@@ -799,12 +799,12 @@ public class DiffuserPonderScenes {
         BlockPos reelShaft2   = new BlockPos(1, 1, 4);
         BlockPos speakerPos   = new BlockPos(7, 1, 5);
         BlockPos linkPos         = new BlockPos(4, 2, 4);
-        BlockPos boardStandStart = new BlockPos(1, 1, 2);
+        BlockPos boardStandStart = new BlockPos(2, 1, 2);
         BlockPos boardStandEnd   = new BlockPos(3, 1, 2);
-        BlockPos boardStart      = new BlockPos(1, 2, 2);
+        BlockPos boardStart      = new BlockPos(2, 2, 2);
         BlockPos boardEnd        = new BlockPos(3, 2, 2);
         BlockPos boardController = new BlockPos(3, 2, 2);
-        BlockPos nixieTube1      = new BlockPos(1, 1, 1);
+        BlockPos nixieTube1      = new BlockPos(3, 1, 1);
         BlockPos nixieTube2      = new BlockPos(2, 1, 1);
         BlockPos screenStart     = new BlockPos(2, 1, 8);
         BlockPos screenEnd       = new BlockPos(6, 3, 8);
@@ -873,10 +873,10 @@ public class DiffuserPonderScenes {
             cScene.idle(20);
         }
 
-        // Show Display Link, 3-wide Display Board, and Nixie Tubes
+        // Show Display Link, Display Board, and Nixie Tubes
         cScene.world().showSection(util.select().fromTo(boardStandStart, boardStandEnd), Direction.DOWN);
         cScene.world().showSection(util.select().fromTo(boardStart, boardEnd), Direction.DOWN);
-        cScene.world().showSection(util.select().fromTo(nixieTube1, nixieTube2), Direction.DOWN);
+        cScene.world().showSection(util.select().fromTo(nixieTube2, nixieTube1), Direction.DOWN);
         cScene.world().showSection(util.select().position(linkPos), Direction.DOWN);
         cScene.world().setKineticSpeed(util.select().fromTo(boardStart, boardEnd), 32f);
         cScene.idle(15);
@@ -890,7 +890,7 @@ public class DiffuserPonderScenes {
                 .pointAt(util.vector().blockSurface(linkPos, Direction.UP))
                 .colored(net.createmod.ponder.api.PonderPalette.WHITE);
 
-        // Dynamic time increments every second (20 ticks) matching the audio track
+        // Dynamic time increments during the scene
         int currentSec = 48;
         for (int i = 0; i < 8; i++) {
             cScene.idle(20);
@@ -899,18 +899,13 @@ public class DiffuserPonderScenes {
             updateProjectorDisplay(cScene, boardController, nixieTube1, nixieTube2, "00:" + secStr);
         }
 
-        // Smooth fade-out precisely ending with the scene
-        cScene.addInstruction(sceneInst -> {
-            PonderSoundHelper.fadeOutAndStop();
-        });
-        cScene.idle(25);
-
+        cScene.idle(20);
         cScene.markAsFinished();
     }
 
     private static void updateProjectorDisplay(CreateSceneBuilder cScene, BlockPos boardController, BlockPos nixie1, BlockPos nixie2, String timeStr) {
-        cScene.world().setDisplayBoardText(boardController, 0, net.minecraft.network.chat.Component.literal("  CARAMELLDANSEN  "));
-        cScene.world().setDisplayBoardText(boardController, 1, net.minecraft.network.chat.Component.literal("  " + timeStr + "  [PLAY]  "));
+        cScene.world().setDisplayBoardText(boardController, 0, net.minecraft.network.chat.Component.literal("CARAMELLDANSEN"));
+        cScene.world().setDisplayBoardText(boardController, 1, net.minecraft.network.chat.Component.literal(" " + timeStr + " [PLAY] "));
         String min = timeStr.substring(0, 2);
         String sec = timeStr.substring(3, 5);
         String fullDigits = min + sec;
