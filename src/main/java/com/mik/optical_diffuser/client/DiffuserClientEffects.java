@@ -37,6 +37,15 @@ public class DiffuserClientEffects {
         }
     }
 
+    private static boolean isSoundProjectorScene(net.createmod.ponder.foundation.PonderScene scene) {
+        if (scene == null) return true;
+        net.minecraft.resources.ResourceLocation id = scene.getId();
+        if (id != null && (id.getPath().contains("sound_projector") || id.getPath().contains("cinema"))) return true;
+        net.minecraft.resources.ResourceLocation loc = scene.getLocation();
+        if (loc != null && (loc.getPath().contains("sound_projector") || loc.getPath().contains("cinema"))) return true;
+        return false;
+    }
+
     private static void clearAllClientCaches() {
         DiffuserMediaManager.releaseAll();
         com.mik.optical_diffuser.client.media.ClientSpeakerRegistry.clear();
@@ -53,9 +62,7 @@ public class DiffuserClientEffects {
         // If Caramelldansen audio is playing but user is no longer watching the sound_projector Ponder scene, stop immediately:
         if (com.mik.optical_diffuser.ponder.PonderSoundHelper.isPlaying()) {
             if (!(mc.screen instanceof net.createmod.ponder.foundation.ui.PonderUI ponderUI
-                    && ponderUI.getActiveScene() != null
-                    && ponderUI.getActiveScene().getId() != null
-                    && ponderUI.getActiveScene().getId().getPath().contains("sound_projector"))) {
+                    && isSoundProjectorScene(ponderUI.getActiveScene()))) {
                 com.mik.optical_diffuser.ponder.PonderSoundHelper.stopCaramelldansen();
             }
         }

@@ -799,9 +799,9 @@ public class DiffuserPonderScenes {
         BlockPos reelShaft2   = new BlockPos(1, 1, 4);
         BlockPos speakerPos   = new BlockPos(7, 1, 5);
         BlockPos linkPos         = new BlockPos(4, 2, 4);
-        BlockPos boardStandStart = new BlockPos(2, 1, 2);
+        BlockPos boardStandStart = new BlockPos(1, 1, 2);
         BlockPos boardStandEnd   = new BlockPos(3, 1, 2);
-        BlockPos boardStart      = new BlockPos(2, 2, 2);
+        BlockPos boardStart      = new BlockPos(1, 2, 2);
         BlockPos boardEnd        = new BlockPos(3, 2, 2);
         BlockPos boardController = new BlockPos(3, 2, 2);
         BlockPos nixieTube1      = new BlockPos(3, 1, 1);
@@ -944,8 +944,8 @@ public class DiffuserPonderScenes {
                 if (level != null) {
                     net.minecraft.world.level.block.entity.BlockEntity beBoard = level.getBlockEntity(boardController);
                     if (beBoard instanceof com.simibubi.create.content.trains.display.FlapDisplayBlockEntity flap) {
-                        flap.applyTextManually(0, net.minecraft.network.chat.Component.literal("CARAMELLDANSEN"));
-                        flap.applyTextManually(1, net.minecraft.network.chat.Component.literal(" " + timeStr + " [PLAY] "));
+                        flap.applyTextManually(0, net.minecraft.network.chat.Component.literal("   CARAMELLDANSEN    "));
+                        flap.applyTextManually(1, net.minecraft.network.chat.Component.literal("   " + timeStr + "   [PLAY]    "));
                     }
                     net.minecraft.world.level.block.entity.BlockEntity beNixie1 = level.getBlockEntity(nixie1);
                     if (beNixie1 instanceof com.simibubi.create.content.redstone.nixieTube.NixieTubeBlockEntity n1) {
@@ -963,8 +963,8 @@ public class DiffuserPonderScenes {
     }
 
     private static void updateProjectorDisplay(CreateSceneBuilder cScene, BlockPos boardController, BlockPos nixie1, BlockPos nixie2, String timeStr) {
-        cScene.world().setDisplayBoardText(boardController, 0, net.minecraft.network.chat.Component.literal("CARAMELLDANSEN"));
-        cScene.world().setDisplayBoardText(boardController, 1, net.minecraft.network.chat.Component.literal(" " + timeStr + " [PLAY] "));
+        cScene.world().setDisplayBoardText(boardController, 0, net.minecraft.network.chat.Component.literal("   CARAMELLDANSEN    "));
+        cScene.world().setDisplayBoardText(boardController, 1, net.minecraft.network.chat.Component.literal("   " + timeStr + "   [PLAY]    "));
         String min = timeStr.substring(0, 2);
         String sec = timeStr.substring(3, 5);
         String fullDigits = min + sec;

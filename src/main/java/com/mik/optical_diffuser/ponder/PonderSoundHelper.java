@@ -19,10 +19,10 @@ public class PonderSoundHelper {
         if (mc == null || mc.getSoundManager() == null) return;
 
         try {
-            // Muffled lowpass projector track (0.35 volume, looping)
+            // Muffled bandpass projector track (0.85 volume, looping)
             activeDistantSound = new PonderMediaSoundInstance(
                     ModRegistry.CARAMELLDANSEN_DISTANT_SOUND.get(),
-                    0.35f,
+                    0.85f,
                     true
             );
             mc.getSoundManager().play(activeDistantSound);
