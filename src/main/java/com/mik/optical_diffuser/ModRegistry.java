@@ -30,10 +30,17 @@ public class ModRegistry {
     public static final DeferredRegister<net.minecraft.world.item.crafting.RecipeSerializer<?>> RECIPE_SERIALIZERS = DeferredRegister.create(Registries.RECIPE_SERIALIZER, OpticalDiffuserMod.MOD_ID);
     public static final DeferredRegister<net.minecraft.sounds.SoundEvent> SOUND_EVENTS = DeferredRegister.create(Registries.SOUND_EVENT, OpticalDiffuserMod.MOD_ID);
 
-    public static final DeferredHolder<net.minecraft.sounds.SoundEvent, net.minecraft.sounds.SoundEvent> CARAMELLDANSEN_SOUND = SOUND_EVENTS.register(
-            "ponder_caramelldansen",
+    public static final DeferredHolder<net.minecraft.sounds.SoundEvent, net.minecraft.sounds.SoundEvent> CARAMELLDANSEN_DISTANT_SOUND = SOUND_EVENTS.register(
+            "ponder_caramelldansen_distant",
             () -> net.minecraft.sounds.SoundEvent.createVariableRangeEvent(
-                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(OpticalDiffuserMod.MOD_ID, "ponder_caramelldansen")
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(OpticalDiffuserMod.MOD_ID, "ponder_caramelldansen_distant")
+            )
+    );
+
+    public static final DeferredHolder<net.minecraft.sounds.SoundEvent, net.minecraft.sounds.SoundEvent> CARAMELLDANSEN_SPEAKER_SOUND = SOUND_EVENTS.register(
+            "ponder_caramelldansen_speaker",
+            () -> net.minecraft.sounds.SoundEvent.createVariableRangeEvent(
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(OpticalDiffuserMod.MOD_ID, "ponder_caramelldansen_speaker")
             )
     );
 

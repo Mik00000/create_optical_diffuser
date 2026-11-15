@@ -1,10 +1,20 @@
 {
-  "ponder_caramelldansen": {
+  "ponder_caramelldansen_distant": {
     "category": "master",
-    "subtitle": "subtitles.create_optical_diffuser.caramelldansen",
+    "subtitle": "subtitles.create_optical_diffuser.caramelldansen_distant",
     "sounds": [
       {
-        "name": "create_optical_diffuser:caramelldansen_muffled",
+        "name": "create_optical_diffuser:caramelldansen_distant",
+        "stream": false
+      }
+    ]
+  },
+  "ponder_caramelldansen_speaker": {
+    "category": "master",
+    "subtitle": "subtitles.create_optical_diffuser.caramelldansen_speaker",
+    "sounds": [
+      {
+        "name": "create_optical_diffuser:caramelldansen_speaker",
         "stream": false
       }
     ]

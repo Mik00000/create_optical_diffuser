@@ -803,8 +803,8 @@ public class DiffuserPonderScenes {
         BlockPos boardStand2  = new BlockPos(2, 1, 2);
         BlockPos board1       = new BlockPos(1, 2, 2);
         BlockPos board2       = new BlockPos(2, 2, 2);
-        BlockPos nixieTube1   = new BlockPos(1, 1, 3);
-        BlockPos nixieTube2   = new BlockPos(2, 1, 3);
+        BlockPos nixieTube1   = new BlockPos(1, 1, 1);
+        BlockPos nixieTube2   = new BlockPos(2, 1, 1);
         BlockPos screenStart  = new BlockPos(2, 1, 8);
         BlockPos screenEnd    = new BlockPos(6, 3, 8);
 
@@ -825,7 +825,13 @@ public class DiffuserPonderScenes {
         cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
             be.setCarouselLens(1, configuredLens);
         });
-        cScene.idle(20);
+        cScene.idle(10);
+
+        // Start distant projector audio when playback begins
+        cScene.addInstruction(sceneInst -> {
+            PonderSoundHelper.playDistantCaramelldansen();
+        });
+        cScene.idle(10);
 
         cScene.overlay().showText(75)
                 .attachKeyFrame()
@@ -844,15 +850,16 @@ public class DiffuserPonderScenes {
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
         cScene.idle(85);
 
+        // Switch to clear and loud speaker audio
+        cScene.addInstruction(sceneInst -> {
+            PonderSoundHelper.playSpeakerCaramelldansen();
+        });
+
         cScene.overlay().showText(85)
                 .attachKeyFrame()
                 .text("Audio emits directly from the Speaker — with spatial positioning and authentic acoustics")
                 .pointAt(util.vector().topOf(speakerPos))
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
-
-        cScene.addInstruction(sceneInst -> {
-            PonderSoundHelper.playMuffledCaramelldansen();
-        });
 
         // Emit musical notes from the speaker
         for (int i = 0; i < 4; i++) {
@@ -870,18 +877,19 @@ public class DiffuserPonderScenes {
         cScene.world().showSection(util.select().fromTo(boardStand1, board2), Direction.DOWN);
         cScene.world().showSection(util.select().fromTo(nixieTube1, nixieTube2), Direction.DOWN);
         cScene.world().showSection(util.select().position(linkPos), Direction.DOWN);
+        cScene.world().setKineticSpeed(util.select().fromTo(board1, board2), 32f);
         cScene.idle(15);
 
         cScene.world().flashDisplayLink(linkPos);
         cScene.world().setDisplayBoardText(board1, 0, net.minecraft.network.chat.Component.literal("Caramelldansen"));
         cScene.world().setDisplayBoardText(board1, 1, net.minecraft.network.chat.Component.literal("00:44  [PLAY]"));
-        cScene.world().setDisplayBoardText(board2, 0, net.minecraft.network.chat.Component.literal("Caramelldansen"));
-        cScene.world().setDisplayBoardText(board2, 1, net.minecraft.network.chat.Component.literal("00:44  [PLAY]"));
         cScene.world().modifyBlockEntity(nixieTube1, com.simibubi.create.content.redstone.nixieTube.NixieTubeBlockEntity.class, be -> {
-            be.displayCustomText("00:44", 1);
+            be.displayCustomText("{\"text\":\"00\"}", 0);
+            be.updateDisplayedStrings();
         });
         cScene.world().modifyBlockEntity(nixieTube2, com.simibubi.create.content.redstone.nixieTube.NixieTubeBlockEntity.class, be -> {
-            be.displayCustomText("PLAY", 1);
+            be.displayCustomText("{\"text\":\"44\"}", 0);
+            be.updateDisplayedStrings();
         });
 
         cScene.overlay().showText(75)
@@ -892,7 +900,7 @@ public class DiffuserPonderScenes {
         cScene.idle(85);
 
         cScene.addInstruction(sceneInst -> {
-            PonderSoundHelper.stopMuffledCaramelldansen();
+            PonderSoundHelper.stopCaramelldansen();
         });
 
         cScene.markAsFinished();
