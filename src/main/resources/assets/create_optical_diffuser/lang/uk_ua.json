@@ -60,5 +60,17 @@
   "item.create_optical_diffuser.collimator_lens": "Коліматорна голчаста лінза",
   "item.create_optical_diffuser.incomplete_collimator_lens": "Недороблена коліматорна лінза",
   "display_source.create_optical_diffuser.film_reel_time": "Час відтворення плівки",
-  "display_source.create_optical_diffuser.film_reel_info": "Назва та статус фільму"
+  "display_source.create_optical_diffuser.film_reel_info": "Назва та статус фільму",
+  "create_optical_diffuser.ponder.film_reel.header": "Котушка плівки — Медіасервер і керування",
+  "create_optical_diffuser.ponder.film_reel.text_1": "Блок кіноплівки працює як медіасервер. Натисніть ПКМ по блоку (або тримаючи його в руці), щоб відкрити GUI",
+  "create_optical_diffuser.ponder.film_reel.text_2": "Введіть пряме посилання (.mp4, .mkv, .gif, аудіо), вставте YouTube-відео або натисніть «Огляд...» для вибору файлу",
+  "create_optical_diffuser.ponder.film_reel.text_3": "Завантажені та YouTube-відео зберігаються на сервері — всі гравці бачать синхронне відео без зайвих зусиль",
+  "create_optical_diffuser.ponder.film_reel.text_4": "Встановіть котушку праворуч від оптичного дифузора або покладіть її всередину слота",
+  "create_optical_diffuser.ponder.film_reel.text_5": "Кінетичне обертання керує відтворенням. Базова швидкість — 16 RPM (1.0x звичайна швидкість)",
+  "create_optical_diffuser.ponder.film_reel.text_6": "Вищі оберти (RPM) пропорційно прискорюють відтворення (наприклад, 32 RPM = 2.0x)",
+  "create_optical_diffuser.ponder.film_reel.text_7": "Зупинка обертання вала миттєво ставить відео на паузу",
+  "create_optical_diffuser.ponder.film_reel.text_8": "Зміна напрямку обертання вала на зворотний перемотує відео назад",
+  "create_optical_diffuser.ponder.film_reel.text_9": "Компаратор біля котушки видає аналоговий сигнал редстоуну (1–15) пропорційно до прогресу відео",
+  "create_optical_diffuser.ponder.film_reel.text_10": "Використовуйте цей сигнал для автоматичного світла в залі, відкриття штор чи зациклення",
+  "create_optical_diffuser.ponder.film_reel.text_11": "Підключіть Display Link до котушки, щоб виводити поточний час, тривалість або назву на Nixie Tubes та табло"
 }
