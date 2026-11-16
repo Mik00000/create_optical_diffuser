@@ -692,8 +692,8 @@ public class DiffuserPonderScenes {
         cScene.idle(90);
 
         cScene.world().modifyBlockEntity(reelPos, FilmReelBlockEntity.class, be -> {
-            be.setUrl("https://youtu.be/caramelldansen");
-            be.setTotalDurationMs(180_000L);
+            be.setUrl("https://youtu.be/nyancat");
+            be.setTotalDurationMs(218_000L);
             be.setCurrentTimeMs(0L);
             be.setPlaying(false);
         });
@@ -767,7 +767,7 @@ public class DiffuserPonderScenes {
         // Stage 4: Redstone Comparator Progress Output
         cScene.world().setKineticSpeed(util.select().fromTo(reelShaft2, reelPos), 16f);
         cScene.world().modifyBlockEntity(reelPos, FilmReelBlockEntity.class, be -> {
-            be.setCurrentTimeMs(90_000L);
+            be.setCurrentTimeMs(109_000L);
             be.setPlaying(true);
         });
 
@@ -789,7 +789,7 @@ public class DiffuserPonderScenes {
         cScene.idle(90);
 
         cScene.world().modifyBlockEntity(reelPos, FilmReelBlockEntity.class, be -> {
-            be.setCurrentTimeMs(175_000L);
+            be.setCurrentTimeMs(210_000L);
         });
         cScene.world().modifyBlock(wirePos, state -> state.setValue(BlockStateProperties.POWER, 15), false);
         cScene.effects().indicateRedstone(comparatorPos);
@@ -806,7 +806,7 @@ public class DiffuserPonderScenes {
         cScene.idle(15);
 
         cScene.world().flashDisplayLink(linkPos);
-        String nixieTime = "{\"text\":\"0255\"}";
+        String nixieTime = "{\"text\":\"0330\"}";
         cScene.world().modifyBlockEntity(nixie1, com.simibubi.create.content.redstone.nixieTube.NixieTubeBlockEntity.class, be -> {
             be.displayCustomText(nixieTime, 0);
             be.updateDisplayedStrings();
