@@ -71,6 +71,5 @@
   "create_optical_diffuser.ponder.film_reel.text_7": "Зупинка обертання вала миттєво ставить відео на паузу",
   "create_optical_diffuser.ponder.film_reel.text_8": "Зміна напрямку обертання вала на зворотний перемотує відео назад",
   "create_optical_diffuser.ponder.film_reel.text_9": "Компаратор біля котушки видає аналоговий сигнал редстоуну (1–15) пропорційно до прогресу відео",
-  "create_optical_diffuser.ponder.film_reel.text_10": "Використовуйте цей сигнал для автоматичного світла в залі, відкриття штор чи зациклення",
-  "create_optical_diffuser.ponder.film_reel.text_11": "Підключіть Display Link до котушки, щоб виводити поточний час, тривалість або назву на Nixie Tubes та табло"
+  "create_optical_diffuser.ponder.film_reel.text_10": "Рівень сигналу зростає під час відтворення — його можна зчитувати Nixie Tubes або використовувати для автоматизації залу"
 }

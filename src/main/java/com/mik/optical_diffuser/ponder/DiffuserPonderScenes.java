@@ -658,10 +658,7 @@ public class DiffuserPonderScenes {
         BlockPos screenEnd     = new BlockPos(6, 3, 8);
         BlockPos comparatorPos = new BlockPos(3, 1, 3);
         BlockPos wirePos       = new BlockPos(3, 1, 2);
-        BlockPos lampPos       = new BlockPos(3, 1, 1);
-        BlockPos linkPos       = new BlockPos(3, 2, 4);
-        BlockPos nixie1        = new BlockPos(2, 1, 2);
-        BlockPos nixie2        = new BlockPos(1, 1, 2);
+        BlockPos nixiePos      = new BlockPos(3, 1, 1);
 
         // Stage 1: The Film Reel Media Server & GUI
         cScene.world().showSection(util.select().position(reelPos), Direction.DOWN);
@@ -767,19 +764,22 @@ public class DiffuserPonderScenes {
         // Stage 4: Redstone Comparator Progress Output
         cScene.world().setKineticSpeed(util.select().fromTo(reelShaft2, reelPos), 16f);
         cScene.world().modifyBlockEntity(reelPos, FilmReelBlockEntity.class, be -> {
-            be.setCurrentTimeMs(109_000L);
+            be.setCurrentTimeMs(15_000L);
             be.setPlaying(true);
         });
 
         cScene.world().showSection(util.select().position(comparatorPos), Direction.DOWN);
         cScene.world().showSection(util.select().position(wirePos), Direction.DOWN);
-        cScene.world().showSection(util.select().position(lampPos), Direction.DOWN);
+        cScene.world().showSection(util.select().position(nixiePos), Direction.DOWN);
         cScene.idle(15);
 
         cScene.effects().indicateRedstone(comparatorPos);
         cScene.world().modifyBlock(comparatorPos, state -> state.setValue(BlockStateProperties.POWERED, true), false);
-        cScene.world().modifyBlock(wirePos, state -> state.setValue(BlockStateProperties.POWER, 8), false);
-        cScene.world().modifyBlock(lampPos, state -> state.setValue(BlockStateProperties.LIT, true), false);
+        cScene.world().modifyBlock(wirePos, state -> state.setValue(BlockStateProperties.POWER, 1), false);
+        cScene.world().modifyBlockEntity(nixiePos, NixieTubeBlockEntity.class, be -> {
+            be.updateRedstoneStrength(1);
+            be.updateDisplayedStrings();
+        });
 
         cScene.overlay().showText(80)
                 .attachKeyFrame()
@@ -788,39 +788,29 @@ public class DiffuserPonderScenes {
                 .colored(net.createmod.ponder.api.PonderPalette.RED);
         cScene.idle(90);
 
-        cScene.world().modifyBlockEntity(reelPos, FilmReelBlockEntity.class, be -> {
-            be.setCurrentTimeMs(210_000L);
-        });
-        cScene.world().modifyBlock(wirePos, state -> state.setValue(BlockStateProperties.POWER, 15), false);
-        cScene.effects().indicateRedstone(comparatorPos);
-        cScene.overlay().showText(75)
-                .attachKeyFrame()
-                .text("Use this signal to automate theater lighting, intermission curtains, or loop sequences")
-                .pointAt(util.vector().blockSurface(lampPos, Direction.UP))
-                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
-        cScene.idle(85);
-
-        // Stage 5: Display Link & Nixie Tube Integration
-        cScene.world().showSection(util.select().position(linkPos), Direction.DOWN);
-        cScene.world().showSection(util.select().fromTo(nixie2, nixie1), Direction.DOWN);
-        cScene.idle(15);
-
-        cScene.world().flashDisplayLink(linkPos);
-        String nixieTime = "{\"text\":\"0330\"}";
-        cScene.world().modifyBlockEntity(nixie1, com.simibubi.create.content.redstone.nixieTube.NixieTubeBlockEntity.class, be -> {
-            be.displayCustomText(nixieTime, 0);
-            be.updateDisplayedStrings();
-        });
-        cScene.world().modifyBlockEntity(nixie2, com.simibubi.create.content.redstone.nixieTube.NixieTubeBlockEntity.class, be -> {
-            be.displayCustomText(nixieTime, 1);
-            be.updateDisplayedStrings();
-        });
+        // Progressively advance signal level: 4 -> 8 -> 12 -> 15 as video plays
+        int[] progressSignals = {4, 8, 12, 15};
+        long[] progressTimes   = {55_000L, 109_000L, 164_000L, 218_000L};
+        for (int i = 0; i < progressSignals.length; i++) {
+            final int sig = progressSignals[i];
+            final long timeMs = progressTimes[i];
+            cScene.world().modifyBlockEntity(reelPos, FilmReelBlockEntity.class, be -> {
+                be.setCurrentTimeMs(timeMs);
+            });
+            cScene.world().modifyBlock(wirePos, state -> state.setValue(BlockStateProperties.POWER, sig), false);
+            cScene.world().modifyBlockEntity(nixiePos, NixieTubeBlockEntity.class, be -> {
+                be.updateRedstoneStrength(sig);
+                be.updateDisplayedStrings();
+            });
+            cScene.effects().indicateRedstone(comparatorPos);
+            cScene.idle(25);
+        }
 
         cScene.overlay().showText(80)
                 .attachKeyFrame()
-                .text("Attach a Display Link directly to the Film Reel to output playback timestamp, duration, or title to Nixie Tubes and Boards")
-                .pointAt(util.vector().blockSurface(linkPos, Direction.UP))
-                .colored(net.createmod.ponder.api.PonderPalette.WHITE);
+                .text("The signal strength increases as the video plays — readable by Nixie Tubes or redstone logic to automate theater effects")
+                .pointAt(util.vector().topOf(nixiePos))
+                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
         cScene.idle(90);
 
         cScene.markAsFinished();

@@ -23,11 +23,9 @@ public class ModDisplaySources {
 
     public static void registerAssociations() {
         try {
-            DisplaySource.BY_BLOCK_ENTITY.add(ModRegistry.FILM_REEL_BE.get(), FILM_REEL_TIME);
-            DisplaySource.BY_BLOCK_ENTITY.add(ModRegistry.FILM_REEL_BE.get(), FILM_REEL_INFO);
             DisplaySource.BY_BLOCK_ENTITY.add(ModRegistry.OPTICAL_DIFFUSER_BE.get(), FILM_REEL_TIME);
             DisplaySource.BY_BLOCK_ENTITY.add(ModRegistry.OPTICAL_DIFFUSER_BE.get(), FILM_REEL_INFO);
-            OpticalDiffuserMod.LOGGER.info("Registered Create Display Link sources for Film Reel and Optical Diffuser");
+            OpticalDiffuserMod.LOGGER.info("Registered Create Display Link sources for Optical Diffuser");
         } catch (Throwable t) {
             OpticalDiffuserMod.LOGGER.error("Failed to register Create Display Link sources", t);
         }
