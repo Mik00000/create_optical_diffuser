@@ -16,6 +16,7 @@ public class FilmReelBlockEntity extends KineticBlockEntity {
 
     private String videoUrl = "";
     private long currentTimeMs = 0;
+    private long totalDurationMs = 0;
     private boolean isPlaying = false;
     private float visualAngle = 0.0f;
     private int serverSyncTicks = 0;
@@ -50,10 +51,16 @@ public class FilmReelBlockEntity extends KineticBlockEntity {
     }
 
     private static final java.util.Map<String, Long> GLOBAL_TIME_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.Map<String, Long> GLOBAL_DURATION_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
 
     public static long getLastKnownTime(String url) {
         if (url == null || url.isEmpty()) return 0;
         return GLOBAL_TIME_CACHE.getOrDefault(url, 0L);
+    }
+
+    public static long getLastKnownDuration(String url) {
+        if (url == null || url.isEmpty()) return 0;
+        return GLOBAL_DURATION_CACHE.getOrDefault(url, 0L);
     }
 
     public String getUrl() {
@@ -62,10 +69,18 @@ public class FilmReelBlockEntity extends KineticBlockEntity {
 
     public void setUrl(String url) {
         this.videoUrl = url != null ? url.trim() : "";
-        if (!this.videoUrl.isEmpty() && this.currentTimeMs == 0) {
-            long cached = getLastKnownTime(this.videoUrl);
-            if (cached > 0) {
-                this.currentTimeMs = cached;
+        if (!this.videoUrl.isEmpty()) {
+            if (this.currentTimeMs == 0) {
+                long cached = getLastKnownTime(this.videoUrl);
+                if (cached > 0) {
+                    this.currentTimeMs = cached;
+                }
+            }
+            if (this.totalDurationMs == 0) {
+                long cachedDur = getLastKnownDuration(this.videoUrl);
+                if (cachedDur > 0) {
+                    this.totalDurationMs = cachedDur;
+                }
             }
         }
         notifyUpdate();
@@ -81,6 +96,36 @@ public class FilmReelBlockEntity extends KineticBlockEntity {
             GLOBAL_TIME_CACHE.put(this.videoUrl, this.currentTimeMs);
         }
         setChanged();
+        if (level != null && !level.isClientSide) {
+            level.updateNeighbourForOutputSignal(worldPosition, getBlockState().getBlock());
+        }
+    }
+
+    public long getTotalDurationMs() {
+        return this.totalDurationMs;
+    }
+
+    public void setTotalDurationMs(long ms) {
+        this.totalDurationMs = Math.max(0, ms);
+        if (this.totalDurationMs > 0 && this.videoUrl != null && !this.videoUrl.isEmpty()) {
+            GLOBAL_DURATION_CACHE.put(this.videoUrl, this.totalDurationMs);
+        }
+        setChanged();
+        if (level != null && !level.isClientSide) {
+            level.updateNeighbourForOutputSignal(worldPosition, getBlockState().getBlock());
+        }
+    }
+
+    public int getComparatorOutput() {
+        if (this.videoUrl.isEmpty()) {
+            return 0;
+        }
+        if (this.totalDurationMs > 0) {
+            double fraction = (double) this.currentTimeMs / (double) this.totalDurationMs;
+            fraction = Math.max(0.0, Math.min(1.0, fraction));
+            return Math.min(15, Math.max(1, (int) Math.ceil(fraction * 15.0)));
+        }
+        return this.isPlaying ? 15 : (this.currentTimeMs > 0 ? 1 : 0);
     }
 
     public float getEffectiveSpeed() {
@@ -140,6 +185,7 @@ public class FilmReelBlockEntity extends KineticBlockEntity {
         super.write(tag, registries, clientPacket);
         tag.putString("VideoUrl", this.videoUrl);
         tag.putLong("CurrentTimeMs", this.currentTimeMs);
+        tag.putLong("TotalDurationMs", this.totalDurationMs);
         tag.putBoolean("IsPlaying", this.isPlaying);
     }
 
@@ -148,11 +194,20 @@ public class FilmReelBlockEntity extends KineticBlockEntity {
         super.read(tag, registries, clientPacket);
         this.videoUrl = tag.getString("VideoUrl");
         this.currentTimeMs = tag.getLong("CurrentTimeMs");
+        if (tag.contains("TotalDurationMs")) {
+            this.totalDurationMs = tag.getLong("TotalDurationMs");
+        }
         this.isPlaying = tag.getBoolean("IsPlaying");
         if (this.currentTimeMs == 0 && !this.videoUrl.isEmpty()) {
             long cached = getLastKnownTime(this.videoUrl);
             if (cached > 0) {
                 this.currentTimeMs = cached;
+            }
+        }
+        if (this.totalDurationMs == 0 && !this.videoUrl.isEmpty()) {
+            long cachedDur = getLastKnownDuration(this.videoUrl);
+            if (cachedDur > 0) {
+                this.totalDurationMs = cachedDur;
             }
         }
     }

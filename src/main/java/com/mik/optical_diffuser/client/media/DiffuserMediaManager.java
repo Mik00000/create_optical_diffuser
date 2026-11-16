@@ -109,7 +109,7 @@ public class DiffuserMediaManager {
             if (filmReel != null && filmReel.isPlaying()) {
                 filmReel.setPlaying(false);
                 net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-                        new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs, false)
+                        new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs, player != null ? player.duration() : 0, false)
                 );
             }
             return;
@@ -129,7 +129,7 @@ public class DiffuserMediaManager {
                 if (filmReel.isPlaying()) {
                     filmReel.setPlaying(false);
                     net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-                            new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs, false)
+                            new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs, player != null ? player.duration() : 0, false)
                     );
                 }
             }
@@ -164,7 +164,7 @@ public class DiffuserMediaManager {
                     if (filmReel != null) {
                         filmReel.setPlaying(false);
                         net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-                                new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs, false)
+                                new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs, player.duration(), false)
                         );
                     }
                 }
@@ -177,7 +177,7 @@ public class DiffuserMediaManager {
                     accumulatedReverseAngle = 0.0f;
                     if (filmReel != null) {
                         net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-                                new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs, true)
+                                new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs, player.duration(), true)
                         );
                     }
                 }
@@ -187,7 +187,7 @@ public class DiffuserMediaManager {
                     if (filmReel != null && !filmReel.isPlaying()) {
                         filmReel.setPlaying(true);
                         net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-                                new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs, true)
+                                new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs, player.duration(), true)
                         );
                     }
                 }
@@ -274,7 +274,7 @@ public class DiffuserMediaManager {
                         if (filmReel != null) {
                             filmReel.setPlaying(true);
                             net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-                                    new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), 0, true)
+                                    new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), 0, duration, true)
                             );
                         }
                     } else if (curTime > 0) {
@@ -286,7 +286,7 @@ public class DiffuserMediaManager {
                             filmReel.setCurrentTimeMs(0);
                             filmReel.setPlaying(true);
                             net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-                                    new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), 0, true)
+                                    new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), 0, duration, true)
                             );
                         } else if (filmReel != null && filmReel.getCurrentTimeMs() > 0
                                 && Math.abs(curTime - filmReel.getCurrentTimeMs()) > 3500
@@ -566,8 +566,9 @@ public class DiffuserMediaManager {
                 syncTimeToReel(filmReel, this.lastRecordedTimeMs);
                 filmReel.setPlaying(false);
                 try {
+                    long dur = player != null ? player.duration() : 0;
                     net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-                            new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs, false)
+                            new com.mik.optical_diffuser.network.UpdateFilmReelTimePayload(filmReel.getBlockPos(), this.lastRecordedTimeMs, dur, false)
                     );
                 } catch (Throwable ignored) {}
             }

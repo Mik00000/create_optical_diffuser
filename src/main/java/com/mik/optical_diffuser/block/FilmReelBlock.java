@@ -211,5 +211,19 @@ public class FilmReelBlock extends KineticBlock implements IBE<FilmReelBlockEnti
         }
         return InteractionResult.sidedSuccess(level.isClientSide);
     }
+
+    @Override
+    protected boolean hasAnalogOutputSignal(BlockState state) {
+        return true;
+    }
+
+    @Override
+    protected int getAnalogOutputSignal(BlockState state, Level level, BlockPos pos) {
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be instanceof FilmReelBlockEntity reel) {
+            return reel.getComparatorOutput();
+        }
+        return 0;
+    }
 }
 

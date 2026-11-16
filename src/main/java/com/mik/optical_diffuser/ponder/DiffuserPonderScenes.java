@@ -2,6 +2,7 @@ package com.mik.optical_diffuser.ponder;
 
 import com.mik.optical_diffuser.ModRegistry;
 import com.mik.optical_diffuser.OpticalDiffuserMod;
+import com.mik.optical_diffuser.block.entity.FilmReelBlockEntity;
 import com.mik.optical_diffuser.block.entity.OpticalDiffuserBlockEntity;
 import com.mik.optical_diffuser.item.HologramLensItem;
 import com.mik.optical_diffuser.item.ProjectorLensItem;
@@ -35,6 +36,7 @@ import net.createmod.catnip.math.Pointing;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 
 /**
  * All ponder scene definitions for Create: Optical Diffuser.
@@ -642,41 +644,184 @@ public class DiffuserPonderScenes {
     // ─────────────────────────────────────────────────────────────────────────
     public static void filmReel(SceneBuilder scene, SceneBuildingUtil util) {
         CreateSceneBuilder cScene = new CreateSceneBuilder(scene);
-        cScene.title("film_reel", "Film Reel — Media Server");
-        cScene.configureBasePlate(0, 0, 5);
+        cScene.title("film_reel", "Film Reel — Media Server & Controls");
+        cScene.configureBasePlate(0, 0, 9);
         cScene.showBasePlate();
 
-        BlockPos reelPos = new BlockPos(2, 1, 2);
+        BlockPos shaftPos      = new BlockPos(4, 1, 1);
+        BlockPos sourcePos     = new BlockPos(4, 1, 2);
+        BlockPos diffuserPos   = new BlockPos(4, 1, 4);
+        BlockPos reelPos       = new BlockPos(3, 1, 4);
+        BlockPos reelShaft1    = new BlockPos(2, 1, 4);
+        BlockPos reelShaft2    = new BlockPos(1, 1, 4);
+        BlockPos screenStart   = new BlockPos(2, 1, 8);
+        BlockPos screenEnd     = new BlockPos(6, 3, 8);
+        BlockPos comparatorPos = new BlockPos(3, 1, 3);
+        BlockPos wirePos       = new BlockPos(3, 1, 2);
+        BlockPos lampPos       = new BlockPos(3, 1, 1);
+        BlockPos linkPos       = new BlockPos(3, 2, 4);
+        BlockPos nixie1        = new BlockPos(2, 1, 2);
+        BlockPos nixie2        = new BlockPos(1, 1, 2);
 
+        // Stage 1: The Film Reel Media Server & GUI
         cScene.world().showSection(util.select().position(reelPos), Direction.DOWN);
-        cScene.idle(20);
+        cScene.idle(15);
+
+        cScene.overlay().showControls(util.vector().topOf(reelPos), Pointing.DOWN, 40).rightClick();
+        cScene.idle(10);
 
         cScene.overlay().showText(75)
                 .attachKeyFrame()
-                .text("The Film Reel block acts as a media server — it downloads and stores a video or audio file from a URL")
+                .text("The Film Reel acts as an integrated media server. Right-click the block (or with the item in hand) to open the GUI")
                 .pointAt(util.vector().topOf(reelPos))
                 .colored(net.createmod.ponder.api.PonderPalette.WHITE);
         cScene.idle(85);
 
         cScene.overlay().showText(80)
                 .attachKeyFrame()
-                .text("Right-click to open the GUI. Paste a direct URL and start the upload. The file is saved to the server — no client hosting needed")
+                .text("Enter a direct URL (.mp4, .mkv, .gif, audio), paste a YouTube video link, or click 'Browse...' to select local files")
                 .pointAt(util.vector().blockSurface(reelPos, Direction.UP))
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
         cScene.idle(90);
 
-        cScene.overlay().showText(75)
+        cScene.overlay().showText(80)
                 .attachKeyFrame()
-                .text("Break the block to retrieve the Film Reel item. It carries the uploaded media and can be inserted into a diffuser")
+                .text("Uploaded videos and YouTube links are processed and stored on the server — everyone on the server can watch together seamlessly")
                 .pointAt(util.vector().topOf(reelPos))
                 .colored(net.createmod.ponder.api.PonderPalette.GREEN);
-        cScene.idle(85);
+        cScene.idle(90);
+
+        cScene.world().modifyBlockEntity(reelPos, FilmReelBlockEntity.class, be -> {
+            be.setUrl("https://youtu.be/caramelldansen");
+            be.setTotalDurationMs(180_000L);
+            be.setCurrentTimeMs(0L);
+            be.setPlaying(false);
+        });
+
+        // Stage 2: Placement & Cinema Setup
+        cScene.world().showSection(util.select().fromTo(screenStart, screenEnd), Direction.DOWN);
+        cScene.world().showSection(util.select().position(shaftPos), Direction.DOWN);
+        cScene.world().showSection(util.select().position(sourcePos), Direction.DOWN);
+        cScene.world().showSection(util.select().position(diffuserPos), Direction.DOWN);
+        lightDiffuser(cScene, util, sourcePos, diffuserPos, new Vec3i(255, 255, 255), 64f);
+        cScene.world().setKineticSpeed(util.select().position(shaftPos), 64f);
+
+        ItemStack configuredLens = new ItemStack(ModRegistry.SOUND_PROJECTOR_LENS.get());
+        ProjectorLensItem.setPos1(configuredLens, screenStart);
+        ProjectorLensItem.setPos2(configuredLens, screenEnd);
+        cScene.world().modifyBlockEntity(diffuserPos, OpticalDiffuserBlockEntity.class, be -> {
+            be.setCarouselLens(1, configuredLens);
+        });
+        cScene.idle(15);
 
         cScene.overlay().showText(75)
                 .attachKeyFrame()
-                .text("A comparator next to the Film Reel block outputs a signal proportional to playback progress")
-                .pointAt(util.vector().blockSurface(reelPos, Direction.EAST));
+                .text("Place the Film Reel block on the right side of the Optical Diffuser, or insert a Film Reel item into its slot")
+                .pointAt(util.vector().blockSurface(diffuserPos, Direction.EAST))
+                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
         cScene.idle(85);
+
+        // Stage 3: Kinetic Playback & Speed Controls
+        cScene.world().showSection(util.select().fromTo(reelShaft2, reelShaft1), Direction.DOWN);
+        cScene.idle(10);
+
+        // Normal 16 RPM = 1.0x
+        cScene.world().setKineticSpeed(util.select().fromTo(reelShaft2, reelPos), 16f);
+        cScene.world().modifyBlockEntity(reelPos, FilmReelBlockEntity.class, be -> be.setPlaying(true));
+        cScene.overlay().showText(75)
+                .attachKeyFrame()
+                .text("Kinetic rotation controls playback. Standard speed is 16 RPM (1.0x normal speed)")
+                .pointAt(util.vector().blockSurface(reelShaft1, Direction.UP))
+                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
+        cScene.idle(85);
+
+        // Fast-Forward 32 RPM = 2.0x
+        cScene.world().setKineticSpeed(util.select().fromTo(reelShaft2, reelPos), 32f);
+        cScene.overlay().showText(70)
+                .attachKeyFrame()
+                .text("Higher RPM fast-forwards playback proportionally (e.g. 32 RPM = 2.0x speed)")
+                .pointAt(util.vector().blockSurface(reelShaft1, Direction.UP))
+                .colored(net.createmod.ponder.api.PonderPalette.WHITE);
+        cScene.idle(80);
+
+        // Pause 0 RPM
+        cScene.world().setKineticSpeed(util.select().fromTo(reelShaft2, reelPos), 0f);
+        cScene.world().modifyBlockEntity(reelPos, FilmReelBlockEntity.class, be -> be.setPlaying(false));
+        cScene.overlay().showText(65)
+                .attachKeyFrame()
+                .text("Stopping rotational input pauses video playback immediately")
+                .pointAt(util.vector().topOf(reelPos))
+                .colored(net.createmod.ponder.api.PonderPalette.RED);
+        cScene.idle(75);
+
+        // Rewind -16 RPM
+        cScene.world().setKineticSpeed(util.select().fromTo(reelShaft2, reelPos), -16f);
+        cScene.world().modifyBlockEntity(reelPos, FilmReelBlockEntity.class, be -> be.setPlaying(true));
+        cScene.overlay().showText(70)
+                .attachKeyFrame()
+                .text("Reversing rotation direction rewinds playback backwards")
+                .pointAt(util.vector().blockSurface(reelShaft1, Direction.UP))
+                .colored(net.createmod.ponder.api.PonderPalette.WHITE);
+        cScene.idle(80);
+
+        // Stage 4: Redstone Comparator Progress Output
+        cScene.world().setKineticSpeed(util.select().fromTo(reelShaft2, reelPos), 16f);
+        cScene.world().modifyBlockEntity(reelPos, FilmReelBlockEntity.class, be -> {
+            be.setCurrentTimeMs(90_000L);
+            be.setPlaying(true);
+        });
+
+        cScene.world().showSection(util.select().position(comparatorPos), Direction.DOWN);
+        cScene.world().showSection(util.select().position(wirePos), Direction.DOWN);
+        cScene.world().showSection(util.select().position(lampPos), Direction.DOWN);
+        cScene.idle(15);
+
+        cScene.effects().indicateRedstone(comparatorPos);
+        cScene.world().modifyBlock(comparatorPos, state -> state.setValue(BlockStateProperties.POWERED, true), false);
+        cScene.world().modifyBlock(wirePos, state -> state.setValue(BlockStateProperties.POWER, 8), false);
+        cScene.world().modifyBlock(lampPos, state -> state.setValue(BlockStateProperties.LIT, true), false);
+
+        cScene.overlay().showText(80)
+                .attachKeyFrame()
+                .text("A Redstone Comparator reading from the Film Reel outputs an analog signal (1 to 15) proportional to video progress")
+                .pointAt(util.vector().blockSurface(comparatorPos, Direction.NORTH))
+                .colored(net.createmod.ponder.api.PonderPalette.RED);
+        cScene.idle(90);
+
+        cScene.world().modifyBlockEntity(reelPos, FilmReelBlockEntity.class, be -> {
+            be.setCurrentTimeMs(175_000L);
+        });
+        cScene.world().modifyBlock(wirePos, state -> state.setValue(BlockStateProperties.POWER, 15), false);
+        cScene.effects().indicateRedstone(comparatorPos);
+        cScene.overlay().showText(75)
+                .attachKeyFrame()
+                .text("Use this signal to automate theater lighting, intermission curtains, or loop sequences")
+                .pointAt(util.vector().blockSurface(lampPos, Direction.UP))
+                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
+        cScene.idle(85);
+
+        // Stage 5: Display Link & Nixie Tube Integration
+        cScene.world().showSection(util.select().position(linkPos), Direction.DOWN);
+        cScene.world().showSection(util.select().fromTo(nixie2, nixie1), Direction.DOWN);
+        cScene.idle(15);
+
+        cScene.world().flashDisplayLink(linkPos);
+        String nixieTime = "{\"text\":\"0255\"}";
+        cScene.world().modifyBlockEntity(nixie1, com.simibubi.create.content.redstone.nixieTube.NixieTubeBlockEntity.class, be -> {
+            be.displayCustomText(nixieTime, 0);
+            be.updateDisplayedStrings();
+        });
+        cScene.world().modifyBlockEntity(nixie2, com.simibubi.create.content.redstone.nixieTube.NixieTubeBlockEntity.class, be -> {
+            be.displayCustomText(nixieTime, 1);
+            be.updateDisplayedStrings();
+        });
+
+        cScene.overlay().showText(80)
+                .attachKeyFrame()
+                .text("Attach a Display Link directly to the Film Reel to output playback timestamp, duration, or title to Nixie Tubes and Boards")
+                .pointAt(util.vector().blockSurface(linkPos, Direction.UP))
+                .colored(net.createmod.ponder.api.PonderPalette.WHITE);
+        cScene.idle(90);
 
         cScene.markAsFinished();
     }
