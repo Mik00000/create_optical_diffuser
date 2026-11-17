@@ -137,7 +137,6 @@
   "create_optical_diffuser.ponder.film_reel.text_7": "Stopping rotational input pauses video playback immediately",
   "create_optical_diffuser.ponder.film_reel.text_8": "Reversing rotation direction rewinds playback backwards",
   "create_optical_diffuser.ponder.film_reel.text_9": "A Redstone Comparator reading from the Film Reel outputs an analog signal (1 to 15) proportional to video progress",
-  "create_optical_diffuser.ponder.film_reel.text_10": "The signal strength increases as the video plays — readable by Nixie Tubes or redstone logic to automate theater effects",
   "create_optical_diffuser.ponder.silent_projector_lens.header": "Silent Projector Lens",
   "create_optical_diffuser.ponder.silent_projector_lens.text_1": "Hold the Silent Projector Lens and right-click one corner of a screen wall, then Shift+Right-click the opposite corner",
   "create_optical_diffuser.ponder.silent_projector_lens.text_2": "Insert the configured lens into the carousel. The lens now knows which screen to project onto",

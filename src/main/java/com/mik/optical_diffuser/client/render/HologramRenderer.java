@@ -44,6 +44,7 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.model.data.ModelData;
 import org.joml.Matrix4f;
+import org.joml.Quaternionf;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -114,7 +115,7 @@ public class HologramRenderer {
         } else if (!target.isEmpty()) {
             renderItem(target, localHolo, bob, angle, scale, poseStack, bufferSource, be.getLevel());
         } else {
-            renderNavigationalGyro(poseStack, bufferSource, localHolo, bob, angle, scale, renderTime, lr, lg, lb);
+            renderNavigationalGyro(be, partialTicks, poseStack, bufferSource, localHolo, bob, angle, scale, renderTime, lr, lg, lb);
         }
 
         // 3. Render Holographic Scanline Disk
@@ -427,6 +428,8 @@ public class HologramRenderer {
     }
 
     private static void renderNavigationalGyro(
+            OpticalDiffuserBlockEntity be,
+            float partialTicks,
             PoseStack poseStack,
             MultiBufferSource bufferSource,
             Vec3 localHolo,
@@ -439,7 +442,7 @@ public class HologramRenderer {
             float b
     ) {
         VertexConsumer vc = bufferSource.getBuffer(RenderType.entityTranslucentCull(
-                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("create_optical_diffuser", "textures/block/lead_glass.png")
+                ResourceLocation.fromNamespaceAndPath("create_optical_diffuser", "textures/block/lead_glass.png")
         ));
 
         poseStack.pushPose();
@@ -447,26 +450,71 @@ public class HologramRenderer {
         float s = scale * 1.2f;
         poseStack.scale(s, s, s);
 
-        // Outer gimbal ring
+        float spinSpeed = be.getEffectiveSpinSpeed();
+        // If kinetic drive connected, rotate with shaft; otherwise gentle idle rotor spin so it never looks frozen
+        float ringSpin = (Math.abs(spinSpeed) > 0.01f) ? angle : (time * 1.2f) % 360.0f;
+
+        // Query Sable ship orientation (if mounted on a ship contraption)
+        Quaternionf shipRot = SableCompat.getShipRotation(be, partialTicks);
+        // Inverse quaternion transforms from world orientation to ship local orientation
+        Quaternionf qLocal = (shipRot != null) ? new Quaternionf(shipRot).invert() : new Quaternionf();
+
+        // 1. Outer gimbal ring:
+        // Mount ring in the local plane of the diffuser/ship, spins with rotor axis
         poseStack.pushPose();
-        poseStack.mulPose(Axis.YP.rotationDegrees(angle));
+        poseStack.mulPose(Axis.YP.rotationDegrees(ringSpin));
         renderWireRing(poseStack.last().pose(), vc, 0.95f, 0.03f, r, g, b, 0.85f);
         poseStack.popPose();
 
-        // Middle gimbal ring (pitch/yaw tilted)
+        // 2. Middle gimbal ring (attitude / horizon gimbal):
+        // Stabilized in pitch & roll, staying parallel to world horizon, rotating with gimbal bearings
         poseStack.pushPose();
-        poseStack.mulPose(Axis.XP.rotationDegrees(35.0f));
-        poseStack.mulPose(Axis.YP.rotationDegrees(-angle * 1.3f));
+        poseStack.mulPose(qLocal);
+        poseStack.mulPose(Axis.YP.rotationDegrees(-ringSpin * 1.3f));
         renderWireRing(poseStack.last().pose(), vc, 0.75f, 0.03f, r * 0.9f, g * 0.95f, b, 0.80f);
+        renderCardinalTicks(poseStack.last().pose(), vc, 0.75f, r, g, b);
         poseStack.popPose();
 
-        // Inner cardinal compass needle (points toward North with slow bob)
+        // 3. Inner 3D cardinal compass needle:
+        // Fully rotates across ALL axes (pitch, roll, yaw) to continuously point to True World North!
         poseStack.pushPose();
-        poseStack.mulPose(Axis.YP.rotationDegrees((float) Math.sin((time % 125.6637f) * 0.05f) * 8.0f));
+        poseStack.mulPose(qLocal);
+        // Subtle natural magnetic compass needle oscillation (around needle's own vertical axis)
+        float compassWobble = (float) Math.sin((time % 125.6637f) * 0.05f) * 1.2f;
+        poseStack.mulPose(Axis.YP.rotationDegrees(compassWobble));
         renderCompassNeedle(poseStack.last().pose(), vc, r, g, b);
         poseStack.popPose();
 
         poseStack.popPose();
+    }
+
+    private static void renderCardinalTicks(Matrix4f mat, VertexConsumer vc, float radius, float r, float g, float b) {
+        float tLen = 0.08f;
+        float tWidth = 0.02f;
+
+        // North tick (Crimson, points -Z)
+        vc.addVertex(mat, -tWidth, 0.01f, -radius).setColor(1.0f, 0.25f, 0.25f, 0.95f).setUv(0, 0).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, tWidth, 0.01f, -radius).setColor(1.0f, 0.25f, 0.25f, 0.95f).setUv(1, 0).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, tWidth, 0.01f, -(radius - tLen)).setColor(1.0f, 0.25f, 0.25f, 0.95f).setUv(1, 1).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, -tWidth, 0.01f, -(radius - tLen)).setColor(1.0f, 0.25f, 0.25f, 0.95f).setUv(0, 1).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+
+        // South tick (+Z)
+        vc.addVertex(mat, -tWidth, 0.01f, radius - tLen).setColor(r * 0.7f, g * 0.7f, b * 0.9f, 0.85f).setUv(0, 0).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, tWidth, 0.01f, radius - tLen).setColor(r * 0.7f, g * 0.7f, b * 0.9f, 0.85f).setUv(1, 0).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, tWidth, 0.01f, radius).setColor(r * 0.7f, g * 0.7f, b * 0.9f, 0.85f).setUv(1, 1).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, -tWidth, 0.01f, radius).setColor(r * 0.7f, g * 0.7f, b * 0.9f, 0.85f).setUv(0, 1).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+
+        // East tick (+X)
+        vc.addVertex(mat, radius - tLen, 0.01f, -tWidth).setColor(r * 0.8f, g * 0.85f, b, 0.85f).setUv(0, 0).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, radius, 0.01f, -tWidth).setColor(r * 0.8f, g * 0.85f, b, 0.85f).setUv(1, 0).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, radius, 0.01f, tWidth).setColor(r * 0.8f, g * 0.85f, b, 0.85f).setUv(1, 1).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, radius - tLen, 0.01f, tWidth).setColor(r * 0.8f, g * 0.85f, b, 0.85f).setUv(0, 1).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+
+        // West tick (-X)
+        vc.addVertex(mat, -radius, 0.01f, -tWidth).setColor(r * 0.8f, g * 0.85f, b, 0.85f).setUv(0, 0).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, -(radius - tLen), 0.01f, -tWidth).setColor(r * 0.8f, g * 0.85f, b, 0.85f).setUv(1, 0).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, -(radius - tLen), 0.01f, tWidth).setColor(r * 0.8f, g * 0.85f, b, 0.85f).setUv(1, 1).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, -radius, 0.01f, tWidth).setColor(r * 0.8f, g * 0.85f, b, 0.85f).setUv(0, 1).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
     }
 
     private static void renderWireRing(Matrix4f mat, VertexConsumer vc, float radius, float thickness, float r, float g, float b, float a) {
@@ -488,22 +536,76 @@ public class HologramRenderer {
     }
 
     private static void renderCompassNeedle(Matrix4f mat, VertexConsumer vc, float r, float g, float b) {
-        // North pointer arrow (golden/red tip)
+        // True North pointer arrow (golden-crimson red tip pointing along -Z)
         float tipZ = -0.55f;
         float baseZ = 0.45f;
         float w = 0.12f;
+        float h = 0.035f; // 3D ridge height
 
-        // Front top needle
-        vc.addVertex(mat, 0, 0.02f, tipZ).setColor(1.0f, 0.25f, 0.25f, 0.95f).setUv(0.5f, 0).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
-        vc.addVertex(mat, -w, 0.02f, 0).setColor(r, g, b, 0.85f).setUv(0, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
-        vc.addVertex(mat, 0, 0.02f, 0).setColor(r, g, b, 0.95f).setUv(0.5f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
-        vc.addVertex(mat, w, 0.02f, 0).setColor(r, g, b, 0.85f).setUv(1, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        // --- North Tip: Vibrant Crimson / Red (Points True North) ---
+        // 1. Top-left face
+        vc.addVertex(mat, 0, h, 0).setColor(1.0f, 0.28f, 0.28f, 0.95f).setUv(0.5f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, 0, 0, tipZ).setColor(1.0f, 0.18f, 0.18f, 0.98f).setUv(0.5f, 0.0f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, -w, 0, 0).setColor(0.9f, 0.22f, 0.22f, 0.90f).setUv(0.0f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, 0, h, 0).setColor(1.0f, 0.28f, 0.28f, 0.95f).setUv(0.5f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
 
-        // South back needle
-        vc.addVertex(mat, 0, 0.02f, 0).setColor(r, g, b, 0.95f).setUv(0.5f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
-        vc.addVertex(mat, -w, 0.02f, 0).setColor(r, g, b, 0.85f).setUv(0, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
-        vc.addVertex(mat, 0, 0.02f, baseZ).setColor(r * 0.7f, g * 0.7f, b * 0.9f, 0.85f).setUv(0.5f, 1).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
-        vc.addVertex(mat, w, 0.02f, 0).setColor(r, g, b, 0.85f).setUv(1, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        // 2. Top-right face
+        vc.addVertex(mat, 0, h, 0).setColor(1.0f, 0.28f, 0.28f, 0.95f).setUv(0.5f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, w, 0, 0).setColor(0.9f, 0.22f, 0.22f, 0.90f).setUv(1.0f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, 0, 0, tipZ).setColor(1.0f, 0.18f, 0.18f, 0.98f).setUv(0.5f, 0.0f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, 0, h, 0).setColor(1.0f, 0.28f, 0.28f, 0.95f).setUv(0.5f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+
+        // 3. Bottom-left face
+        vc.addVertex(mat, 0, -h, 0).setColor(0.85f, 0.15f, 0.15f, 0.95f).setUv(0.5f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, -1, 0);
+        vc.addVertex(mat, -w, 0, 0).setColor(0.80f, 0.15f, 0.15f, 0.90f).setUv(0.0f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, -1, 0);
+        vc.addVertex(mat, 0, 0, tipZ).setColor(0.85f, 0.15f, 0.15f, 0.98f).setUv(0.5f, 0.0f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, -1, 0);
+        vc.addVertex(mat, 0, -h, 0).setColor(0.85f, 0.15f, 0.15f, 0.95f).setUv(0.5f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, -1, 0);
+
+        // 4. Bottom-right face
+        vc.addVertex(mat, 0, -h, 0).setColor(0.85f, 0.15f, 0.15f, 0.95f).setUv(0.5f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, -1, 0);
+        vc.addVertex(mat, 0, 0, tipZ).setColor(0.85f, 0.15f, 0.15f, 0.98f).setUv(0.5f, 0.0f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, -1, 0);
+        vc.addVertex(mat, w, 0, 0).setColor(0.80f, 0.15f, 0.15f, 0.90f).setUv(1.0f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, -1, 0);
+        vc.addVertex(mat, 0, -h, 0).setColor(0.85f, 0.15f, 0.15f, 0.95f).setUv(0.5f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, -1, 0);
+
+        // --- South Tail: Cyan / Beam Tint (Points South) ---
+        // 5. Top-left face
+        vc.addVertex(mat, 0, h, 0).setColor(r, g, b, 0.95f).setUv(0.5f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, -w, 0, 0).setColor(r * 0.8f, g * 0.8f, b * 0.9f, 0.85f).setUv(0.0f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, 0, 0, baseZ).setColor(r * 0.6f, g * 0.6f, b * 0.8f, 0.85f).setUv(0.5f, 1.0f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, 0, h, 0).setColor(r, g, b, 0.95f).setUv(0.5f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+
+        // 6. Top-right face
+        vc.addVertex(mat, 0, h, 0).setColor(r, g, b, 0.95f).setUv(0.5f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, 0, 0, baseZ).setColor(r * 0.6f, g * 0.6f, b * 0.8f, 0.85f).setUv(0.5f, 1.0f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, w, 0, 0).setColor(r * 0.8f, g * 0.8f, b * 0.9f, 0.85f).setUv(1.0f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, 0, h, 0).setColor(r, g, b, 0.95f).setUv(0.5f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+
+        // 7. Bottom-left face
+        vc.addVertex(mat, 0, -h, 0).setColor(r * 0.7f, g * 0.7f, b * 0.8f, 0.90f).setUv(0.5f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, -1, 0);
+        vc.addVertex(mat, 0, 0, baseZ).setColor(r * 0.5f, g * 0.5f, b * 0.7f, 0.80f).setUv(0.5f, 1.0f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, -1, 0);
+        vc.addVertex(mat, -w, 0, 0).setColor(r * 0.6f, g * 0.6f, b * 0.7f, 0.80f).setUv(0.0f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, -1, 0);
+        vc.addVertex(mat, 0, -h, 0).setColor(r * 0.7f, g * 0.7f, b * 0.8f, 0.90f).setUv(0.5f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, -1, 0);
+
+        // 8. Bottom-right face
+        vc.addVertex(mat, 0, -h, 0).setColor(r * 0.7f, g * 0.7f, b * 0.8f, 0.90f).setUv(0.5f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, -1, 0);
+        vc.addVertex(mat, w, 0, 0).setColor(r * 0.6f, g * 0.6f, b * 0.7f, 0.80f).setUv(1.0f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, -1, 0);
+        vc.addVertex(mat, 0, 0, baseZ).setColor(r * 0.5f, g * 0.5f, b * 0.7f, 0.80f).setUv(0.5f, 1.0f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, -1, 0);
+        vc.addVertex(mat, 0, -h, 0).setColor(r * 0.7f, g * 0.7f, b * 0.8f, 0.90f).setUv(0.5f, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, -1, 0);
+
+        // Center pivot jewel (faceted octahedron)
+        float jw = 0.05f;
+        float jh = 0.05f;
+        // Top cap of jewel
+        vc.addVertex(mat, 0, jh, 0).setColor(1.0f, 0.95f, 0.7f, 0.95f).setUv(0.5f, 0).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, -jw, 0, 0).setColor(1.0f, 0.85f, 0.5f, 0.90f).setUv(0, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, 0, 0, jw).setColor(1.0f, 0.85f, 0.5f, 0.90f).setUv(0.5f, 1).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+        vc.addVertex(mat, jw, 0, 0).setColor(1.0f, 0.85f, 0.5f, 0.90f).setUv(1, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, 1, 0);
+
+        // Bottom cap of jewel
+        vc.addVertex(mat, 0, -jh, 0).setColor(1.0f, 0.95f, 0.7f, 0.95f).setUv(0.5f, 0).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, -1, 0);
+        vc.addVertex(mat, jw, 0, 0).setColor(1.0f, 0.85f, 0.5f, 0.90f).setUv(1, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, -1, 0);
+        vc.addVertex(mat, 0, 0, jw).setColor(1.0f, 0.85f, 0.5f, 0.90f).setUv(0.5f, 1).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, -1, 0);
+        vc.addVertex(mat, -jw, 0, 0).setColor(1.0f, 0.85f, 0.5f, 0.90f).setUv(0, 0.5f).setOverlay(OverlayTexture.NO_OVERLAY).setLight(15728880).setNormal(0, -1, 0);
     }
 
     private static void renderFocalGuides(

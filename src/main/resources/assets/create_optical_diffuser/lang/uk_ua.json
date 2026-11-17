@@ -70,6 +70,5 @@
   "create_optical_diffuser.ponder.film_reel.text_6": "Вищі оберти (RPM) пропорційно прискорюють відтворення (наприклад, 32 RPM = 2.0x)",
   "create_optical_diffuser.ponder.film_reel.text_7": "Зупинка обертання вала миттєво ставить відео на паузу",
   "create_optical_diffuser.ponder.film_reel.text_8": "Зміна напрямку обертання вала на зворотний перемотує відео назад",
-  "create_optical_diffuser.ponder.film_reel.text_9": "Компаратор біля котушки видає аналоговий сигнал редстоуну (1–15) пропорційно до прогресу відео",
-  "create_optical_diffuser.ponder.film_reel.text_10": "Рівень сигналу зростає під час відтворення — його можна зчитувати Nixie Tubes або використовувати для автоматизації залу"
+  "create_optical_diffuser.ponder.film_reel.text_9": "Компаратор біля котушки видає аналоговий сигнал редстоуну (1–15) пропорційно до прогресу відео"
 }

@@ -27,6 +27,7 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.fml.ModList;
 import org.joml.Quaterniond;
+import org.joml.Quaternionf;
 import org.joml.Vector3d;
 
 import java.io.BufferedInputStream;
@@ -858,5 +859,40 @@ public class SableCompat {
         double maxDim = Math.max(maxX - minX + 1, Math.max(maxY - minY + 1, maxZ - minZ + 1));
 
         return new double[] {cx, cy, cz, maxDim};
+    }
+
+    /**
+     * Returns the interpolated 3D world rotation quaternion of the Sable ship containing the block entity.
+     * Returns null if the block entity is not on a Sable ship contraption or if Sable is not loaded.
+     */
+    public static Quaternionf getShipRotation(BlockEntity be, float partialTicks) {
+        if (be == null || be.getLevel() == null || !ModList.get().isLoaded("sable")) return null;
+        try {
+            dev.ryanhcode.sable.sublevel.SubLevel subLevel = null;
+            if (be.getLevel().isClientSide()) {
+                subLevel = dev.ryanhcode.sable.Sable.HELPER.getContainingClient(be);
+            }
+            if (subLevel == null) {
+                subLevel = dev.ryanhcode.sable.Sable.HELPER.getContaining(be);
+            }
+            if (subLevel == null) {
+                subLevel = dev.ryanhcode.sable.Sable.HELPER.getContaining(be.getLevel(), be.getBlockPos());
+            }
+            if (subLevel == null || subLevel.isRemoved()) return null;
+
+            if (subLevel instanceof dev.ryanhcode.sable.sublevel.ClientSubLevel clientSub) {
+                dev.ryanhcode.sable.companion.math.Pose3dc renderPose = clientSub.renderPose(partialTicks);
+                if (renderPose != null && renderPose.orientation() != null) {
+                    org.joml.Quaterniondc rot = renderPose.orientation();
+                    return new Quaternionf((float) rot.x(), (float) rot.y(), (float) rot.z(), (float) rot.w());
+                }
+            }
+
+            if (subLevel.logicalPose() != null && subLevel.logicalPose().orientation() != null) {
+                org.joml.Quaterniondc rot = subLevel.logicalPose().orientation();
+                return new Quaternionf((float) rot.x(), (float) rot.y(), (float) rot.z(), (float) rot.w());
+            }
+        } catch (Throwable ignored) {}
+        return null;
     }
 }

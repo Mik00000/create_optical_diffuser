@@ -805,13 +805,7 @@ public class DiffuserPonderScenes {
             cScene.effects().indicateRedstone(comparatorPos);
             cScene.idle(25);
         }
-
-        cScene.overlay().showText(80)
-                .attachKeyFrame()
-                .text("The signal strength increases as the video plays — readable by Nixie Tubes or redstone logic to automate theater effects")
-                .pointAt(util.vector().topOf(nixiePos))
-                .colored(net.createmod.ponder.api.PonderPalette.GREEN);
-        cScene.idle(90);
+        cScene.idle(40);
 
         cScene.markAsFinished();
     }
